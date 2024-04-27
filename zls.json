@@ -1,0 +1,5 @@
+{
+    "zig_lib_path": [],
+    "hidden": [],
+    "project_packages_path": ["./deps/*"]
+}
