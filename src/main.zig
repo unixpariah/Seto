@@ -1,10 +1,12 @@
 const std = @import("std");
 const mem = std.mem;
 const os = std.os;
+const surf = @import("surface.zig");
 
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
+const Surface = surf.Surface;
 
 const EventInterfaces = enum {
     wl_shm,
@@ -14,109 +16,62 @@ const EventInterfaces = enum {
     zxdg_output_manager_v1,
 };
 
-const OutputInfo = struct {
-    name: ?[]const u8 = null,
-    description: ?[]const u8 = null,
-    height: i32 = 0,
-    width: i32 = 0,
-    x: i32 = 0,
-    y: i32 = 0,
-    wl: *wl.Output,
-
-    pub fn deinit(self: OutputInfo) void {
-        var alloc = std.heap.page_allocator;
-        if (self.name) |name| alloc.free(name);
-        if (self.description) |description| self.alloc.free(description);
-    }
-};
-
 const Context = struct {
     shm: ?*wl.Shm,
     compositor: ?*wl.Compositor,
     layer_shell: ?*zwlr.LayerShellV1,
-    outputs: std.ArrayList(*wl.Output),
-    output_info: ?*OutputInfo,
-    fn new() Context {
-        var alloc = std.heap.page_allocator;
+    outputs: std.ArrayList(surf.Surface),
+    alloc: mem.Allocator,
+
+    fn new(alloc: mem.Allocator) Context {
         return Context{
             .shm = null,
             .compositor = null,
             .layer_shell = null,
-            .output_info = null,
-            .outputs = std.ArrayList(*wl.Output).init(alloc),
+            .outputs = std.ArrayList(surf.Surface).init(alloc),
+            .alloc = alloc,
         };
     }
 
-    fn create_buffer(self: *Context) !*wl.Buffer {
-        var allocator = std.heap.page_allocator;
-        var list = std.ArrayList(u8).init(allocator);
-        defer list.deinit();
-
-        const width = self.output_info.?.width;
-        const height = self.output_info.?.height;
-        const stride = width * 4;
-        const size: usize = @intCast(stride * height);
-
-        try list.resize(size);
-
-        const fd = try os.memfd_create("sip", 0);
-        try os.ftruncate(fd, size);
-        const data = try os.mmap(null, size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED, fd, 0);
-        @memcpy(data, list.items);
-
-        const shm = self.shm orelse return error.NoWlShm;
-        const pool = try shm.createPool(fd, @intCast(size));
-        defer pool.destroy();
-
-        const buffer = try pool.createBuffer(0, width, height, stride, wl.Shm.Format.argb8888);
-
-        return buffer;
+    fn destroy(self: *Context) void {
+        self.compositor.?.destroy();
     }
 };
 
 pub fn main() anyerror!void {
+    var allocator = std.heap.page_allocator;
+
     const display = try wl.Display.connect(null);
     const registry = try display.getRegistry();
 
-    var context = Context.new();
+    var context = Context.new(allocator);
+    defer context.destroy();
 
     registry.setListener(*Context, registryListener, &context);
-    if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
-
-    const compositor = context.compositor orelse return error.NoWlCompositor;
-
-    const surface = try compositor.createSurface();
-    defer surface.destroy();
-
-    const output = context.outputs.items[1];
-    const layer_surface = try context.layer_shell.?.getLayerSurface(surface, output, .overlay, "sip");
-    var winsize: [2]c_int = undefined;
-    layer_surface.setListener(*[2]c_int, layerSurfaceListener, &winsize);
-    layer_surface.setAnchor(.{
-        .top = true,
-        .right = true,
-        .bottom = true,
-        .left = true,
-    });
-    layer_surface.setExclusiveZone(-1);
-    surface.commit();
-    defer layer_surface.destroy();
 
     var running = true;
 
     while (running) {
-        if (winsize[0] > 0) {
-            context.output_info.?.width = winsize[0];
-            context.output_info.?.height = winsize[1];
-            winsize = undefined;
-            const buffer = try context.create_buffer();
-            defer buffer.destroy();
-
-            surface.attach(buffer, 0, 0);
-            surface.commit();
-        }
-
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
+        for (context.outputs.items) |*elem| {
+            if (elem.size[0] > 0 and elem.size[1] > 0) {
+                const width = elem.size[0];
+                const height = elem.size[1];
+                const stride = width * 4;
+                const size: usize = @intCast(stride * height);
+
+                const fd = try os.memfd_create("sip", 0);
+                try os.ftruncate(fd, size);
+
+                const shm = context.shm orelse return error.NoWlShm;
+                const pool = try shm.createPool(fd, @intCast(size));
+                defer pool.destroy();
+
+                try elem.draw(pool, fd);
+            } else {
+                elem.layer_surface.setListener(*[2]c_int, layerSurfaceListener, &elem.size);
+            }
+        }
     }
 }
 
@@ -141,11 +96,23 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, context: *
                         wl.Output.generated_version,
                     ) catch return;
 
-                    context.outputs.append(bound) catch return;
+                    const compositor = context.compositor orelse return;
 
-                    var output_info = std.heap.page_allocator.create(OutputInfo) catch return;
-                    output_info.* = OutputInfo{ .wl = bound };
-                    context.output_info = output_info;
+                    const surface = compositor.createSurface() catch return;
+
+                    const layer_surface = context.layer_shell.?.getLayerSurface(surface, bound, .overlay, "sip") catch return;
+                    layer_surface.setAnchor(.{
+                        .top = true,
+                        .right = true,
+                        .bottom = true,
+                        .left = true,
+                    });
+                    layer_surface.setExclusiveZone(-1);
+                    surface.commit();
+
+                    var output = Surface{ .surface = surface, .layer_surface = layer_surface, .size = undefined };
+
+                    context.outputs.append(output) catch return;
                 },
                 .zxdg_output_manager_v1 => {},
             }
@@ -161,6 +128,6 @@ fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, ev: zwlr.LayerSurfaceV1.Eve
             lsurf.setSize(configure.width, configure.height);
             lsurf.ackConfigure(configure.serial);
         },
-        else => {},
+        .closed => {},
     }
 }
