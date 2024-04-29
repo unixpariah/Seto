@@ -1,5 +1,7 @@
 .PHONY: run
 
-run:
+all:
 	@zig build
-	@./zig-out/bin/sip
+
+run: all
+	@./zig-out/bin/seto

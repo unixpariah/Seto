@@ -31,8 +31,8 @@
       in {
         devShell = zigEnv;
         packages = {
-          sip = pkgs.stdenv.mkDerivation {
-            name = "sip";
+          seto = pkgs.stdenv.mkDerivation {
+            name = "seto";
             src = ./.;
             buildInputs = with pkgs; [zig];
             buildPhase = ''

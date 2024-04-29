@@ -9,14 +9,19 @@ const mem = std.mem;
 pub const Surface = struct {
     layer_surface: *zwlr.LayerSurfaceV1,
     surface: *wl.Surface,
-    size: [2]c_int,
+    dimensions: [2]c_int,
+    alloc: mem.Allocator,
 
-    pub fn draw(self: *const Surface, pool: *wl.ShmPool, fd: i32) !void {
-        var list = std.ArrayList(u8).init(std.heap.page_allocator);
+    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator) Surface {
+        return Surface{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .dimensions = undefined };
+    }
+
+    pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32) !void {
+        var list = std.ArrayList(u8).init(self.alloc);
         defer list.deinit();
 
-        const width = self.size[0];
-        const height = self.size[1];
+        const width = self.dimensions[0];
+        const height = self.dimensions[1];
         const stride = width * 4;
         const size: usize = @intCast(stride * height);
 
@@ -27,10 +32,18 @@ pub const Surface = struct {
         @memcpy(data, list.items);
 
         const buffer = try pool.createBuffer(0, width, height, stride, wl.Shm.Format.argb8888);
+        defer buffer.destroy();
 
         self.surface.attach(buffer, 0, 0);
         self.surface.commit();
+    }
 
-        defer buffer.destroy();
+    pub fn is_configured(self: *Surface) bool {
+        return self.dimensions[0] > 0 and self.dimensions[1] > 0;
+    }
+
+    pub fn destroy(self: *Surface) void {
+        self.surface.destroy();
+        self.layer_surface.destroy();
     }
 };

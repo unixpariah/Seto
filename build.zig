@@ -1,8 +1,7 @@
 const std = @import("std");
-const Builder = std.build.Builder;
 const Scanner = @import("deps/zig-wayland/build.zig").Scanner;
 
-pub fn build(b: *Builder) void {
+pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
@@ -12,20 +11,14 @@ pub fn build(b: *Builder) void {
 
     scanner.addCustomProtocol("protocols/wlr-layer-shell-unstable-v1.xml");
     scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
-    scanner.addSystemProtocol("unstable/xdg-output/xdg-output-unstable-v1.xml");
 
-    // Pass the maximum version implemented by your wayland server or client.
-    // Requests, events, enums, etc. from newer versions will not be generated,
-    // ensuring forwards compatibility with newer protocol xml.
     scanner.generate("wl_compositor", 1);
     scanner.generate("wl_shm", 1);
     scanner.generate("zwlr_layer_shell_v1", 4);
-    scanner.generate("zxdg_output_manager_v1", 3);
-    scanner.generate("xdg_wm_base", 5);
     scanner.generate("wl_output", 4);
 
     const exe = b.addExecutable(.{
-        .name = "sip",
+        .name = "seto",
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
         .optimize = optimize,

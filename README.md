@@ -1,1 +1,1 @@
-# sip - keyboard based selection tool for wayland compositors
+# Seto - keyboard based screen selection tool for wayland compositors
