@@ -1,12 +1,11 @@
 const std = @import("std");
 const mem = std.mem;
 const os = std.os;
-const surf = @import("surface.zig");
+const Surface = @import("surface.zig").Surface;
 
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
-const Surface = surf.Surface;
 
 const EventInterfaces = enum {
     wl_shm,
@@ -19,20 +18,18 @@ const Seto = struct {
     shm: ?*wl.Shm,
     compositor: ?*wl.Compositor,
     layer_shell: ?*zwlr.LayerShellV1,
-    outputs: std.ArrayList(surf.Surface),
+    outputs: std.ArrayList(Surface),
     alloc: mem.Allocator,
-
     fn new() Seto {
-        const alloc = std.heap.page_allocator;
+        const alloc = std.heap.c_allocator;
         return Seto{
             .shm = null,
             .compositor = null,
             .layer_shell = null,
-            .outputs = std.ArrayList(surf.Surface).init(alloc),
+            .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
         };
     }
-
     fn destroy(self: *Seto) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
@@ -43,7 +40,7 @@ const Seto = struct {
     }
 };
 
-pub fn main() anyerror!void {
+pub fn main() !void {
     const display = try wl.Display.connect(null);
     const registry = try display.getRegistry();
 
@@ -53,15 +50,17 @@ pub fn main() anyerror!void {
     registry.setListener(*Seto, registryListener, &seto);
 
     while (true) {
+        if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         for (seto.outputs.items) |*surface| {
-            const width = surface.dimensions[0];
-            const height = surface.dimensions[1];
             if (surface.is_configured()) {
+                const width = surface.dimensions[0];
+                const height = surface.dimensions[1];
                 const stride = width * 4;
                 const size = stride * height;
 
                 const fd = try os.memfd_create("seto", 0);
+                defer os.close(fd);
                 try os.ftruncate(fd, @intCast(size));
 
                 const shm = seto.shm orelse return error.NoWlShm;
@@ -80,10 +79,10 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
             const events = std.meta.stringToEnum(EventInterfaces, std.mem.span(global.interface)) orelse return;
             switch (events) {
                 .wl_shm => {
-                    seto.shm = registry.bind(global.name, wl.Shm, 1) catch return;
+                    seto.shm = registry.bind(global.name, wl.Shm, wl.Shm.generated_version) catch return;
                 },
                 .wl_compositor => {
-                    seto.compositor = registry.bind(global.name, wl.Compositor, 1) catch return;
+                    seto.compositor = registry.bind(global.name, wl.Compositor, wl.Compositor.generated_version) catch return;
                 },
                 .zwlr_layer_shell_v1 => {
                     seto.layer_shell = registry.bind(global.name, zwlr.LayerShellV1, zwlr.LayerShellV1.generated_version) catch return;

@@ -23,9 +23,7 @@
             pkg-config
             wayland
             wayland-protocols
-            wayland-utils
             wayland-scanner
-            wlroots
           ];
         };
       in {

@@ -29,6 +29,7 @@ pub const Surface = struct {
         @memset(list.items, 50);
 
         const data = try os.mmap(null, size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED, fd, 0);
+        defer os.munmap(data);
         @memcpy(data, list.items);
 
         const buffer = try pool.createBuffer(0, width, height, stride, wl.Shm.Format.argb8888);
