@@ -8,6 +8,8 @@ const wl = wayland.client.wl;
 
 const Seto = @import("main.zig").Seto;
 
+const cairo = @import("cairo");
+
 pub const Surface = struct {
     layer_surface: *zwlr.LayerSurfaceV1,
     surface: *wl.Surface,
@@ -18,6 +20,37 @@ pub const Surface = struct {
         return Surface{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .dimensions = undefined };
     }
 
+    fn create_surface(self: *Surface) !*cairo.ImageSurface {
+        const width = self.dimensions[0];
+        const height = self.dimensions[1];
+
+        const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(self.dimensions[0]), @intCast(self.dimensions[1]));
+
+        const context = try cairo.Context.create(cairo_surface.asSurface());
+        defer context.destroy();
+
+        context.setSourceRgb(0.5, 0.5, 0.5);
+        context.paintWithAlpha(0.5);
+
+        context.setSourceRgb(1, 1, 1);
+
+        const gridSize = 50;
+        var i: usize = 0;
+        while (i < width) : (i += gridSize) {
+            context.moveTo(@floatFromInt(i), 0);
+            context.lineTo(@floatFromInt(i), @floatFromInt(height));
+        }
+
+        i = 0;
+        while (i < height) : (i += gridSize) {
+            context.moveTo(0, @floatFromInt(i));
+            context.lineTo(@floatFromInt(width), @floatFromInt(i));
+        }
+        context.stroke();
+
+        return cairo_surface;
+    }
+
     pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32) !void {
         var list = std.ArrayList(u8).init(self.alloc);
         defer list.deinit();
@@ -26,9 +59,12 @@ pub const Surface = struct {
         const height = self.dimensions[1];
         const stride = width * 4;
         const size: usize = @intCast(stride * height);
-
         try list.resize(size);
-        @memset(list.items, 50);
+
+        const cairo_surface = try self.create_surface();
+        defer cairo_surface.destroy();
+
+        @memcpy(list.items, try cairo_surface.getData());
 
         const data = try os.mmap(null, size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED, fd, 0);
         defer os.munmap(data);

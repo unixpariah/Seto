@@ -4,9 +4,6 @@
 [submodule "deps/deps/zig-cairo"]
 	path = deps/deps/zig-cairo
 	url = https://github.com/jackdbd/zig-cairo.git
-[submodule "deps/zig-cairo"]
-	path = deps/zig-cairo
-	url = https://github.com/jackdbd/zig-cairo.git
 [submodule "deps/zig-xkbcommon"]
 	path = deps/zig-xkbcommon
 	url = https://github.com/ifreund/zig-xkbcommon.git

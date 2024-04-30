@@ -1,0 +1,10 @@
+.{
+    .name = "your-project",
+    .version = "1.0.0",
+    .dependencies = .{
+        .giza = .{
+            .url = "https://github.com/koenigskraut/giza/archive/master.tar.gz",
+            .hash = "12208f61d924763f21984584ab492b00a2446822d0dfa246b2640563e9e208646cb2",
+        },
+    },
+}
