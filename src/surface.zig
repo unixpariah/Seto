@@ -20,11 +20,6 @@ pub const OutputInfo = struct {
     y: i32 = 0,
     wl: *wl.Output,
     alloc: mem.Allocator,
-
-    pub fn deinit(self: OutputInfo) void {
-        if (self.name) |name| self.allocator.free(name);
-        if (self.description) |description| self.allocator.free(description);
-    }
 };
 
 pub const Surface = struct {
@@ -32,41 +27,12 @@ pub const Surface = struct {
     surface: *wl.Surface,
     dimensions: [2]c_int = undefined,
     alloc: mem.Allocator,
-    output_info: *OutputInfo,
+    output_info: OutputInfo,
+    xdg_output: *zxdg.OutputV1,
+    data: ?[*]u8 = null,
 
-    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, output_info: *OutputInfo) Surface {
-        return Surface{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info };
-    }
-
-    fn create_surface(self: *Surface) !*cairo.ImageSurface {
-        const width = self.dimensions[0];
-        const height = self.dimensions[1];
-
-        const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(self.dimensions[0]), @intCast(self.dimensions[1]));
-
-        const context = try cairo.Context.create(cairo_surface.asSurface());
-        defer context.destroy();
-
-        context.setSourceRgb(0.5, 0.5, 0.5);
-        context.paintWithAlpha(0.5);
-
-        context.setSourceRgb(1, 1, 1);
-
-        const gridSize = 50;
-        var i: usize = 0;
-        while (i < width) : (i += gridSize) {
-            context.moveTo(@floatFromInt(i), 0);
-            context.lineTo(@floatFromInt(i), @floatFromInt(height));
-        }
-
-        i = 0;
-        while (i < height) : (i += gridSize) {
-            context.moveTo(0, @floatFromInt(i));
-            context.lineTo(@floatFromInt(width), @floatFromInt(i));
-        }
-        context.stroke();
-
-        return cairo_surface;
+    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo) Surface {
+        return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output };
     }
 
     pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32) !void {
@@ -79,10 +45,7 @@ pub const Surface = struct {
         const size: usize = @intCast(stride * height);
         try list.resize(size);
 
-        const cairo_surface = try self.create_surface();
-        defer cairo_surface.destroy();
-
-        @memcpy(list.items, try cairo_surface.getData());
+        @memcpy(list.items, self.data.?);
 
         const data = try os.mmap(null, size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED, fd, 0);
         defer os.munmap(data);
@@ -121,29 +84,29 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
 }
 
 pub fn xdgOutputListener(
-    _: *zxdg.OutputV1,
-    ev: zxdg.OutputV1.Event,
-    info: *OutputInfo,
+    output: *zxdg.OutputV1,
+    event: zxdg.OutputV1.Event,
+    seto: *Seto,
 ) void {
-    switch (ev) {
-        .name => |e| {
-            info.name = std.mem.span(e.name);
-        },
-
-        .description => |e| {
-            info.description = std.mem.span(e.description);
-        },
-
-        .logical_position => |pos| {
-            info.x = pos.x;
-            info.y = pos.y;
-        },
-
-        .logical_size => |size| {
-            info.height = size.height;
-            info.width = size.width;
-        },
-
-        else => {},
+    for (seto.outputs.items) |*surface| {
+        if (surface.xdg_output == output) {
+            switch (event) {
+                .name => |e| {
+                    surface.output_info.name = std.mem.span(e.name);
+                },
+                .description => |e| {
+                    surface.output_info.description = std.mem.span(e.description);
+                },
+                .logical_position => |pos| {
+                    surface.output_info.x = pos.x;
+                    surface.output_info.y = pos.y;
+                },
+                .logical_size => |size| {
+                    surface.output_info.height = size.height;
+                    surface.output_info.width = size.width;
+                },
+                .done => {},
+            }
+        }
     }
 }
