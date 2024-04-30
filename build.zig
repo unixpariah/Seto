@@ -18,12 +18,14 @@ pub fn build(b: *std.Build) void {
 
     scanner.addCustomProtocol("protocols/wlr-layer-shell-unstable-v1.xml");
     scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
+    scanner.addSystemProtocol("unstable/xdg-output/xdg-output-unstable-v1.xml");
 
     scanner.generate("wl_compositor", 1);
     scanner.generate("wl_shm", 1);
-    scanner.generate("zwlr_layer_shell_v1", 4);
     scanner.generate("wl_output", 4);
     scanner.generate("wl_seat", 5);
+    scanner.generate("zwlr_layer_shell_v1", 4);
+    scanner.generate("zxdg_output_manager_v1", 3);
 
     const exe = b.addExecutable(.{
         .name = "seto",

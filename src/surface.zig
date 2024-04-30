@@ -5,19 +5,37 @@ const mem = std.mem;
 const wayland = @import("wayland");
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
+const zxdg = wayland.client.zxdg;
 
 const Seto = @import("main.zig").Seto;
 
 const cairo = @import("cairo");
 
+pub const OutputInfo = struct {
+    name: ?[]const u8 = null,
+    description: ?[]const u8 = null,
+    height: i32 = 0,
+    width: i32 = 0,
+    x: i32 = 0,
+    y: i32 = 0,
+    wl: *wl.Output,
+    alloc: mem.Allocator,
+
+    pub fn deinit(self: OutputInfo) void {
+        if (self.name) |name| self.allocator.free(name);
+        if (self.description) |description| self.allocator.free(description);
+    }
+};
+
 pub const Surface = struct {
     layer_surface: *zwlr.LayerSurfaceV1,
     surface: *wl.Surface,
-    dimensions: [2]c_int,
+    dimensions: [2]c_int = undefined,
     alloc: mem.Allocator,
+    output_info: *OutputInfo,
 
-    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator) Surface {
-        return Surface{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .dimensions = undefined };
+    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, output_info: *OutputInfo) Surface {
+        return Surface{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info };
     }
 
     fn create_surface(self: *Surface) !*cairo.ImageSurface {
@@ -99,5 +117,33 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
             }
         },
         .closed => {},
+    }
+}
+
+pub fn xdgOutputListener(
+    _: *zxdg.OutputV1,
+    ev: zxdg.OutputV1.Event,
+    info: *OutputInfo,
+) void {
+    switch (ev) {
+        .name => |e| {
+            info.name = std.mem.span(e.name);
+        },
+
+        .description => |e| {
+            info.description = std.mem.span(e.description);
+        },
+
+        .logical_position => |pos| {
+            info.x = pos.x;
+            info.y = pos.y;
+        },
+
+        .logical_size => |size| {
+            info.height = size.height;
+            info.width = size.width;
+        },
+
+        else => {},
     }
 }

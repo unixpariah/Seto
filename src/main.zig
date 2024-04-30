@@ -4,6 +4,8 @@ const os = std.os;
 
 const Surface = @import("surface.zig").Surface;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
+const OutputInfo = @import("surface.zig").OutputInfo;
+const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 
 const Seat = @import("seat.zig").Seat;
 const keyboardListener = @import("seat.zig").keyboardListener;
@@ -14,6 +16,7 @@ const xkb = @import("xkbcommon");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
+const zxdg = wayland.client.zxdg;
 
 const EventInterfaces = enum {
     wl_shm,
@@ -21,37 +24,31 @@ const EventInterfaces = enum {
     zwlr_layer_shell_v1,
     wl_output,
     wl_seat,
+    zxdg_output_manager_v1,
 };
 
 pub const Seto = struct {
-    shm: ?*wl.Shm,
-    compositor: ?*wl.Compositor,
-    layer_shell: ?*zwlr.LayerShellV1,
+    shm: ?*wl.Shm = null,
+    compositor: ?*wl.Compositor = null,
+    layer_shell: ?*zwlr.LayerShellV1 = null,
+    output_manager: ?*zxdg.OutputManagerV1 = null,
     seat: Seat,
-    wl_seat: ?*wl.Seat,
-    wl_keyboard: ?*wl.Keyboard,
-    xkb_state: ?*xkb.State,
-    xkb_context: *xkb.Context,
     outputs: std.ArrayList(Surface),
     alloc: mem.Allocator,
-    exit: bool,
 
     fn new() Seto {
         const alloc = std.heap.c_allocator;
         return Seto{
-            .shm = null,
-            .compositor = null,
-            .layer_shell = null,
             .seat = Seat.new(),
-            .wl_seat = null,
-            .wl_keyboard = null,
-            .xkb_state = null,
-            .xkb_context = xkb.Context.new(.no_flags) orelse std.debug.panic("", .{}),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
-            .exit = false,
         };
     }
+
+    fn get_dimensions(self: *Seto) void {
+        _ = self;
+    }
+
     fn destroy(self: *Seto) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
@@ -71,7 +68,7 @@ pub fn main() !void {
 
     registry.setListener(*Seto, registryListener, &seto);
 
-    while (!seto.exit) {
+    while (!seto.seat.exit) {
         if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         for (seto.outputs.items) |*surface| {
@@ -110,7 +107,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     seto.layer_shell = registry.bind(global.name, zwlr.LayerShellV1, zwlr.LayerShellV1.generated_version) catch return;
                 },
                 .wl_output => {
-                    const bound = registry.bind(
+                    var bound = registry.bind(
                         global.name,
                         wl.Output,
                         wl.Output.generated_version,
@@ -131,14 +128,25 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     layer_surface.setKeyboardInteractivity(.exclusive);
                     surface.commit();
 
-                    const output = Surface.new(surface, layer_surface, seto.alloc);
+                    const a = seto.output_manager.?.getXdgOutput(bound) catch return;
+                    var output_info = OutputInfo{ .alloc = seto.alloc, .wl = bound };
 
+                    a.setListener(*OutputInfo, xdgOutputListener, &output_info);
+
+                    const output = Surface.new(surface, layer_surface, seto.alloc, &output_info);
                     seto.outputs.append(output) catch return;
                 },
                 .wl_seat => {
                     const wl_seat = registry.bind(global.name, wl.Seat, wl.Seat.generated_version) catch return;
-                    seto.wl_seat = wl_seat;
-                    wl_seat.setListener(*Seto, seatListener, seto);
+                    seto.seat.wl_seat = wl_seat;
+                    wl_seat.setListener(*Seat, seatListener, &seto.seat);
+                },
+                .zxdg_output_manager_v1 => {
+                    seto.output_manager = registry.bind(
+                        global.name,
+                        zxdg.OutputManagerV1,
+                        zxdg.OutputManagerV1.generated_version,
+                    ) catch return;
                 },
             }
         },
