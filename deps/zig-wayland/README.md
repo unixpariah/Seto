@@ -2,6 +2,12 @@
 
 Zig 0.11 bindings and protocol scanner for libwayland.
 
+The main repository is on [codeberg](https://codeberg.org/ifreund/zig-wayland),
+which is where the issue tracker may be found and where contributions are accepted.
+
+Read-only mirrors exist on [sourcehut](https://git.sr.ht/~ifreund/zig-wayland)
+and [github](https://github.com/ifreund/zig-wayland).
+
 ## Usage
 
 A `Scanner` interface is provided which you may integrate with your `build.zig`:
@@ -21,7 +27,7 @@ pub fn build(b: *std.build.Builder) void {
 
     scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
     scanner.addSystemProtocol("staging/ext-session-lock/ext-session-lock-v1.xml");
-    scanner.addProtocolPath("protocol/private_foobar.xml");
+    scanner.addCustomProtocol("protocol/private_foobar.xml");
 
     // Pass the maximum version implemented by your wayland server or client.
     // Requests, events, enums, etc. from newer versions will not be generated,
@@ -60,7 +66,7 @@ const wl = wayland.client.wl;
 ```
 
 There is an example project using zig-wayland here:
-[hello-zig-wayland](https://github.com/ifreund/hello-zig-wayland).
+[hello-zig-wayland](https://codeberg.org/ifreund/hello-zig-wayland).
 
 Note that zig-wayland does not currently do extensive verification of Wayland
 protocol xml or provide good error messages if protocol xml is invalid. It is

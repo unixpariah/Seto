@@ -25,6 +25,7 @@
             wayland-protocols
             wayland-scanner
             libxkbcommon
+            cairo
           ];
         };
       in {

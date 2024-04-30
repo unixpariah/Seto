@@ -8,3 +8,4 @@
 - wayland-scanner
 - wlroots
 - libxkbcommon
+- cairo

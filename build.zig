@@ -11,6 +11,9 @@ pub fn build(b: *std.Build) void {
     const xkbcommon = b.createModule(
         .{ .source_file = .{ .path = "deps/zig-xkbcommon/src/xkbcommon.zig" } },
     );
+    const cairo = b.createModule(
+        .{ .source_file = .{ .path = "deps/zig-cairo/src/cairo.zig" } },
+    );
 
     scanner.addCustomProtocol("protocols/wlr-layer-shell-unstable-v1.xml");
     scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
@@ -29,11 +32,13 @@ pub fn build(b: *std.Build) void {
     });
 
     seto.addModule("wayland", wayland);
-    seto.linkLibC();
+    seto.addModule("cairo", cairo);
     seto.addModule("xkbcommon", xkbcommon);
-    seto.linkSystemLibrary("xkbcommon");
     seto.linkSystemLibrary("wayland-client");
+    seto.linkSystemLibrary("cairo");
     seto.linkSystemLibrary("xkbcommon");
+
+    seto.linkLibC();
 
     // TODO: remove when https://github.com/ziglang/zig/issues/131 is implemented
     scanner.addCSource(seto);

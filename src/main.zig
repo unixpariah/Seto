@@ -145,6 +145,9 @@ fn seatListener(wl_seat: *wl.Seat, event: wl.Seat.Event, seto: *Seto) void {
                 const wl_keyboard = wl_seat.getKeyboard() catch return;
                 seto.wl_keyboard = wl_keyboard;
                 wl_keyboard.setListener(*Seto, keyboardListener, seto);
+            } else if (!ev.capabilities.keyboard and seto.wl_keyboard != null) {
+                seto.wl_keyboard.?.release();
+                seto.wl_keyboard = null;
             }
         },
     }
@@ -207,10 +210,9 @@ fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) void
                     return;
                 },
                 xkb.Keysym.c => {
-                    const Component = xkb.State.Component;
                     const ctrl_active = xkb_state.modNameIsActive(
                         xkb.names.mod.ctrl,
-                        @enumFromInt(Component.mods_depressed | Component.mods_latched),
+                        @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
                     ) == 1;
 
                     if (ctrl_active) {
