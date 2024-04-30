@@ -89,6 +89,18 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
             if (keysym == .NoSymbol) return;
 
             switch (@intFromEnum(keysym)) {
+                xkb.Keysym.j => {
+                    seto.grid_size[1] -= 5;
+                },
+                xkb.Keysym.k => {
+                    seto.grid_size[1] += 5;
+                },
+                xkb.Keysym.h => {
+                    seto.grid_size[0] -= 5;
+                },
+                xkb.Keysym.l => {
+                    seto.grid_size[0] += 5;
+                },
                 xkb.Keysym.q => {
                     seto.seat.exit = true;
                     return;

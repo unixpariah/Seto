@@ -62,8 +62,8 @@ pub const Seto = struct {
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
-        while (width % self.grid_size[0] != 0) : (self.grid_size[0] += 1) {}
-        while (height % self.grid_size[1] != 0) : (self.grid_size[1] += 1) {}
+        //while (width % self.grid_size[0] != 0) : (self.grid_size[0] += 1) {}
+        //while (height % self.grid_size[1] != 0) : (self.grid_size[1] += 1) {}
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         const context = try cairo.Context.create(cairo_surface.asSurface());
@@ -73,6 +73,7 @@ pub const Seto = struct {
         context.paintWithAlpha(0.5);
         context.setSourceRgb(1, 1, 1);
 
+        std.debug.print("{}\n", .{self.grid_size[0]});
         var i: usize = 0;
         while (i <= width) : (i += self.grid_size[0]) {
             context.moveTo(@floatFromInt(i), 0);

@@ -36,13 +36,13 @@ pub const Surface = struct {
     }
 
     pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32) !void {
-        var list = std.ArrayList(u8).init(self.alloc);
-        defer list.deinit();
-
         const width = self.dimensions[0];
         const height = self.dimensions[1];
         const stride = width * 4;
         const size: usize = @intCast(stride * height);
+
+        var list = std.ArrayList(u8).init(self.alloc);
+        defer list.deinit();
         try list.resize(size);
 
         @memcpy(list.items, self.data.?);
@@ -55,6 +55,7 @@ pub const Surface = struct {
         defer buffer.destroy();
 
         self.surface.attach(buffer, 0, 0);
+        self.surface.damage(0, 0, width, height);
         self.surface.commit();
     }
 
