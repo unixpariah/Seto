@@ -1,10 +1,12 @@
 const std = @import("std");
 const os = std.os;
-const wayland = @import("wayland");
+const mem = std.mem;
 
+const wayland = @import("wayland");
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
-const mem = std.mem;
+
+const Seto = @import("main.zig").Seto;
 
 pub const Surface = struct {
     layer_surface: *zwlr.LayerSurfaceV1,
@@ -48,3 +50,18 @@ pub const Surface = struct {
         self.layer_surface.destroy();
     }
 };
+
+pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, seto: *Seto) void {
+    switch (event) {
+        .configure => |configure| {
+            for (seto.outputs.items) |*surface| {
+                if (surface.layer_surface == lsurf) {
+                    surface.dimensions = .{ @intCast(configure.width), @intCast(configure.height) };
+                    surface.layer_surface.setSize(configure.width, configure.height);
+                    surface.layer_surface.ackConfigure(configure.serial);
+                }
+            }
+        },
+        .closed => {},
+    }
+}
