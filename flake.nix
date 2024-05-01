@@ -1,49 +1,37 @@
 {
-  description = "Keyboard based screen selection tool";
-
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    zig-overlay = {
+      url = "github:mitchellh/zig-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    zls = {
+      url = "github:zigtools/zls";
+      inputs.zig-overlay.follows = "zig-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
+    self,
     nixpkgs,
-    flake-utils,
-    ...
-  }:
-    flake-utils.lib.eachDefaultSystem (
-      system: let
-        pkgs = import nixpkgs {
-          inherit system;
-        };
-        zigEnv = pkgs.mkShell {
-          buildInputs = with pkgs; [
-            zig
-            zls
-            pkg-config
-            wayland
-            wayland-protocols
-            wayland-scanner
-            libxkbcommon
-            cairo
-          ];
-        };
-      in {
-        devShell = zigEnv;
-        packages = {
-          seto = pkgs.stdenv.mkDerivation {
-            name = "seto";
-            src = ./.;
-            buildInputs = with pkgs; [zig];
-            buildPhase = ''
-              zig build
-            '';
-            installPhase = ''
-              mkdir -p $out/bin
-              cp zig-out/bin/waystatus $out/bin/
-            '';
-          };
-        };
-      }
-    );
+    zig-overlay,
+    zls,
+  }: let
+    system = "x86_64-linux";
+    pkgs = nixpkgs.legacyPackages.${system};
+  in {
+    devShells.${system}.default = pkgs.mkShell {
+      packages = with pkgs; [
+        zls.packages.${system}.default
+        zig
+        pkg-config
+        cairo
+        wayland
+        wayland-scanner
+        wayland-protocols
+        libxkbcommon
+      ];
+    };
+  };
 }

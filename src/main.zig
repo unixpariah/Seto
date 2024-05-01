@@ -35,8 +35,8 @@ pub const Seto = struct {
     output_manager: ?*zxdg.OutputManagerV1 = null,
     seat: Seat,
     outputs: std.ArrayList(Surface),
-    alloc: mem.Allocator,
     grid_size: [2]u32 = .{ 80, 50 },
+    alloc: mem.Allocator,
 
     fn new() Seto {
         const alloc = std.heap.c_allocator;
@@ -159,7 +159,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     seto.layer_shell = registry.bind(global.name, zwlr.LayerShellV1, zwlr.LayerShellV1.generated_version) catch return;
                 },
                 .wl_output => {
-                    var global_output = registry.bind(
+                    const global_output = registry.bind(
                         global.name,
                         wl.Output,
                         wl.Output.generated_version,
@@ -182,7 +182,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 
                     const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch return;
 
-                    var output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, OutputInfo{ .alloc = seto.alloc, .wl = global_output });
+                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, OutputInfo{ .alloc = seto.alloc, .wl = global_output });
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 
