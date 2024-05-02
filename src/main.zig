@@ -2,6 +2,8 @@ const std = @import("std");
 const mem = std.mem;
 const os = std.os;
 
+const Tree = @import("tree.zig").Tree;
+
 const Surface = @import("surface.zig").Surface;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const OutputInfo = @import("surface.zig").OutputInfo;
@@ -28,30 +30,10 @@ const EventInterfaces = enum {
     zxdg_output_manager_v1,
 };
 
-const Node = union(enum) {
-    node: std.StringHashMap(Node),
-    position: ?[2]usize,
-};
-
 const Grid = struct {
     size: [2]u32 = .{ 80, 80 },
     offset: [2]u32 = .{ 0, 0 },
 };
-
-fn createNestedTree(allocator: std.mem.Allocator, keys: [9]*const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !std.StringHashMap(Node) {
-    var tree = std.StringHashMap(Node).init(allocator);
-
-    for (keys) |key| {
-        if (depth <= 1) {
-            try tree.put(key, .{ .position = crosses.popOrNull() });
-        } else {
-            var new_tree = try createNestedTree(allocator, keys, depth - 1, crosses);
-            try tree.put(key, .{ .node = new_tree });
-        }
-    }
-
-    return tree;
-}
 
 pub const Seto = struct {
     shm: ?*wl.Shm = null,
@@ -109,7 +91,7 @@ pub const Seto = struct {
 
         var keys_num: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(crosses.items.len)))));
 
-        const tree = try createNestedTree(self.alloc, keys, keys_num, &crosses);
+        const tree = try Tree.new(self.alloc, keys, keys_num, &crosses);
         _ = tree;
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
