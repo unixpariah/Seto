@@ -1,6 +1,6 @@
 .{
-    .name = "your-project",
-    .version = "1.0.0",
+    .name = "Seto",
+    .version = "0.1.0",
     .dependencies = .{
         .giza = .{
             .url = "https://github.com/koenigskraut/giza/archive/master.tar.gz",

@@ -5,17 +5,16 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const scanner = Scanner.create(b, .{});
-
-    const wayland = b.createModule(.{ .source_file = scanner.result });
     const xkbcommon = b.createModule(
         .{ .source_file = .{ .path = "deps/zig-xkbcommon/src/xkbcommon.zig" } },
     );
 
     const opts = .{ .target = target, .optimize = optimize };
-    const dep = b.dependency("giza", opts);
-    const cairo = dep.module("cairo");
+    const giza = b.dependency("giza", opts);
+    const cairo = giza.module("cairo");
 
+    const scanner = Scanner.create(b, .{});
+    const wayland = b.createModule(.{ .source_file = scanner.result });
     scanner.addCustomProtocol("protocols/wlr-layer-shell-unstable-v1.xml");
     scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
     scanner.addSystemProtocol("unstable/xdg-output/xdg-output-unstable-v1.xml");

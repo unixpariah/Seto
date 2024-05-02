@@ -88,36 +88,31 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
             const keysym = xkb_state.keyGetOneSym(keycode);
             if (keysym == .NoSymbol) return;
 
+            const ctrl_active = xkb_state.modNameIsActive(
+                xkb.names.mod.ctrl,
+                @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
+            ) == 1;
+
             switch (@intFromEnum(keysym)) {
+                xkb.Keysym.j => seto.grid.offset[1] +%= 5,
+                xkb.Keysym.l => seto.grid.offset[0] +%= 5,
                 xkb.Keysym.k => {
-                    if (seto.grid_size[1] > 5) {
-                        seto.grid_size[1] -= 5;
-                    }
-                },
-                xkb.Keysym.j => {
-                    seto.grid_size[1] += 5;
+                    if (seto.grid.offset[1] > 5) seto.grid.offset[1] -= 5;
                 },
                 xkb.Keysym.h => {
-                    if (seto.grid_size[0] > 5) {
-                        seto.grid_size[0] -= 5;
-                    }
+                    if (seto.grid.offset[0] > 5) seto.grid.offset[0] -= 5;
                 },
-                xkb.Keysym.l => {
-                    seto.grid_size[0] += 5;
+                xkb.Keysym.J => seto.grid.size[1] +%= 5,
+                xkb.Keysym.L => seto.grid.size[0] +%= 5,
+                xkb.Keysym.K => {
+                    if (seto.grid.size[1] > 5) seto.grid.size[1] -= 5;
                 },
-                xkb.Keysym.q => {
-                    seto.seat.exit = true;
-                    return;
+                xkb.Keysym.H => {
+                    if (seto.grid.size[0] > 5) seto.grid.size[0] -= 5;
                 },
+                xkb.Keysym.q => seto.seat.exit = true,
                 xkb.Keysym.c => {
-                    const ctrl_active = xkb_state.modNameIsActive(
-                        xkb.names.mod.ctrl,
-                        @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
-                    ) == 1;
-
-                    if (ctrl_active) {
-                        seto.seat.exit = true;
-                    }
+                    if (ctrl_active) seto.seat.exit = true;
                 },
                 else => {},
             }

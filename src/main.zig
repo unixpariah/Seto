@@ -28,6 +28,31 @@ const EventInterfaces = enum {
     zxdg_output_manager_v1,
 };
 
+const Node = union(enum) {
+    node: std.StringHashMap(Node),
+    position: ?[2]usize,
+};
+
+const Grid = struct {
+    size: [2]u32 = .{ 80, 80 },
+    offset: [2]u32 = .{ 0, 0 },
+};
+
+fn createNestedTree(allocator: std.mem.Allocator, keys: [9]*const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !std.StringHashMap(Node) {
+    var tree = std.StringHashMap(Node).init(allocator);
+
+    for (keys) |key| {
+        if (depth <= 1) {
+            try tree.put(key, .{ .position = crosses.popOrNull() });
+        } else {
+            var new_tree = try createNestedTree(allocator, keys, depth - 1, crosses);
+            try tree.put(key, .{ .node = new_tree });
+        }
+    }
+
+    return tree;
+}
+
 pub const Seto = struct {
     shm: ?*wl.Shm = null,
     compositor: ?*wl.Compositor = null,
@@ -35,7 +60,7 @@ pub const Seto = struct {
     output_manager: ?*zxdg.OutputManagerV1 = null,
     seat: Seat,
     outputs: std.ArrayList(Surface),
-    grid_size: [2]u32 = .{ 80, 50 },
+    grid: Grid = Grid{},
     alloc: mem.Allocator,
 
     fn new() Seto {
@@ -47,7 +72,7 @@ pub const Seto = struct {
         };
     }
 
-    fn get_dimensions(self: *Seto) [2]c_int {
+    fn getDimensions(self: *Seto) [2]c_int {
         var dimensions: [2]c_int = .{ 0, 0 };
         for (self.outputs.items) |output| {
             dimensions[0] += output.output_info.width;
@@ -57,10 +82,35 @@ pub const Seto = struct {
         return dimensions;
     }
 
-    fn create_surfaces(self: *Seto) !*cairo.ImageSurface {
-        const dimensions = self.get_dimensions();
+    fn createSurfaces(self: *Seto) !*cairo.ImageSurface {
+        const keys: [9]*const [1:0]u8 = .{ "a", "s", "d", "f", "g", "h", "j", "k", "l" };
+        const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
+
+        var crosses = std.ArrayList([2]usize).init(self.alloc);
+        var i: usize = self.grid.offset[0] % self.grid.size[0];
+        while (i <= width) : (i += self.grid.size[0]) {
+            var j: usize = self.grid.offset[1] % self.grid.size[1];
+            while (j <= height) : (j += self.grid.size[1]) {
+                try crosses.append(.{ i, j });
+            }
+        }
+
+        var start: usize = 0;
+        var end: usize = crosses.items.len - 1;
+        while (start < end) {
+            var temp = crosses.items[start];
+            crosses.items[start] = crosses.items[end];
+            crosses.items[end] = temp;
+            start += 1;
+            end -= 1;
+        }
+
+        var keys_num: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(crosses.items.len)))));
+
+        const tree = try createNestedTree(self.alloc, keys, keys_num, &crosses);
+        _ = tree;
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         const context = try cairo.Context.create(cairo_surface.asSurface());
@@ -70,17 +120,25 @@ pub const Seto = struct {
         context.paintWithAlpha(0.5);
         context.setSourceRgb(1, 1, 1);
 
-        var i: usize = 0;
-        while (i <= width) : (i += self.grid_size[0]) {
+        i = self.grid.offset[0] % self.grid.size[0];
+        while (i <= width) : (i += self.grid.size[0]) {
             context.moveTo(@floatFromInt(i), 0);
             context.lineTo(@floatFromInt(i), @floatFromInt(height));
         }
 
-        i = 0;
-        while (i <= height) : (i += self.grid_size[1]) {
+        i = self.grid.offset[1] % self.grid.size[1];
+        while (i <= height) : (i += self.grid.size[1]) {
             context.moveTo(0, @floatFromInt(i));
             context.lineTo(@floatFromInt(width), @floatFromInt(i));
         }
+
+        for (crosses.items) |pos| {
+            context.moveTo(@floatFromInt(pos[0] + 5), @floatFromInt(pos[1] + 15));
+            context.selectFontFace("JetBrainsMono Nerd Font", .Normal, .Normal);
+            context.setFontSize(16);
+            context.showText("a");
+        }
+
         context.stroke();
 
         for (self.outputs.items) |*output| {
@@ -136,7 +194,7 @@ pub fn main() !void {
                 const pool = try shm.createPool(fd, size);
                 defer pool.destroy();
 
-                const cairo_surface = try seto.create_surfaces();
+                const cairo_surface = try seto.createSurfaces();
                 defer cairo_surface.destroy();
                 try surface.draw(pool, fd);
             }
