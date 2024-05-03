@@ -20,6 +20,12 @@ pub const OutputInfo = struct {
     y: i32 = 0,
     wl: *wl.Output,
     alloc: mem.Allocator,
+
+    fn destroy(self: *OutputInfo) void {
+        self.wl.destroy();
+        self.alloc.free(self.name.?);
+        self.alloc.free(self.description.?);
+    }
 };
 
 pub const Surface = struct {
@@ -29,13 +35,15 @@ pub const Surface = struct {
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
-    data: ?[*]u8 = null,
+    data: []u8 = &[_]u8{},
 
     pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo) Surface {
         return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output };
     }
 
     pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32) !void {
+        defer self.alloc.free(self.data);
+
         const width = self.dimensions[0];
         const height = self.dimensions[1];
         const stride = width * 4;
@@ -45,7 +53,7 @@ pub const Surface = struct {
         defer list.deinit();
         try list.resize(size);
 
-        @memcpy(list.items, self.data.?);
+        @memcpy(list.items, self.data);
 
         const data = try os.mmap(null, size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED, fd, 0);
         defer os.munmap(data);
@@ -64,8 +72,10 @@ pub const Surface = struct {
     }
 
     pub fn destroy(self: *Surface) void {
-        self.surface.destroy();
         self.layer_surface.destroy();
+        self.surface.destroy();
+        self.output_info.destroy();
+        self.xdg_output.destroy();
     }
 };
 
@@ -93,10 +103,10 @@ pub fn xdgOutputListener(
         if (surface.xdg_output == output) {
             switch (event) {
                 .name => |e| {
-                    surface.output_info.name = std.mem.span(e.name);
+                    surface.output_info.name = surface.output_info.alloc.dupe(u8, std.mem.span(e.name)) catch return;
                 },
                 .description => |e| {
-                    surface.output_info.description = std.mem.span(e.description);
+                    surface.output_info.description = surface.output_info.alloc.dupe(u8, std.mem.span(e.description)) catch return;
                 },
                 .logical_position => |pos| {
                     surface.output_info.x = pos.x;

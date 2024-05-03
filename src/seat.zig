@@ -97,18 +97,18 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                 xkb.Keysym.j => seto.grid.offset[1] +%= 5,
                 xkb.Keysym.l => seto.grid.offset[0] +%= 5,
                 xkb.Keysym.k => {
-                    if (seto.grid.offset[1] > 5) seto.grid.offset[1] -= 5;
+                    if (seto.grid.offset[1] >= 5) seto.grid.offset[1] -= 5;
                 },
                 xkb.Keysym.h => {
-                    if (seto.grid.offset[0] > 5) seto.grid.offset[0] -= 5;
+                    if (seto.grid.offset[0] >= 5) seto.grid.offset[0] -= 5;
                 },
                 xkb.Keysym.J => seto.grid.size[1] +%= 5,
                 xkb.Keysym.L => seto.grid.size[0] +%= 5,
                 xkb.Keysym.K => {
-                    if (seto.grid.size[1] > 5) seto.grid.size[1] -= 5;
+                    if (seto.grid.size[1] >= 5) seto.grid.size[1] -= 5;
                 },
                 xkb.Keysym.H => {
-                    if (seto.grid.size[0] > 5) seto.grid.size[0] -= 5;
+                    if (seto.grid.size[0] >= 5) seto.grid.size[0] -= 5;
                 },
                 xkb.Keysym.q => seto.seat.exit = true,
                 xkb.Keysym.c => {

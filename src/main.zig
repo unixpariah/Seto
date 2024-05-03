@@ -64,37 +64,41 @@ pub const Seto = struct {
         return dimensions;
     }
 
-    fn createSurfaces(self: *Seto) !*cairo.ImageSurface {
-        const keys: [9]*const [1:0]u8 = .{ "a", "s", "d", "f", "g", "h", "j", "k", "l" };
+    fn getIntersections(self: *Seto) !std.ArrayList([2]usize) { // TODO: reverse the order of filling out
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
-        var crosses = std.ArrayList([2]usize).init(self.alloc);
+        var intersections = std.ArrayList([2]usize).init(self.alloc);
         var i: usize = self.grid.offset[0] % self.grid.size[0];
         while (i <= width) : (i += self.grid.size[0]) {
             var j: usize = self.grid.offset[1] % self.grid.size[1];
             while (j <= height) : (j += self.grid.size[1]) {
-                try crosses.append(.{ i, j });
+                try intersections.append(.{ i, j });
             }
         }
 
-        var start: usize = 0;
-        var end: usize = crosses.items.len - 1;
-        while (start < end) {
-            var temp = crosses.items[start];
-            crosses.items[start] = crosses.items[end];
-            crosses.items[end] = temp;
-            start += 1;
-            end -= 1;
-        }
+        return intersections;
+    }
 
-        var keys_num: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(crosses.items.len)))));
+    fn createSurfaces(self: *Seto) !void {
+        const keys = [_]*const [1:0]u8{ "a", "s", "d", "f", "g", "h", "j", "k", "l" };
+        const dimensions = self.getDimensions();
+        const width: u32 = @intCast(dimensions[0]);
+        const height: u32 = @intCast(dimensions[1]);
 
-        const tree = try Tree.new(self.alloc, keys, keys_num, &crosses);
+        var intersections = try self.getIntersections();
+        defer intersections.deinit();
+
+        var keys_num: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(intersections.items.len)))));
+
+        var tree = try Tree.new(self.alloc, keys, keys_num, &intersections);
+        defer tree.destroy();
         const arr = try tree.iter(keys);
+        defer self.alloc.free(arr);
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
+        defer cairo_surface.destroy();
         const context = try cairo.Context.create(cairo_surface.asSurface());
         defer context.destroy();
 
@@ -102,7 +106,7 @@ pub const Seto = struct {
         context.paintWithAlpha(0.5);
         context.setSourceRgb(1, 1, 1);
 
-        i = self.grid.offset[0] % self.grid.size[0];
+        var i = self.grid.offset[0] % self.grid.size[0];
         while (i <= width) : (i += self.grid.size[0]) {
             context.moveTo(@floatFromInt(i), 0);
             context.lineTo(@floatFromInt(i), @floatFromInt(height));
@@ -132,26 +136,32 @@ pub const Seto = struct {
                 .height = @floatFromInt(output.output_info.height),
             });
             context.clip();
-            output.data = try cairo_surface.getData();
+            var data = try cairo_surface.getData();
+            var len: usize = @as(usize, @intCast(cairo_surface.getStride())) * @as(usize, @intCast(cairo_surface.getHeight()));
+            var newData = try self.alloc.alloc(u8, len);
+            std.mem.copy(u8, newData, data[0..len]);
+            output.data = newData;
             context.restore();
         }
-
-        return cairo_surface;
     }
 
     fn destroy(self: *Seto) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.shm.?.destroy();
-        for (self.outputs.items) |*surface| {
-            surface.destroy();
+        for (self.outputs.items) |*output| {
+            output.destroy();
         }
+        self.outputs.deinit();
     }
 };
 
 pub fn main() !void {
     const display = try wl.Display.connect(null);
+    defer display.disconnect();
+
     const registry = try display.getRegistry();
+    defer registry.destroy();
 
     var seto = Seto.new();
     defer seto.destroy();
@@ -176,8 +186,7 @@ pub fn main() !void {
                 const pool = try shm.createPool(fd, size);
                 defer pool.destroy();
 
-                const cairo_surface = try seto.createSurfaces();
-                defer cairo_surface.destroy();
+                try seto.createSurfaces();
                 try surface.draw(pool, fd);
             }
         }

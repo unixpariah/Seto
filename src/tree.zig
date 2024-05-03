@@ -8,19 +8,38 @@ const Result = struct {
 pub const Tree = struct {
     tree: std.StringHashMap(Node),
     alloc: std.mem.Allocator,
+
     pub fn new(alloc: std.mem.Allocator, keys: [9]*const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !Tree {
         return .{ .tree = try createNestedTree(alloc, keys, depth, crosses), .alloc = alloc };
     }
 
-    pub fn iter(self: *const Tree, keys: [9]*const [1:0]u8) ![]const (Result) {
+    pub fn iter(self: *const Tree, keys: [9]*const [1:0]u8) ![](Result) {
         var arr = std.ArrayList(Result).init(self.alloc);
         for (keys) |key| {
             if (self.tree.get(key)) |node| _ = try node.traverse(keys, key, &arr);
         }
 
-        return arr.items;
+        return try arr.toOwnedSlice();
+    }
+
+    pub fn destroy(self: *Tree) void {
+        deinitNodes(&self.tree);
+        self.tree.deinit();
     }
 };
+
+fn deinitNodes(tree: *std.StringHashMap(Node)) void {
+    var it = tree.iterator();
+    while (it.next()) |entry| {
+        switch (entry.value_ptr.*) {
+            .node => |*node| {
+                deinitNodes(node);
+                node.deinit();
+            },
+            else => {},
+        }
+    }
+}
 
 const Node = union(enum) {
     node: std.StringHashMap(Node),
@@ -44,14 +63,14 @@ const Node = union(enum) {
     }
 };
 
-fn createNestedTree(allocator: std.mem.Allocator, keys: [9]*const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !std.StringHashMap(Node) {
-    var tree = std.StringHashMap(Node).init(allocator);
+fn createNestedTree(alloc: std.mem.Allocator, keys: [9]*const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !std.StringHashMap(Node) {
+    var tree = std.StringHashMap(Node).init(alloc);
 
     for (keys) |key| {
         if (depth <= 1) {
             try tree.put(key, .{ .position = crosses.popOrNull() });
         } else {
-            var new_tree = try createNestedTree(allocator, keys, depth - 1, crosses);
+            var new_tree = try createNestedTree(alloc, keys, depth - 1, crosses);
             try tree.put(key, .{ .node = new_tree });
         }
     }
