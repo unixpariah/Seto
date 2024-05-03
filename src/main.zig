@@ -92,7 +92,8 @@ pub const Seto = struct {
         var keys_num: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(crosses.items.len)))));
 
         const tree = try Tree.new(self.alloc, keys, keys_num, &crosses);
-        _ = tree;
+        const arr = try tree.iter(keys);
+        _ = arr;
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         const context = try cairo.Context.create(cairo_surface.asSurface());
