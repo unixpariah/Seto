@@ -92,8 +92,8 @@ pub const Seto = struct {
         var keys_num: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(crosses.items.len)))));
 
         const tree = try Tree.new(self.alloc, keys, keys_num, &crosses);
+        std.debug.print("{any}\n", .{tree.tree.get("a").?.node.get("a").?.node.get("s")});
         const arr = try tree.iter(keys);
-        _ = arr;
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         const context = try cairo.Context.create(cairo_surface.asSurface());
@@ -115,11 +115,11 @@ pub const Seto = struct {
             context.lineTo(@floatFromInt(width), @floatFromInt(i));
         }
 
-        for (crosses.items) |pos| {
-            context.moveTo(@floatFromInt(pos[0] + 5), @floatFromInt(pos[1] + 15));
+        for (arr) |item| {
+            context.moveTo(@floatFromInt(item.pos[0] + 5), @floatFromInt(item.pos[1] + 15));
             context.selectFontFace("JetBrainsMono Nerd Font", .Normal, .Normal);
             context.setFontSize(16);
-            context.showText("a");
+            context.showText(item.path);
         }
 
         context.stroke();
