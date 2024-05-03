@@ -29,7 +29,10 @@ const Node = union(enum) {
     fn traverse(self: *const Node, keys: [9]*const [1:0]u8, path: [:0]const u8, result: *std.ArrayList(Result)) !void {
         for (keys) |key| {
             switch (self.*) {
-                .node => |node| try node.get(key).?.traverse(keys, key, result),
+                .node => |node| {
+                    const a = try std.fmt.allocPrintZ(std.heap.page_allocator, "{s}{s}", .{ path, key });
+                    try node.get(key).?.traverse(keys, a, result);
+                },
                 .position => |position| {
                     if (position) |pos| {
                         try result.append(.{ .pos = pos, .path = path });
