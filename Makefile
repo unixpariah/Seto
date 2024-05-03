@@ -1,10 +1,17 @@
-.PHONY: run
+ZIG_BUILD = zig build
+SET0_BIN = ./zig-out/bin/seto
+VALGRIND = valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes
 
-all:
-	@zig build
+.PHONY: run release debug
 
-run: all
-	@./zig-out/bin/seto
+run:
+	@$(ZIG_BUILD)
+	@$(SET0_BIN)
 
-leak: all
-	valgrind --leak-check=full ./zig-out/bin/seto
+release:
+	@$(ZIG_BUILD) -Doptimize=ReleaseFast
+	@$(SET0_BIN)
+
+valgrind:
+	@$(ZIG_BUILD)
+	@$(VALGRIND) $(SET0_BIN)

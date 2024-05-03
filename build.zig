@@ -40,6 +40,10 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("cairo");
     exe.linkSystemLibrary("xkbcommon");
 
+    if (optimize == .Debug) {
+        exe.linkSystemLibrary("fontconfig");
+    }
+
     exe.linkLibC();
 
     // TODO: remove when https://github.com/ziglang/zig/issues/131 is implemented

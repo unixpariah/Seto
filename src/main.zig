@@ -12,8 +12,6 @@ const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const Seat = @import("seat.zig").Seat;
 const seatListener = @import("seat.zig").seatListener;
 
-const xkb = @import("xkbcommon");
-
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
@@ -46,7 +44,7 @@ pub const Seto = struct {
     alloc: mem.Allocator,
 
     fn new() Seto {
-        const alloc = std.heap.c_allocator;
+        const alloc = std.heap.page_allocator;
         return .{
             .seat = Seat.new(),
             .outputs = std.ArrayList(Surface).init(alloc),
@@ -127,21 +125,19 @@ pub const Seto = struct {
 
         context.stroke();
 
+        const size: i32 = @intCast(width * height * 4);
+
         for (self.outputs.items) |*output| {
-            context.save();
-            context.rectangle(.{
-                .x = @floatFromInt(output.output_info.x),
-                .y = @floatFromInt(output.output_info.y),
-                .width = @floatFromInt(output.output_info.width),
-                .height = @floatFromInt(output.output_info.height),
-            });
-            context.clip();
-            var data = try cairo_surface.getData();
-            var len: usize = @as(usize, @intCast(cairo_surface.getStride())) * @as(usize, @intCast(cairo_surface.getHeight()));
-            var newData = try self.alloc.alloc(u8, len);
-            std.mem.copy(u8, newData, data[0..len]);
-            output.data = newData;
-            context.restore();
+            if (!output.is_configured()) continue;
+            const fd = try os.memfd_create("seto", 0);
+            defer os.close(fd);
+            try os.ftruncate(fd, @intCast(size));
+
+            const shm = self.shm orelse return error.NoWlShm;
+            const pool = try shm.createPool(fd, size);
+            defer pool.destroy();
+
+            try output.draw(pool, fd, try cairo_surface.getData());
         }
     }
 
@@ -153,6 +149,7 @@ pub const Seto = struct {
             output.destroy();
         }
         self.outputs.deinit();
+        self.seat.destroy();
     }
 };
 
@@ -171,25 +168,15 @@ pub fn main() !void {
     while (!seto.seat.exit) {
         if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
-        for (seto.outputs.items) |*surface| {
-            if (surface.is_configured()) {
-                const width = surface.dimensions[0];
-                const height = surface.dimensions[1];
-                const stride = width * 4;
-                const size = stride * height;
+        try seto.createSurfaces();
+    }
 
-                const fd = try os.memfd_create("seto", 0);
-                defer os.close(fd);
-                try os.ftruncate(fd, @intCast(size));
+    if (@import("builtin").mode == .Debug) { // Clear font cache to remove the "memory leaks" from valgrind output
+        const c_cairo = @cImport(@cInclude("cairo.h"));
+        const c_font = @cImport(@cInclude("fontconfig/fontconfig.h"));
 
-                const shm = seto.shm orelse return error.NoWlShm;
-                const pool = try shm.createPool(fd, size);
-                defer pool.destroy();
-
-                try seto.createSurfaces();
-                try surface.draw(pool, fd);
-            }
-        }
+        c_font.FcFini();
+        c_cairo.cairo_debug_reset_static_data();
     }
 }
 
@@ -231,7 +218,8 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 
                     const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch return;
 
-                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, OutputInfo{ .alloc = seto.alloc, .wl = global_output });
+                    const output_info = OutputInfo{ .alloc = seto.alloc, .wl = global_output };
+                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info);
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 
@@ -251,6 +239,8 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                 },
             }
         },
-        .global_remove => {},
+        .global_remove => |remove_event| {
+            std.log.warn("Global Removed {any}", .{remove_event});
+        },
     }
 }

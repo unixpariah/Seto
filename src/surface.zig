@@ -41,9 +41,7 @@ pub const Surface = struct {
         return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output };
     }
 
-    pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32) !void {
-        defer self.alloc.free(self.data);
-
+    pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32, image: [*]u8) !void {
         const width = self.dimensions[0];
         const height = self.dimensions[1];
         const stride = width * 4;
@@ -53,7 +51,7 @@ pub const Surface = struct {
         defer list.deinit();
         try list.resize(size);
 
-        @memcpy(list.items, self.data);
+        @memcpy(list.items, image);
 
         const data = try os.mmap(null, size, os.PROT.READ | os.PROT.WRITE, os.MAP.SHARED, fd, 0);
         defer os.munmap(data);

@@ -19,6 +19,13 @@ pub const Seat = struct {
             .xkb_context = xkb.Context.new(.no_flags) orelse std.debug.panic("", .{}),
         };
     }
+
+    pub fn destroy(self: *Seat) void {
+        self.wl_seat.?.release();
+        self.wl_keyboard.?.destroy();
+        self.xkb_state.?.unref();
+        self.xkb_context.unref();
+    }
 };
 
 pub fn seatListener(wl_seat: *wl.Seat, event: wl.Seat.Event, seto: *Seto) void {
