@@ -9,7 +9,7 @@ run:
 	@$(SET0_BIN)
 
 release:
-	@$(ZIG_BUILD) -Doptimize=ReleaseFast
+	@$(ZIG_BUILD) -Doptimize=ReleaseSmall
 	@$(SET0_BIN)
 
 valgrind:

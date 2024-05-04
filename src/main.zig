@@ -76,7 +76,12 @@ pub const Seto = struct {
             }
         }
 
-        return intersections;
+        var in = std.ArrayList([2]usize).init(self.alloc);
+        for (intersections.items) |_| {
+            try in.append(intersections.popOrNull().?);
+        }
+
+        return in;
     }
 
     fn createSurfaces(self: *Seto) !void {
@@ -127,6 +132,7 @@ pub const Seto = struct {
 
         const size: i32 = @intCast(width * height * 4);
 
+        const data = try cairo_surface.getData();
         for (self.outputs.items) |*output| {
             if (!output.is_configured()) continue;
             const fd = try os.memfd_create("seto", 0);
@@ -137,7 +143,7 @@ pub const Seto = struct {
             const pool = try shm.createPool(fd, size);
             defer pool.destroy();
 
-            try output.draw(pool, fd, try cairo_surface.getData());
+            try output.draw(pool, fd, data);
         }
     }
 
@@ -145,6 +151,7 @@ pub const Seto = struct {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.shm.?.destroy();
+        self.output_manager.?.destroy();
         for (self.outputs.items) |*output| {
             output.destroy();
         }
