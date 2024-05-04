@@ -35,10 +35,10 @@ pub const Surface = struct {
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
-    data: []u8 = &[_]u8{},
+    name: u32,
 
-    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo) Surface {
-        return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output };
+    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo, name: u32) Surface {
+        return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output, .name = name };
     }
 
     pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32, image: [*]u8) !void {

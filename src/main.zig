@@ -43,8 +43,7 @@ pub const Seto = struct {
     grid: Grid = Grid{},
     alloc: mem.Allocator,
 
-    fn new() Seto {
-        const alloc = std.heap.page_allocator;
+    fn new(alloc: mem.Allocator) Seto {
         return .{
             .seat = Seat.new(),
             .outputs = std.ArrayList(Surface).init(alloc),
@@ -63,7 +62,7 @@ pub const Seto = struct {
         return dimensions;
     }
 
-    // This function is so convoluted because we're filling it in reverse to be able to popOrNull and have the keys in
+    // This function is so convoluted because we're finding intersections in reverse to be able to popOrNull and have the keys in
     // proper order without having to reverse the ArrayList itself
     fn getIntersections(self: *Seto) !std.ArrayList([2]usize) {
         const dimensions = self.getDimensions();
@@ -171,7 +170,8 @@ pub fn main() !void {
     const registry = try display.getRegistry();
     defer registry.destroy();
 
-    var seto = Seto.new();
+    const alloc = std.heap.c_allocator;
+    var seto = Seto.new(alloc);
     defer seto.destroy();
 
     registry.setListener(*Seto, registryListener, &seto);
@@ -182,7 +182,8 @@ pub fn main() !void {
         try seto.createSurfaces();
     }
 
-    if (@import("builtin").mode == .Debug) { // Clear font cache to remove the "memory leaks" from valgrind output
+    // Clear font cache in debug to remove the "memory leaks" from valgrind output
+    if (@import("builtin").mode == .Debug) {
         const c_cairo = @cImport(@cInclude("cairo.h"));
         const c_font = @cImport(@cInclude("fontconfig/fontconfig.h"));
 
@@ -194,28 +195,28 @@ pub fn main() !void {
 fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Seto) void {
     switch (event) {
         .global => |global| {
-            const events = std.meta.stringToEnum(EventInterfaces, std.mem.span(global.interface)) orelse return;
-            switch (events) {
+            const event_str = std.meta.stringToEnum(EventInterfaces, std.mem.span(global.interface)) orelse return;
+            switch (event_str) {
                 .wl_shm => {
-                    seto.shm = registry.bind(global.name, wl.Shm, wl.Shm.generated_version) catch return;
+                    seto.shm = registry.bind(global.name, wl.Shm, wl.Shm.generated_version) catch |err| @panic(@errorName(err));
                 },
                 .wl_compositor => {
-                    seto.compositor = registry.bind(global.name, wl.Compositor, wl.Compositor.generated_version) catch return;
+                    seto.compositor = registry.bind(global.name, wl.Compositor, wl.Compositor.generated_version) catch |err| @panic(@errorName(err));
                 },
                 .zwlr_layer_shell_v1 => {
-                    seto.layer_shell = registry.bind(global.name, zwlr.LayerShellV1, zwlr.LayerShellV1.generated_version) catch return;
+                    seto.layer_shell = registry.bind(global.name, zwlr.LayerShellV1, zwlr.LayerShellV1.generated_version) catch |err| @panic(@errorName(err));
                 },
                 .wl_output => {
                     const global_output = registry.bind(
                         global.name,
                         wl.Output,
                         wl.Output.generated_version,
-                    ) catch return;
+                    ) catch |err| @panic(@errorName(err));
 
-                    const compositor = seto.compositor orelse return;
-                    const surface = compositor.createSurface() catch return;
+                    const compositor = seto.compositor orelse @panic("Compositor not bound");
+                    const surface = compositor.createSurface() catch |err| @panic(@errorName(err));
 
-                    const layer_surface = seto.layer_shell.?.getLayerSurface(surface, global_output, .overlay, "seto") catch return;
+                    const layer_surface = seto.layer_shell.?.getLayerSurface(surface, global_output, .overlay, "seto") catch |err| @panic(@errorName(err));
                     layer_surface.setListener(*Seto, layerSurfaceListener, seto);
                     layer_surface.setAnchor(.{
                         .top = true,
@@ -227,17 +228,17 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     layer_surface.setKeyboardInteractivity(.exclusive);
                     surface.commit();
 
-                    const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch return;
+                    const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
 
                     const output_info = OutputInfo{ .alloc = seto.alloc, .wl = global_output };
-                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info);
+                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info, global.name);
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 
-                    seto.outputs.append(output) catch return;
+                    seto.outputs.append(output) catch |err| @panic(@errorName(err));
                 },
                 .wl_seat => {
-                    const wl_seat = registry.bind(global.name, wl.Seat, wl.Seat.generated_version) catch return;
+                    const wl_seat = registry.bind(global.name, wl.Seat, wl.Seat.generated_version) catch |err| @panic(@errorName(err));
                     seto.seat.wl_seat = wl_seat;
                     wl_seat.setListener(*Seto, seatListener, seto);
                 },
@@ -246,12 +247,15 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         global.name,
                         zxdg.OutputManagerV1,
                         zxdg.OutputManagerV1.generated_version,
-                    ) catch return;
+                    ) catch |err| @panic(@errorName(err));
                 },
             }
         },
-        .global_remove => |remove_event| {
-            std.log.warn("Global Removed {any}", .{remove_event});
+
+        .global_remove => |global_removed| {
+            for (seto.outputs.items, 0..) |output, i| {
+                if (output.name == global_removed.name) _ = seto.outputs.swapRemove(i);
+            }
         },
     }
 }

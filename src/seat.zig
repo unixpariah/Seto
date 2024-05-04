@@ -13,6 +13,8 @@ pub const Seat = struct {
     xkb_state: ?*xkb.State = null,
     xkb_context: *xkb.Context,
     exit: bool = false,
+    rate: ?i32 = null,
+    delay: ?i32 = null,
 
     pub fn new() Seat {
         return .{
@@ -114,11 +116,11 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     seto.grid.offset[0] += 5;
                 },
                 xkb.Keysym.k => {
-                    if (seto.grid.offset[1] <= 5) seto.grid.offset[1] = seto.grid.size[1];
+                    if (seto.grid.offset[1] < 5) seto.grid.offset[1] = seto.grid.size[1];
                     seto.grid.offset[1] -= 5;
                 },
                 xkb.Keysym.h => {
-                    if (seto.grid.offset[0] <= 5) seto.grid.offset[0] = seto.grid.size[0];
+                    if (seto.grid.offset[0] < 5) seto.grid.offset[0] = seto.grid.size[0];
                     seto.grid.offset[0] -= 5;
                 },
                 xkb.Keysym.J => seto.grid.size[1] += 5,
@@ -136,6 +138,9 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                 else => {},
             }
         },
-        .repeat_info => {},
+        .repeat_info => |repeat| {
+            seto.seat.rate = repeat.rate;
+            seto.seat.delay = repeat.delay;
+        },
     }
 }
