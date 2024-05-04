@@ -24,7 +24,7 @@
     devShells.${system}.default = pkgs.mkShell {
       packages = with pkgs; [
         zls.packages.${system}.default
-        zig
+        zig_0_11
         pkg-config
         cairo
         wayland

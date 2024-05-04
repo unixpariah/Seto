@@ -108,9 +108,8 @@ pub const Seto = struct {
         var depth: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(intersections.items.len)))));
 
         var tree = try Tree.new(self.alloc, &keys, depth, &intersections);
-        defer tree.destroy();
         const tree_paths = try tree.iter(&keys);
-        defer self.alloc.free(tree_paths);
+        defer tree.alloc.deinit();
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();
