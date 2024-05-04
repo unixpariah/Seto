@@ -55,8 +55,10 @@ pub const Seto = struct {
     fn getDimensions(self: *Seto) [2]c_int {
         var dimensions: [2]c_int = .{ 0, 0 };
         for (self.outputs.items) |output| {
-            dimensions[0] += output.output_info.width;
-            dimensions[1] += output.output_info.height;
+            if (output.isConfigured()) {
+                dimensions[0] += output.output_info.width;
+                dimensions[1] += output.output_info.height;
+            }
         }
 
         return dimensions;
@@ -137,7 +139,7 @@ pub const Seto = struct {
         const size: i32 = @intCast(width * height * 4);
 
         for (self.outputs.items) |*output| {
-            if (!output.is_configured()) continue;
+            if (!output.isConfigured()) continue;
             const fd = try os.memfd_create("seto", 0);
             defer os.close(fd);
             try os.ftruncate(fd, @intCast(size));
@@ -170,14 +172,19 @@ pub fn main() !void {
     const registry = try display.getRegistry();
     defer registry.destroy();
 
-    const alloc = std.heap.c_allocator;
+    var dbg_gpa = if (@import("builtin").mode == .Debug) std.heap.GeneralPurposeAllocator(.{}){} else {};
+    defer if (@TypeOf(dbg_gpa) != void) {
+        _ = dbg_gpa.deinit();
+    };
+    const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
+
     var seto = Seto.new(alloc);
     defer seto.destroy();
 
     registry.setListener(*Seto, registryListener, &seto);
 
     while (!seto.seat.exit) {
-        if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
+        if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         try seto.createSurfaces();
     }

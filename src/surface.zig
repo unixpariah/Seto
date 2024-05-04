@@ -65,7 +65,7 @@ pub const Surface = struct {
         self.surface.commit();
     }
 
-    pub fn is_configured(self: *Surface) bool {
+    pub fn isConfigured(self: *const Surface) bool {
         return self.dimensions[0] > 0 and self.dimensions[1] > 0;
     }
 
