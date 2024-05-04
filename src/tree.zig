@@ -9,14 +9,14 @@ pub const Tree = struct {
     tree: std.StringHashMap(Node),
     alloc: std.mem.Allocator,
 
-    pub fn new(alloc: std.mem.Allocator, keys: [9]*const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !Tree {
+    pub fn new(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !Tree {
         return .{ .tree = try createNestedTree(alloc, keys, depth, crosses), .alloc = alloc };
     }
 
-    pub fn iter(self: *const Tree, keys: [9]*const [1:0]u8) ![](Result) {
+    pub fn iter(self: *const Tree, keys: []const *const [1:0]u8) ![](Result) {
         var arr = std.ArrayList(Result).init(self.alloc);
         for (keys) |key| {
-            if (self.tree.get(key)) |node| _ = try node.traverse(keys, key, &arr);
+            if (self.tree.get(key)) |node| try node.traverse(keys, key, &arr);
         }
 
         return try arr.toOwnedSlice();
@@ -45,7 +45,7 @@ const Node = union(enum) {
     node: std.StringHashMap(Node),
     position: ?[2]usize,
 
-    fn traverse(self: *const Node, keys: [9]*const [1:0]u8, path: [:0]const u8, result: *std.ArrayList(Result)) !void {
+    fn traverse(self: *const Node, keys: []const *const [1:0]u8, path: [:0]const u8, result: *std.ArrayList(Result)) !void {
         for (keys) |key| {
             switch (self.*) {
                 .node => |node| {
@@ -63,7 +63,7 @@ const Node = union(enum) {
     }
 };
 
-fn createNestedTree(alloc: std.mem.Allocator, keys: [9]*const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !std.StringHashMap(Node) {
+fn createNestedTree(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !std.StringHashMap(Node) {
     var tree = std.StringHashMap(Node).init(alloc);
 
     for (keys) |key| {

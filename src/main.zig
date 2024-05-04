@@ -52,6 +52,7 @@ pub const Seto = struct {
         };
     }
 
+    // TODO: This is definetly not gonna work on multi monitor but couldnt be bothered rn
     fn getDimensions(self: *Seto) [2]c_int {
         var dimensions: [2]c_int = .{ 0, 0 };
         for (self.outputs.items) |output| {
@@ -62,16 +63,14 @@ pub const Seto = struct {
         return dimensions;
     }
 
-    fn getIntersections(self: *Seto) !std.ArrayList([2]usize) { // TODO: reverse the order of filling out
+    // TODO: reverse the order of filling out without initializing new ArrayList
+    fn getIntersections(self: *Seto) !std.ArrayList([2]usize) {
         const dimensions = self.getDimensions();
-        const width: u32 = @intCast(dimensions[0]);
-        const height: u32 = @intCast(dimensions[1]);
-
         var intersections = std.ArrayList([2]usize).init(self.alloc);
         var i: usize = self.grid.offset[0] % self.grid.size[0];
-        while (i <= width) : (i += self.grid.size[0]) {
+        while (i <= dimensions[0]) : (i += self.grid.size[0]) {
             var j: usize = self.grid.offset[1] % self.grid.size[1];
-            while (j <= height) : (j += self.grid.size[1]) {
+            while (j <= dimensions[1]) : (j += self.grid.size[1]) {
                 try intersections.append(.{ i, j });
             }
         }
@@ -84,21 +83,40 @@ pub const Seto = struct {
         return in;
     }
 
+    fn correctgetIntersections(self: *Seto) !std.ArrayList([2]usize) {
+        const dimensions = self.getDimensions();
+        var intersections = std.ArrayList([2]usize).init(self.alloc);
+        var i: usize = @as(usize, @intCast(dimensions[0])) + self.grid.offset[0];
+        while (i >= self.grid.size[0]) : (i -= self.grid.size[0]) {
+            var j: usize = @as(usize, @intCast(dimensions[1])) + self.grid.offset[1];
+            while (j >= self.grid.size[1]) : (j -= self.grid.size[1]) {
+                try intersections.append(.{ i - self.grid.size[0], j - self.grid.size[1] });
+            }
+        }
+
+        return intersections;
+    }
+
     fn createSurfaces(self: *Seto) !void {
         const keys = [_]*const [1:0]u8{ "a", "s", "d", "f", "g", "h", "j", "k", "l" };
+        if (keys.len <= 1) {
+            std.debug.print("Error: keys length must be greater than 1\n", .{});
+            std.os.exit(1);
+        }
+
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
-        var intersections = try self.getIntersections();
+        var intersections = try self.correctgetIntersections();
         defer intersections.deinit();
 
-        var keys_num: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(intersections.items.len)))));
+        var depth: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(intersections.items.len)))));
 
-        var tree = try Tree.new(self.alloc, keys, keys_num, &intersections);
+        var tree = try Tree.new(self.alloc, &keys, depth, &intersections);
         defer tree.destroy();
-        const arr = try tree.iter(keys);
-        defer self.alloc.free(arr);
+        const tree_paths = try tree.iter(&keys);
+        defer self.alloc.free(tree_paths);
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();
@@ -109,19 +127,12 @@ pub const Seto = struct {
         context.paintWithAlpha(0.5);
         context.setSourceRgb(1, 1, 1);
 
-        var i = self.grid.offset[0] % self.grid.size[0];
-        while (i <= width) : (i += self.grid.size[0]) {
-            context.moveTo(@floatFromInt(i), 0);
-            context.lineTo(@floatFromInt(i), @floatFromInt(height));
-        }
+        for (tree_paths) |item| {
+            context.moveTo(@floatFromInt(item.pos[0]), 0);
+            context.lineTo(@floatFromInt(item.pos[0]), @floatFromInt(height));
+            context.moveTo(0, @floatFromInt(item.pos[1]));
+            context.lineTo(@floatFromInt(width), @floatFromInt(item.pos[1]));
 
-        i = self.grid.offset[1] % self.grid.size[1];
-        while (i <= height) : (i += self.grid.size[1]) {
-            context.moveTo(0, @floatFromInt(i));
-            context.lineTo(@floatFromInt(width), @floatFromInt(i));
-        }
-
-        for (arr) |item| {
             context.moveTo(@floatFromInt(item.pos[0] + 5), @floatFromInt(item.pos[1] + 15));
             context.selectFontFace("JetBrainsMono Nerd Font", .Normal, .Normal);
             context.setFontSize(16);
@@ -129,10 +140,10 @@ pub const Seto = struct {
         }
 
         context.stroke();
+        const data = try cairo_surface.getData();
 
         const size: i32 = @intCast(width * height * 4);
 
-        const data = try cairo_surface.getData();
         for (self.outputs.items) |*output| {
             if (!output.is_configured()) continue;
             const fd = try os.memfd_create("seto", 0);
