@@ -29,7 +29,7 @@ const EventInterfaces = enum {
 };
 
 const Grid = struct {
-    size: [2]u32 = .{ 80, 80 },
+    size: [2]u32 = .{ 81, 81 },
     offset: [2]u32 = .{ 0, 0 },
 };
 
@@ -63,32 +63,25 @@ pub const Seto = struct {
         return dimensions;
     }
 
-    // TODO: reverse the order of filling out without initializing new ArrayList
+    // This function is so convoluted because we're filling it in reverse to be able to popOrNull and have the keys in
+    // proper order without having to reverse the ArrayList itself
     fn getIntersections(self: *Seto) !std.ArrayList([2]usize) {
         const dimensions = self.getDimensions();
+        const width: u32 = @intCast(dimensions[0]);
+        const height: u32 = @intCast(dimensions[1]);
+
         var intersections = std.ArrayList([2]usize).init(self.alloc);
-        var i: usize = self.grid.offset[0] % self.grid.size[0];
-        while (i <= dimensions[0]) : (i += self.grid.size[0]) {
-            var j: usize = self.grid.offset[1] % self.grid.size[1];
-            while (j <= dimensions[1]) : (j += self.grid.size[1]) {
-                try intersections.append(.{ i, j });
-            }
+        var i: usize = width + self.grid.offset[0] - width % self.grid.size[0];
+        var j: usize = height + self.grid.offset[1] - height % self.grid.size[1];
+
+        while (j >= self.grid.size[1]) : (j -= self.grid.size[1]) {
+            try intersections.append(.{ i, j });
         }
+        try intersections.append(.{ i, j });
 
-        var in = std.ArrayList([2]usize).init(self.alloc);
-        for (intersections.items) |_| {
-            try in.append(intersections.popOrNull().?);
-        }
-
-        return in;
-    }
-
-    fn correctgetIntersections(self: *Seto) !std.ArrayList([2]usize) {
-        const dimensions = self.getDimensions();
-        var intersections = std.ArrayList([2]usize).init(self.alloc);
-        var i: usize = @as(usize, @intCast(dimensions[0])) + self.grid.offset[0];
         while (i >= self.grid.size[0]) : (i -= self.grid.size[0]) {
-            var j: usize = @as(usize, @intCast(dimensions[1])) + self.grid.offset[1];
+            j = height + self.grid.offset[1] - height % self.grid.size[1];
+            try intersections.append(.{ i - self.grid.size[0], j });
             while (j >= self.grid.size[1]) : (j -= self.grid.size[1]) {
                 try intersections.append(.{ i - self.grid.size[0], j - self.grid.size[1] });
             }
@@ -108,7 +101,7 @@ pub const Seto = struct {
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
-        var intersections = try self.correctgetIntersections();
+        var intersections = try self.getIntersections();
         defer intersections.deinit();
 
         var depth: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(intersections.items.len)))));
@@ -127,16 +120,16 @@ pub const Seto = struct {
         context.paintWithAlpha(0.5);
         context.setSourceRgb(1, 1, 1);
 
-        for (tree_paths) |item| {
-            context.moveTo(@floatFromInt(item.pos[0]), 0);
-            context.lineTo(@floatFromInt(item.pos[0]), @floatFromInt(height));
-            context.moveTo(0, @floatFromInt(item.pos[1]));
-            context.lineTo(@floatFromInt(width), @floatFromInt(item.pos[1]));
+        for (tree_paths) |path| {
+            context.moveTo(@floatFromInt(path.pos[0]), 0);
+            context.lineTo(@floatFromInt(path.pos[0]), @floatFromInt(height));
+            context.moveTo(0, @floatFromInt(path.pos[1]));
+            context.lineTo(@floatFromInt(width), @floatFromInt(path.pos[1]));
 
-            context.moveTo(@floatFromInt(item.pos[0] + 5), @floatFromInt(item.pos[1] + 15));
+            context.moveTo(@floatFromInt(path.pos[0] + 5), @floatFromInt(path.pos[1] + 15));
             context.selectFontFace("JetBrainsMono Nerd Font", .Normal, .Normal);
             context.setFontSize(16);
-            context.showText(item.path);
+            context.showText(path.path);
         }
 
         context.stroke();
