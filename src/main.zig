@@ -3,24 +3,23 @@ const mem = std.mem;
 const os = std.os;
 
 const Tree = @import("tree.zig").Tree;
+const OutputInfo = @import("surface.zig").OutputInfo;
+const Surface = @import("surface.zig").Surface;
+const Seat = @import("seat.zig").Seat;
 
 const handle_key = @import("seat.zig").handle_key;
 
-const Surface = @import("surface.zig").Surface;
-const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
-const OutputInfo = @import("surface.zig").OutputInfo;
 const xdgOutputListener = @import("surface.zig").xdgOutputListener;
-
-const Seat = @import("seat.zig").Seat;
+const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 
 const wayland = @import("wayland");
+const xkb = @import("xkbcommon");
+const cairo = @import("cairo");
+
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
-const xkb = @import("xkbcommon");
-
-const cairo = @import("cairo");
 
 const EventInterfaces = enum {
     wl_shm,
@@ -32,7 +31,7 @@ const EventInterfaces = enum {
 };
 
 const Grid = struct {
-    size: [2]u32 = .{ 81, 81 },
+    size: [2]u32 = .{ 80, 80 },
     offset: [2]u32 = .{ 0, 0 },
 };
 
@@ -45,10 +44,16 @@ pub const Seto = struct {
     outputs: std.ArrayList(Surface),
     grid: Grid = Grid{},
     alloc: mem.Allocator,
-    redraw: bool = true,
+
+    depth: usize = 0,
+
+    redraw: bool = false,
+    first_draw: bool = true,
     exit: bool = false,
 
-    fn new(alloc: mem.Allocator) Seto {
+    const Self = @This();
+
+    fn new(alloc: mem.Allocator) Self {
         return .{
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
@@ -56,11 +61,11 @@ pub const Seto = struct {
         };
     }
 
-    // TODO: This is definetly not gonna work on multi monitor but couldnt be bothered rn
-    fn getDimensions(self: *Seto) [2]c_int {
+    // TODO: Make it multi output
+    fn getDimensions(self: *Self) [2]c_int {
         var dimensions: [2]c_int = .{ 0, 0 };
-        for (self.outputs.items) |output| {
-            if (output.isConfigured()) {
+        for (self.outputs.items, 0..) |output, i| {
+            if (output.isConfigured() and i == 0) {
                 dimensions[0] += output.output_info.width;
                 dimensions[1] += output.output_info.height;
             }
@@ -71,7 +76,7 @@ pub const Seto = struct {
 
     // This function is so convoluted because we're finding intersections in reverse to be
     // able to popOrNull and have the keys in proper order without having to reverse the ArrayList itself
-    fn getIntersections(self: *Seto) !std.ArrayList([2]usize) {
+    fn getIntersections(self: *Self) !std.ArrayList([2]usize) {
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
@@ -96,8 +101,8 @@ pub const Seto = struct {
         return intersections;
     }
 
-    fn createSurfaces(self: *Seto) !void {
-        if (!self.redraw) return;
+    fn createSurfaces(self: *Self) !void {
+        if (!self.drawSurfaces()) return;
 
         const keys = [_]*const [1:0]u8{ "a", "s", "d", "f", "g", "h", "j", "k", "l" };
         if (keys.len <= 1) {
@@ -113,6 +118,7 @@ pub const Seto = struct {
         defer intersections.deinit();
 
         var depth: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(intersections.items.len)))));
+        self.depth = depth;
 
         var tree = try Tree.new(self.alloc, &keys, depth, &intersections);
         const tree_paths = try tree.iter(&keys);
@@ -139,13 +145,20 @@ pub const Seto = struct {
             context.showText(path.path);
         }
 
+        // for (self.seat.buffer.items) |key| {
+        //     var a = tree.tree.getKey("a");
+        //     std.debug.print("{}\n", .{key.len});
+        //     std.debug.print("{}\n", .{a.?.ptr});
+        // }
+
         context.stroke();
         const data = try cairo_surface.getData();
 
         const size: i32 = @intCast(width * height * 4);
 
-        for (self.outputs.items) |*output| {
-            if (!output.isConfigured()) continue;
+        // TODO: Make it multi output
+        for (self.outputs.items, 0..) |*output, i| {
+            if (!output.isConfigured() or i > 0) continue;
             const fd = try os.memfd_create("seto", 0);
             defer os.close(fd);
             try os.ftruncate(fd, @intCast(size));
@@ -158,7 +171,13 @@ pub const Seto = struct {
         }
     }
 
-    fn destroy(self: *Seto) void {
+    fn drawSurfaces(self: *Self) bool {
+        const draw = self.redraw or self.first_draw;
+        self.first_draw = false;
+        return draw;
+    }
+
+    fn destroy(self: *Self) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.shm.?.destroy();
@@ -192,11 +211,9 @@ pub fn main() !void {
 
     while (!seto.exit) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
-        if (seto.seat.repeat.timer) |*timer| {
-            if (timer.read() / 1_000_000 > seto.seat.repeat.delay.?) {
-                handle_key(&seto);
-                std.time.sleep(@as(u64, @intCast(seto.seat.repeat.rate.?)) * 1_000_000);
-            }
+        if (seto.seat.repeatKey()) {
+            handle_key(&seto);
+            std.time.sleep(@as(u64, @intCast(seto.seat.repeat.rate.?)) * 1_000_000);
         }
         try seto.createSurfaces();
     }

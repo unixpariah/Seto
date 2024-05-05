@@ -21,7 +21,9 @@ pub const OutputInfo = struct {
     wl: *wl.Output,
     alloc: mem.Allocator,
 
-    fn destroy(self: *OutputInfo) void {
+    const Self = @This();
+
+    fn destroy(self: *Self) void {
         self.wl.destroy();
         self.alloc.free(self.name.?);
         self.alloc.free(self.description.?);
@@ -37,11 +39,13 @@ pub const Surface = struct {
     xdg_output: *zxdg.OutputV1,
     name: u32,
 
-    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo, name: u32) Surface {
+    const Self = @This();
+
+    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo, name: u32) Self {
         return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output, .name = name };
     }
 
-    pub fn draw(self: *Surface, pool: *wl.ShmPool, fd: i32, image: [*]u8) !void {
+    pub fn draw(self: *Self, pool: *wl.ShmPool, fd: i32, image: [*]u8) !void {
         const width = self.dimensions[0];
         const height = self.dimensions[1];
         const stride = width * 4;
@@ -65,11 +69,11 @@ pub const Surface = struct {
         self.surface.commit();
     }
 
-    pub fn isConfigured(self: *const Surface) bool {
+    pub fn isConfigured(self: *const Self) bool {
         return self.dimensions[0] > 0 and self.dimensions[1] > 0;
     }
 
-    pub fn destroy(self: *Surface) void {
+    pub fn destroy(self: *Self) void {
         self.layer_surface.destroy();
         self.surface.destroy();
         self.output_info.destroy();
@@ -99,7 +103,6 @@ pub fn xdgOutputListener(
 ) void {
     for (seto.outputs.items) |*surface| {
         if (surface.xdg_output == output) {
-            seto.redraw = true;
             switch (event) {
                 .name => |e| {
                     surface.output_info.name = surface.output_info.alloc.dupe(u8, std.mem.span(e.name)) catch return;

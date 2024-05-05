@@ -9,12 +9,14 @@ pub const Tree = struct {
     tree: std.StringHashMap(Node),
     alloc: std.heap.ArenaAllocator,
 
-    pub fn new(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !Tree {
+    const Self = @This();
+
+    pub fn new(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !Self {
         var a_alloc = std.heap.ArenaAllocator.init(alloc);
         return .{ .tree = try createNestedTree(a_alloc.allocator(), keys, depth, crosses), .alloc = a_alloc };
     }
 
-    pub fn iter(self: *Tree, keys: []const *const [1:0]u8) ![](Result) {
+    pub fn iter(self: *Self, keys: []const *const [1:0]u8) ![](Result) {
         var arr = std.ArrayList(Result).init(self.alloc.allocator());
         for (keys) |key| {
             if (self.tree.get(key)) |node| try node.traverse(self.alloc.allocator(), keys, key, &arr);
@@ -28,7 +30,9 @@ const Node = union(enum) {
     node: std.StringHashMap(Node),
     position: ?[2]usize,
 
-    fn traverse(self: *const Node, alloc: std.mem.Allocator, keys: []const *const [1:0]u8, path: [:0]const u8, result: *std.ArrayList(Result)) !void {
+    const Self = @This();
+
+    fn traverse(self: *const Self, alloc: std.mem.Allocator, keys: []const *const [1:0]u8, path: [:0]const u8, result: *std.ArrayList(Result)) !void {
         for (keys) |key| {
             switch (self.*) {
                 .node => |node| {

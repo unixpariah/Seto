@@ -21,18 +21,29 @@ pub const Seat = struct {
     xkb_context: *xkb.Context,
     alloc: std.mem.Allocator,
     repeat: Repeat = Repeat{},
+    buffer: std.ArrayList([64]u8),
 
-    pub fn new(alloc: std.mem.Allocator) Seat {
+    const Self = @This();
+
+    pub fn new(alloc: std.mem.Allocator) Self {
         return .{
             .xkb_context = xkb.Context.new(.no_flags) orelse std.debug.panic("", .{}),
+            .buffer = std.ArrayList([64]u8).init(alloc),
             .alloc = alloc,
         };
     }
 
-    pub fn destroy(self: *Seat) void {
+    pub fn repeatKey(self: *Self) bool {
+        var timer = self.repeat.timer orelse return false;
+        var delay = self.repeat.delay orelse return false;
+        return timer.read() / 1_000_000 > delay;
+    }
+
+    pub fn destroy(self: *Self) void {
         if (self.wl_seat) |wl_seat| wl_seat.release();
         if (self.wl_keyboard) |wl_keyboard| wl_keyboard.destroy();
         if (self.xkb_state) |xkb_state| xkb_state.unref();
+        self.buffer.deinit();
         self.xkb_context.unref();
     }
 };
@@ -121,46 +132,57 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
     }
 }
 
-pub fn handle_key(seto: *Seto) void {
-    if (seto.seat.repeat.key == null) return;
-    seto.redraw = true;
+pub fn handle_key(self: *Seto) void {
+    const key = self.seat.repeat.key orelse return;
+    self.redraw = true;
 
-    const ctrl_active = seto.seat.xkb_state.?.modNameIsActive(
+    const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
         xkb.names.mod.ctrl,
         @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
     ) == 1;
-    switch (seto.seat.repeat.key.?) {
+    switch (key) {
         xkb.Keysym.j => {
-            if (seto.grid.offset[1] >= seto.grid.size[1]) seto.grid.offset[1] = 0;
-            seto.grid.offset[1] += 5;
+            if (self.grid.offset[1] >= self.grid.size[1]) self.grid.offset[1] -= self.grid.size[1];
+            self.grid.offset[1] += 5;
         },
         xkb.Keysym.l => {
-            if (seto.grid.offset[0] >= seto.grid.size[0]) seto.grid.offset[0] = 0;
-            seto.grid.offset[0] += 5;
+            if (self.grid.offset[0] >= self.grid.size[0]) self.grid.offset[0] -= self.grid.size[0];
+            self.grid.offset[0] += 5;
         },
         xkb.Keysym.k => {
-            if (seto.grid.offset[1] < 5) seto.grid.offset[1] = seto.grid.size[1];
-            seto.grid.offset[1] -= 5;
+            if (self.grid.offset[1] < 5) self.grid.offset[1] = self.grid.size[1];
+            self.grid.offset[1] -= 5;
         },
         xkb.Keysym.h => {
-            if (seto.grid.offset[0] < 5) seto.grid.offset[0] = seto.grid.size[0];
-            seto.grid.offset[0] -= 5;
+            if (self.grid.offset[0] < 5) self.grid.offset[0] = self.grid.size[0];
+            self.grid.offset[0] -= 5;
         },
-        xkb.Keysym.J => seto.grid.size[1] += 5,
-        xkb.Keysym.L => seto.grid.size[0] += 5,
+        xkb.Keysym.J => self.grid.size[1] += 5,
+        xkb.Keysym.L => self.grid.size[0] += 5,
         xkb.Keysym.K => {
-            if (seto.grid.size[1] >= 5) seto.grid.size[1] -= 5;
+            if (self.grid.size[1] >= 5) self.grid.size[1] -= 5;
         },
         xkb.Keysym.H => {
-            if (seto.grid.size[0] >= 5) seto.grid.size[0] -= 5;
+            if (self.grid.size[0] >= 5) self.grid.size[0] -= 5;
         },
-        xkb.Keysym.q => seto.exit = true,
+        xkb.Keysym.q => self.exit = true,
         xkb.Keysym.c => {
             if (ctrl_active) {
-                seto.exit = true;
+                self.exit = true;
                 return;
             }
         },
+        xkb.Keysym.BackSpace => {
+            _ = self.seat.buffer.popOrNull();
+            return;
+        },
         else => {},
+    }
+
+    if (self.seat.buffer.items.len < self.depth) {
+        var buffer: [64]u8 = undefined;
+        const keynum: xkb.Keysym = @enumFromInt(key);
+        _ = keynum.getName(&buffer, 64);
+        self.seat.buffer.append(buffer) catch return;
     }
 }
