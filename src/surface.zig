@@ -99,6 +99,7 @@ pub fn xdgOutputListener(
 ) void {
     for (seto.outputs.items) |*surface| {
         if (surface.xdg_output == output) {
+            seto.redraw = true;
             switch (event) {
                 .name => |e| {
                     surface.output_info.name = surface.output_info.alloc.dupe(u8, std.mem.span(e.name)) catch return;

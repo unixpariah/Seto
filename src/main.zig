@@ -4,6 +4,8 @@ const os = std.os;
 
 const Tree = @import("tree.zig").Tree;
 
+const handle_key = @import("seat.zig").handle_key;
+
 const Surface = @import("surface.zig").Surface;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const OutputInfo = @import("surface.zig").OutputInfo;
@@ -16,6 +18,7 @@ const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
+const xkb = @import("xkbcommon");
 
 const cairo = @import("cairo");
 
@@ -42,10 +45,12 @@ pub const Seto = struct {
     outputs: std.ArrayList(Surface),
     grid: Grid = Grid{},
     alloc: mem.Allocator,
+    redraw: bool = true,
+    exit: bool = false,
 
     fn new(alloc: mem.Allocator) Seto {
         return .{
-            .seat = Seat.new(),
+            .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
         };
@@ -64,8 +69,8 @@ pub const Seto = struct {
         return dimensions;
     }
 
-    // This function is so convoluted because we're finding intersections in reverse to be able to popOrNull and have the keys in
-    // proper order without having to reverse the ArrayList itself
+    // This function is so convoluted because we're finding intersections in reverse to be
+    // able to popOrNull and have the keys in proper order without having to reverse the ArrayList itself
     fn getIntersections(self: *Seto) !std.ArrayList([2]usize) {
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
@@ -92,6 +97,8 @@ pub const Seto = struct {
     }
 
     fn createSurfaces(self: *Seto) !void {
+        if (!self.redraw) return;
+
         const keys = [_]*const [1:0]u8{ "a", "s", "d", "f", "g", "h", "j", "k", "l" };
         if (keys.len <= 1) {
             std.debug.print("Error: keys length must be greater than 1\n", .{});
@@ -181,10 +188,16 @@ pub fn main() !void {
     defer seto.destroy();
 
     registry.setListener(*Seto, registryListener, &seto);
+    if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 
-    while (!seto.seat.exit) {
-        if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
+    while (!seto.exit) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
+        if (seto.seat.repeat.timer) |*timer| {
+            if (timer.read() / 1_000_000 > seto.seat.repeat.delay.?) {
+                handle_key(&seto);
+                std.time.sleep(@as(u64, @intCast(seto.seat.repeat.rate.?)) * 1_000_000);
+            }
+        }
         try seto.createSurfaces();
     }
 
