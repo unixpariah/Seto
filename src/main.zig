@@ -123,6 +123,7 @@ pub const Seto = struct {
         var tree = try Tree.new(self.alloc, &keys, depth, &intersections);
         const tree_paths = try tree.iter(&keys);
         defer tree.alloc.deinit();
+        tree.find(self.seat.buffer.items);
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();
@@ -144,12 +145,6 @@ pub const Seto = struct {
             context.setFontSize(16);
             context.showText(path.path);
         }
-
-        // for (self.seat.buffer.items) |key| {
-        //     var a = tree.tree.getKey("a");
-        //     std.debug.print("{}\n", .{key.len});
-        //     std.debug.print("{}\n", .{a.?.ptr});
-        // }
 
         context.stroke();
         const data = try cairo_surface.getData();

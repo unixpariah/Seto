@@ -16,10 +16,23 @@ pub const Tree = struct {
         return .{ .tree = try createNestedTree(a_alloc.allocator(), keys, depth, crosses), .alloc = a_alloc };
     }
 
+    pub fn find(self: *Self, keys: [][64]u8) void {
+        if (keys.len > 0) {
+            const node = self.tree.get(keys[0][0..1]);
+            if (node) |n| {
+                if (n.traverse(keys[1..keys.len])) |result| {
+                    const positions = std.fmt.allocPrintZ(self.alloc.allocator(), "{},{}\n", .{ result[0], result[1] }) catch return;
+                    _ = std.io.getStdOut().write(positions) catch |err| std.debug.panic("{}", .{err});
+                    std.process.exit(0);
+                }
+            }
+        }
+    }
+
     pub fn iter(self: *Self, keys: []const *const [1:0]u8) ![](Result) {
         var arr = std.ArrayList(Result).init(self.alloc.allocator());
         for (keys) |key| {
-            if (self.tree.get(key)) |node| try node.traverse(self.alloc.allocator(), keys, key, &arr);
+            if (self.tree.get(key)) |node| try node.collect(self.alloc.allocator(), keys, key, &arr);
         }
 
         return try arr.toOwnedSlice();
@@ -32,12 +45,24 @@ const Node = union(enum) {
 
     const Self = @This();
 
-    fn traverse(self: *const Self, alloc: std.mem.Allocator, keys: []const *const [1:0]u8, path: [:0]const u8, result: *std.ArrayList(Result)) !void {
+    fn traverse(self: *const Self, keys: [][64]u8) ?[2]usize {
+        switch (self.*) {
+            .node => |node| {
+                if (keys.len > 0) {
+                    if (node.get(keys[0][0..1])) |n| return n.traverse(keys[1..keys.len]);
+                }
+            },
+            .position => |pos| return pos,
+        }
+        return null;
+    }
+
+    fn collect(self: *const Self, alloc: std.mem.Allocator, keys: []const *const [1:0]u8, path: [:0]const u8, result: *std.ArrayList(Result)) !void {
         for (keys) |key| {
             switch (self.*) {
                 .node => |node| {
                     const a = try std.fmt.allocPrintZ(alloc, "{s}{s}", .{ path, key });
-                    try node.get(key).?.traverse(alloc, keys, a, result);
+                    try node.get(key).?.collect(alloc, keys, a, result);
                 },
                 .position => |position| {
                     if (position) |pos| {
