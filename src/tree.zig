@@ -11,9 +11,9 @@ pub const Tree = struct {
 
     const Self = @This();
 
-    pub fn new(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, crosses: *std.ArrayList([2]usize)) !Self {
+    pub fn new(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, intersections: *std.ArrayList([2]usize)) !Self {
         var a_alloc = std.heap.ArenaAllocator.init(alloc);
-        return .{ .tree = try createNestedTree(a_alloc.allocator(), keys, depth, crosses), .alloc = a_alloc };
+        return .{ .tree = try createNestedTree(a_alloc.allocator(), keys, depth, intersections), .alloc = a_alloc };
     }
 
     pub fn find(self: *Self, keys: [][64]u8) void {
@@ -61,14 +61,12 @@ const Node = union(enum) {
         for (keys) |key| {
             switch (self.*) {
                 .node => |node| {
-                    const a = try std.fmt.allocPrintZ(alloc, "{s}{s}", .{ path, key });
-                    try node.get(key).?.collect(alloc, keys, a, result);
+                    const new_path = try std.fmt.allocPrintZ(alloc, "{s}{s}", .{ path, key });
+                    try node.get(key).?.collect(alloc, keys, new_path, result);
                 },
                 .position => |position| {
-                    if (position) |pos| {
-                        try result.append(.{ .pos = pos, .path = path });
-                    }
-                    return;
+                    const pos = position orelse return;
+                    try result.append(.{ .pos = pos, .path = path });
                 },
             }
         }

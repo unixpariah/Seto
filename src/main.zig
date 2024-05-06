@@ -7,7 +7,7 @@ const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
 const Seat = @import("seat.zig").Seat;
 
-const handle_key = @import("seat.zig").handle_key;
+const handleKey = @import("seat.zig").handleKey;
 
 const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
@@ -101,6 +101,13 @@ pub const Seto = struct {
         return intersections;
     }
 
+    fn updateDepth(self: *Self, intersections: std.ArrayList([2]usize), keys: []const *const [1:0]u8) void {
+        const items_len: f64 = @floatFromInt(intersections.items.len);
+        const keys_len: f64 = @floatFromInt(keys.len);
+        const depth = std.math.log(f64, keys_len, items_len);
+        self.depth = @intFromFloat(std.math.ceil(depth));
+    }
+
     fn createSurfaces(self: *Self) !void {
         if (!self.drawSurfaces()) return;
 
@@ -117,11 +124,10 @@ pub const Seto = struct {
         var intersections = try self.getIntersections();
         defer intersections.deinit();
 
-        var depth: usize = @intFromFloat(std.math.ceil(std.math.log(f64, keys.len, @as(f64, @floatFromInt(intersections.items.len)))));
-        self.depth = depth;
+        self.updateDepth(intersections, &keys);
 
-        var tree = try Tree.new(self.alloc, &keys, depth, &intersections);
-        const tree_paths = try tree.iter(&keys);
+        var tree = try Tree.new(self.alloc, &keys, self.depth, &intersections);
+        const branch_info = try tree.iter(&keys);
         defer tree.alloc.deinit();
         tree.find(self.seat.buffer.items);
 
@@ -134,16 +140,52 @@ pub const Seto = struct {
         context.paintWithAlpha(0.5);
         context.setSourceRgb(1, 1, 1);
 
-        for (tree_paths) |path| {
-            context.moveTo(@floatFromInt(path.pos[0]), 0);
-            context.lineTo(@floatFromInt(path.pos[0]), @floatFromInt(height));
-            context.moveTo(0, @floatFromInt(path.pos[1]));
-            context.lineTo(@floatFromInt(width), @floatFromInt(path.pos[1]));
+        var any_matches = false;
+        for (branch_info) |branch| {
+            if (self.seat.buffer.items.len == 0) {
+                any_matches = true;
+                break;
+            }
+            const len = self.seat.buffer.items.len - 1;
+            if (std.mem.eql(u8, self.seat.buffer.items[len][0..1], branch.path[len .. len + 1])) {
+                any_matches = true;
+            }
+        }
 
-            context.moveTo(@floatFromInt(path.pos[0] + 5), @floatFromInt(path.pos[1] + 15));
+        if (!any_matches) {
+            _ = self.seat.buffer.pop();
+        }
+
+        for (branch_info) |branch| {
+            var matching: u8 = 0;
+            for (self.seat.buffer.items, 0..) |char, i| {
+                if (std.mem.eql(u8, char[0..1], branch.path[i .. i + 1])) {
+                    matching += 1;
+                    continue;
+                }
+
+                matching = 0;
+                break;
+            }
+
+            context.moveTo(@floatFromInt(branch.pos[0]), 0);
+            context.lineTo(@floatFromInt(branch.pos[0]), @floatFromInt(height));
+            context.moveTo(0, @floatFromInt(branch.pos[1]));
+            context.lineTo(@floatFromInt(width), @floatFromInt(branch.pos[1]));
+
+            context.moveTo(@floatFromInt(branch.pos[0] + 5), @floatFromInt(branch.pos[1] + 15));
             context.selectFontFace("JetBrainsMono Nerd Font", .Normal, .Normal);
             context.setFontSize(16);
-            context.showText(path.path);
+            for (0..self.depth) |i| {
+                if (i < matching) {
+                    context.setSourceRgb(1, 1, 0);
+                }
+                var positions: [2]u8 = undefined;
+                positions[0] = branch.path[i];
+                positions[1] = 0;
+                context.showText(positions[0..1 :0]);
+                context.setSourceRgb(1, 1, 1);
+            }
         }
 
         context.stroke();
@@ -207,10 +249,13 @@ pub fn main() !void {
     while (!seto.exit) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         if (seto.seat.repeatKey()) {
-            handle_key(&seto);
-            std.time.sleep(@as(u64, @intCast(seto.seat.repeat.rate.?)) * 1_000_000);
+            handleKey(&seto);
         }
         try seto.createSurfaces();
+        if (seto.seat.repeat.rate) |repeat_rate| {
+            const rate: u64 = @intCast(repeat_rate);
+            std.time.sleep(rate * std.time.ns_per_ms);
+        }
     }
 
     // Clear font cache in debug to remove the "memory leaks" from valgrind output

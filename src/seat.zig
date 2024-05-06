@@ -36,7 +36,7 @@ pub const Seat = struct {
     pub fn repeatKey(self: *Self) bool {
         var timer = self.repeat.timer orelse return false;
         var delay = self.repeat.delay orelse return false;
-        return timer.read() / 1_000_000 > delay;
+        return timer.read() / std.time.ns_per_ms > delay;
     }
 
     pub fn destroy(self: *Self) void {
@@ -123,7 +123,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
             if (keysym == .NoSymbol) return;
 
             seto.seat.repeat.key = @intFromEnum(keysym);
-            handle_key(seto);
+            handleKey(seto);
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.rate = repeat_key.rate;
@@ -132,7 +132,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
     }
 }
 
-pub fn handle_key(self: *Seto) void {
+pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
     self.redraw = true;
 
@@ -141,29 +141,41 @@ pub fn handle_key(self: *Seto) void {
         @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
     ) == 1;
     switch (key) {
-        xkb.Keysym.j => {
-            if (self.grid.offset[1] >= self.grid.size[1]) self.grid.offset[1] -= self.grid.size[1];
-            self.grid.offset[1] += 5;
-        },
-        xkb.Keysym.l => {
+        xkb.Keysym.m => {
             if (self.grid.offset[0] >= self.grid.size[0]) self.grid.offset[0] -= self.grid.size[0];
             self.grid.offset[0] += 5;
+            return;
         },
-        xkb.Keysym.k => {
+        xkb.Keysym.n => {
             if (self.grid.offset[1] < 5) self.grid.offset[1] = self.grid.size[1];
             self.grid.offset[1] -= 5;
+            return;
         },
-        xkb.Keysym.h => {
+        xkb.Keysym.x => {
+            if (self.grid.offset[1] >= self.grid.size[1]) self.grid.offset[1] -= self.grid.size[1];
+            self.grid.offset[1] += 5;
+            return;
+        },
+        xkb.Keysym.z => {
             if (self.grid.offset[0] < 5) self.grid.offset[0] = self.grid.size[0];
             self.grid.offset[0] -= 5;
+            return;
         },
-        xkb.Keysym.J => self.grid.size[1] += 5,
-        xkb.Keysym.L => self.grid.size[0] += 5,
-        xkb.Keysym.K => {
+        xkb.Keysym.M => {
+            self.grid.size[0] += 5;
+            return;
+        },
+        xkb.Keysym.N => {
             if (self.grid.size[1] >= 5) self.grid.size[1] -= 5;
+            return;
         },
-        xkb.Keysym.H => {
+        xkb.Keysym.X => {
+            self.grid.size[1] += 5;
+            return;
+        },
+        xkb.Keysym.Z => {
             if (self.grid.size[0] >= 5) self.grid.size[0] -= 5;
+            return;
         },
         xkb.Keysym.q => self.exit = true,
         xkb.Keysym.c => {
@@ -176,6 +188,7 @@ pub fn handle_key(self: *Seto) void {
             _ = self.seat.buffer.popOrNull();
             return;
         },
+        xkb.Keysym.Shift_R | xkb.Keysym.Shift_R => return,
         else => {},
     }
 
