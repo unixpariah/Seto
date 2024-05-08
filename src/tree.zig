@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Result = struct {
+pub const Result = struct {
     path: [:0]const u8,
     pos: [2]usize,
 };
@@ -11,9 +11,10 @@ pub const Tree = struct {
 
     const Self = @This();
 
-    pub fn new(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, intersections: *std.ArrayList([2]usize)) !Self {
+    pub fn new(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, intersections: [][2]usize) !Self {
         var a_alloc = std.heap.ArenaAllocator.init(alloc);
-        return .{ .tree = try createNestedTree(a_alloc.allocator(), keys, depth, intersections), .alloc = a_alloc };
+        var a: usize = 0;
+        return .{ .tree = try createNestedTree(a_alloc.allocator(), keys, depth, intersections, &a), .alloc = a_alloc };
     }
 
     pub fn find(self: *Self, keys: [][64]u8) void {
@@ -73,14 +74,22 @@ const Node = union(enum) {
     }
 };
 
-fn createNestedTree(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, intersections: *std.ArrayList([2]usize)) !std.StringHashMap(Node) {
+fn createNestedTree(alloc: std.mem.Allocator, keys: []const *const [1:0]u8, depth: usize, intersections: [][2]usize, num: *usize) !std.StringHashMap(Node) {
     var tree = std.StringHashMap(Node).init(alloc);
 
     for (keys) |key| {
         if (depth <= 1) {
-            try tree.put(key, .{ .position = intersections.popOrNull() });
+            const position = positionInitialization: {
+                if (num.* < intersections.len) {
+                    break :positionInitialization intersections[num.*];
+                } else {
+                    break :positionInitialization null;
+                }
+            };
+            try tree.put(key, .{ .position = position });
+            num.* += 1;
         } else {
-            var new_tree = try createNestedTree(alloc, keys, depth - 1, intersections);
+            var new_tree = try createNestedTree(alloc, keys, depth - 1, intersections, num);
             try tree.put(key, .{ .node = new_tree });
         }
     }

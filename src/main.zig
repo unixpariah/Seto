@@ -6,6 +6,7 @@ const Tree = @import("tree.zig").Tree;
 const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
 const Seat = @import("seat.zig").Seat;
+const Result = @import("tree.zig").Result;
 
 const handleKey = @import("seat.zig").handleKey;
 
@@ -74,38 +75,47 @@ pub const Seto = struct {
         return dimensions;
     }
 
-    // This function is so convoluted because we're finding intersections in reverse to be
-    // able to popOrNull and have the keys in proper order without having to reverse the ArrayList itself
-    fn getIntersections(self: *Self) !std.ArrayList([2]usize) {
+    fn getIntersections(self: *Seto) ![][2]usize {
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
         var intersections = std.ArrayList([2]usize).init(self.alloc);
-        var i: usize = width + self.grid.offset[0] - width % self.grid.size[0];
-        var j: usize = height + self.grid.offset[1] - height % self.grid.size[1];
-
-        while (j >= self.grid.size[1]) : (j -= self.grid.size[1]) {
-            try intersections.append(.{ i, j });
-        }
-        try intersections.append(.{ i, j });
-
-        while (i >= self.grid.size[0]) : (i -= self.grid.size[0]) {
-            j = height + self.grid.offset[1] - height % self.grid.size[1];
-            try intersections.append(.{ i - self.grid.size[0], j });
-            while (j >= self.grid.size[1]) : (j -= self.grid.size[1]) {
-                try intersections.append(.{ i - self.grid.size[0], j - self.grid.size[1] });
+        defer intersections.deinit();
+        var i: usize = self.grid.offset[0] % self.grid.size[0];
+        while (i <= width) : (i += self.grid.size[0]) {
+            var j: usize = self.grid.offset[1] % self.grid.size[1];
+            while (j <= height) : (j += self.grid.size[1]) {
+                try intersections.append(.{ i, j });
             }
         }
 
-        return intersections;
+        return try intersections.toOwnedSlice();
     }
 
-    fn updateDepth(self: *Self, intersections: std.ArrayList([2]usize), keys: []const *const [1:0]u8) void {
-        const items_len: f64 = @floatFromInt(intersections.items.len);
+    fn updateDepth(self: *Self, intersections: [][2]usize, keys: []const *const [1:0]u8) void {
+        const items_len: f64 = @floatFromInt(intersections.len);
         const keys_len: f64 = @floatFromInt(keys.len);
         const depth = std.math.log(f64, keys_len, items_len);
         self.depth = @intFromFloat(std.math.ceil(depth));
+    }
+
+    fn removeWrongChar(self: *Self, branch_info: []Result) void {
+        var any_matches = false;
+        for (branch_info) |branch| {
+            if (self.seat.buffer.items.len == 0) {
+                any_matches = true;
+                break;
+            }
+            const len = self.seat.buffer.items.len - 1;
+            if (std.mem.eql(u8, self.seat.buffer.items[len][0..1], branch.path[len .. len + 1])) {
+                any_matches = true;
+            }
+        }
+
+        if (!any_matches) {
+            _ = self.seat.buffer.pop();
+        }
     }
 
     fn createSurfaces(self: *Self) !void {
@@ -122,12 +132,13 @@ pub const Seto = struct {
         const height: u32 = @intCast(dimensions[1]);
 
         var intersections = try self.getIntersections();
-        defer intersections.deinit();
+        defer self.alloc.free(intersections);
 
         self.updateDepth(intersections, &keys);
 
-        var tree = try Tree.new(self.alloc, &keys, self.depth, &intersections);
+        var tree = try Tree.new(self.alloc, &keys, self.depth, intersections);
         const branch_info = try tree.iter(&keys);
+        self.removeWrongChar(branch_info);
         defer tree.alloc.deinit();
         tree.find(self.seat.buffer.items);
 
@@ -139,22 +150,6 @@ pub const Seto = struct {
         context.setSourceRgb(0.5, 0.5, 0.5);
         context.paintWithAlpha(0.5);
         context.setSourceRgb(1, 1, 1);
-
-        var any_matches = false;
-        for (branch_info) |branch| {
-            if (self.seat.buffer.items.len == 0) {
-                any_matches = true;
-                break;
-            }
-            const len = self.seat.buffer.items.len - 1;
-            if (std.mem.eql(u8, self.seat.buffer.items[len][0..1], branch.path[len .. len + 1])) {
-                any_matches = true;
-            }
-        }
-
-        if (!any_matches) {
-            _ = self.seat.buffer.pop();
-        }
 
         for (branch_info) |branch| {
             var matching: u8 = 0;
