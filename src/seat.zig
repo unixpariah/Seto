@@ -8,7 +8,6 @@ const wl = wayland.client.wl;
 const Seto = @import("main.zig").Seto;
 
 const Repeat = struct {
-    rate: ?i32 = null,
     delay: ?i32 = null,
     key: ?u32 = null,
     timer: ?std.time.Timer = null,
@@ -126,7 +125,6 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
             handleKey(seto);
         },
         .repeat_info => |repeat_key| {
-            seto.seat.repeat.rate = repeat_key.rate;
             seto.seat.repeat.delay = repeat_key.delay;
         },
     }
@@ -134,6 +132,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
+    const grid = &self.config.grid;
     self.redraw = true;
 
     const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
@@ -142,39 +141,39 @@ pub fn handleKey(self: *Seto) void {
     ) == 1;
     switch (key) {
         xkb.Keysym.m => {
-            if (self.grid.offset[0] >= self.grid.size[0]) self.grid.offset[0] -= self.grid.size[0];
-            self.grid.offset[0] += 5;
+            if (grid.offset[0] >= grid.size[0]) grid.offset[0] -= grid.size[0];
+            grid.offset[0] += 5;
             return;
         },
         xkb.Keysym.n => {
-            if (self.grid.offset[1] < 5) self.grid.offset[1] = self.grid.size[1];
-            self.grid.offset[1] -= 5;
+            if (grid.offset[1] < 5) grid.offset[1] = grid.size[1];
+            grid.offset[1] -= 5;
             return;
         },
         xkb.Keysym.x => {
-            if (self.grid.offset[1] >= self.grid.size[1]) self.grid.offset[1] -= self.grid.size[1];
-            self.grid.offset[1] += 5;
+            if (grid.offset[1] >= grid.size[1]) grid.offset[1] -= grid.size[1];
+            grid.offset[1] += 5;
             return;
         },
         xkb.Keysym.z => {
-            if (self.grid.offset[0] < 5) self.grid.offset[0] = self.grid.size[0];
-            self.grid.offset[0] -= 5;
+            if (grid.offset[0] < 5) grid.offset[0] = grid.size[0];
+            grid.offset[0] -= 5;
             return;
         },
         xkb.Keysym.M => {
-            self.grid.size[0] += 5;
+            grid.size[0] += 5;
             return;
         },
         xkb.Keysym.N => {
-            if (self.grid.size[1] >= 5) self.grid.size[1] -= 5;
+            if (grid.size[1] >= 5) grid.size[1] -= 5;
             return;
         },
         xkb.Keysym.X => {
-            self.grid.size[1] += 5;
+            grid.size[1] += 5;
             return;
         },
         xkb.Keysym.Z => {
-            if (self.grid.size[0] >= 5) self.grid.size[0] -= 5;
+            if (grid.size[0] >= 5) grid.size[0] -= 5;
             return;
         },
         xkb.Keysym.q => self.exit = true,

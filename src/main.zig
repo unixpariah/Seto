@@ -1,12 +1,11 @@
 const std = @import("std");
-const mem = std.mem;
-const os = std.os;
 
 const Tree = @import("tree.zig").Tree;
 const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
 const Seat = @import("seat.zig").Seat;
 const Result = @import("tree.zig").Result;
+const Config = @import("config.zig").Config;
 
 const handleKey = @import("seat.zig").handleKey;
 
@@ -31,11 +30,6 @@ const EventInterfaces = enum {
     zxdg_output_manager_v1,
 };
 
-const Grid = struct {
-    size: [2]u32 = .{ 80, 80 },
-    offset: [2]u32 = .{ 0, 0 },
-};
-
 pub const Seto = struct {
     shm: ?*wl.Shm = null,
     compositor: ?*wl.Compositor = null,
@@ -43,8 +37,8 @@ pub const Seto = struct {
     output_manager: ?*zxdg.OutputManagerV1 = null,
     seat: Seat,
     outputs: std.ArrayList(Surface),
-    grid: Grid = Grid{},
-    alloc: mem.Allocator,
+    alloc: std.mem.Allocator,
+    config: Config = Config{},
 
     depth: usize = 0,
 
@@ -54,7 +48,7 @@ pub const Seto = struct {
 
     const Self = @This();
 
-    fn new(alloc: mem.Allocator) Self {
+    fn new(alloc: std.mem.Allocator) Self {
         return .{
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
@@ -65,10 +59,11 @@ pub const Seto = struct {
     // TODO: Make it multi output
     fn getDimensions(self: *Self) [2]c_int {
         var dimensions: [2]c_int = .{ 0, 0 };
-        for (self.outputs.items, 0..) |output, i| {
-            if (output.isConfigured() and i == 0) {
-                dimensions[0] += output.output_info.width;
-                dimensions[1] += output.output_info.height;
+        for (self.outputs.items) |output| {
+            if (!output.isConfigured()) continue;
+            dimensions[0] += output.output_info.width;
+            if (output.output_info.height > dimensions[1]) {
+                dimensions[1] = output.output_info.height;
             }
         }
 
@@ -82,10 +77,11 @@ pub const Seto = struct {
 
         var intersections = std.ArrayList([2]usize).init(self.alloc);
         defer intersections.deinit();
-        var i: usize = self.grid.offset[0] % self.grid.size[0];
-        while (i <= width) : (i += self.grid.size[0]) {
-            var j: usize = self.grid.offset[1] % self.grid.size[1];
-            while (j <= height) : (j += self.grid.size[1]) {
+        var grid = self.config.grid;
+        var i: usize = grid.offset[0] % grid.size[0];
+        while (i <= width) : (i += grid.size[0]) {
+            var j: usize = grid.offset[1] % grid.size[1];
+            while (j <= height) : (j += grid.size[1]) {
                 try intersections.append(.{ i, j });
             }
         }
@@ -147,9 +143,10 @@ pub const Seto = struct {
         const context = try cairo.Context.create(cairo_surface.asSurface());
         defer context.destroy();
 
-        context.setSourceRgb(0.5, 0.5, 0.5);
-        context.paintWithAlpha(0.5);
-        context.setSourceRgb(1, 1, 1);
+        const bg_color = self.config.background_color;
+        context.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
+        context.paintWithAlpha(bg_color[3]);
+        const font = self.config.font;
 
         for (branch_info) |branch| {
             var matching: u8 = 0;
@@ -163,23 +160,26 @@ pub const Seto = struct {
                 break;
             }
 
+            const grid_color = self.config.grid.color;
+            context.setSourceRgb(grid_color[0], grid_color[1], grid_color[2]);
             context.moveTo(@floatFromInt(branch.pos[0]), 0);
             context.lineTo(@floatFromInt(branch.pos[0]), @floatFromInt(height));
             context.moveTo(0, @floatFromInt(branch.pos[1]));
             context.lineTo(@floatFromInt(width), @floatFromInt(branch.pos[1]));
+            context.stroke();
 
             context.moveTo(@floatFromInt(branch.pos[0] + 5), @floatFromInt(branch.pos[1] + 15));
-            context.selectFontFace("JetBrainsMono Nerd Font", .Normal, .Normal);
-            context.setFontSize(16);
+            context.selectFontFace(font.family, .Normal, .Normal);
+            context.setFontSize(font.size);
             for (0..self.depth) |i| {
+                context.setSourceRgb(font.color[0], font.color[1], font.color[2]);
                 if (i < matching) {
-                    context.setSourceRgb(1, 1, 0);
+                    context.setSourceRgb(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2]);
                 }
                 var positions: [2]u8 = undefined;
                 positions[0] = branch.path[i];
                 positions[1] = 0;
                 context.showText(positions[0..1 :0]);
-                context.setSourceRgb(1, 1, 1);
             }
         }
 
@@ -189,11 +189,11 @@ pub const Seto = struct {
         const size: i32 = @intCast(width * height * 4);
 
         // TODO: Make it multi output
-        for (self.outputs.items, 0..) |*output, i| {
-            if (!output.isConfigured() or i > 0) continue;
-            const fd = try os.memfd_create("seto", 0);
-            defer os.close(fd);
-            try os.ftruncate(fd, @intCast(size));
+        for (self.outputs.items) |*output| {
+            if (!output.isConfigured()) continue;
+            const fd = try std.os.memfd_create("seto", 0);
+            defer std.os.close(fd);
+            try std.os.ftruncate(fd, @intCast(size));
 
             const shm = self.shm orelse return error.NoWlShm;
             const pool = try shm.createPool(fd, size);
@@ -247,10 +247,6 @@ pub fn main() !void {
             handleKey(&seto);
         }
         try seto.createSurfaces();
-        if (seto.seat.repeat.rate) |repeat_rate| {
-            const rate: u64 = @intCast(repeat_rate);
-            std.time.sleep(rate * std.time.ns_per_ms);
-        }
     }
 
     // Clear font cache in debug to remove the "memory leaks" from valgrind output
