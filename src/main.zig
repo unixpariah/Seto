@@ -56,18 +56,20 @@ pub const Seto = struct {
         };
     }
 
-    // TODO: Make it multi output
-    fn getDimensions(self: *Self) [2]c_int {
-        var dimensions: [2]c_int = .{ 0, 0 };
+    fn getDimensions(self: *Self) [2]i32 {
+        var x: [2]i32 = .{ 0, 0 };
+        var y: [2]i32 = .{ 0, 0 };
         for (self.outputs.items) |output| {
             if (!output.isConfigured()) continue;
-            dimensions[0] += output.output_info.width;
-            if (output.output_info.height > dimensions[1]) {
-                dimensions[1] = output.output_info.height;
-            }
+            const info = output.output_info;
+
+            if (info.x < x[0]) x[0] = info.x;
+            if (info.y < y[0]) y[0] = info.y;
+            if (info.x + info.width > x[1]) x[1] = info.x + info.width;
+            if (info.y + info.height > y[1]) y[1] = info.y + info.height;
         }
 
-        return dimensions;
+        return .{ x[1] - x[0], y[1] - y[0] };
     }
 
     fn getIntersections(self: *Seto) ![][2]usize {
@@ -89,7 +91,7 @@ pub const Seto = struct {
         return try intersections.toOwnedSlice();
     }
 
-    fn updateDepth(self: *Self, intersections: [][2]usize, keys: []const *const [1:0]u8) void {
+    fn updateDepth(self: *Self, intersections: [][2]usize, keys: []const u8) void {
         const items_len: f64 = @floatFromInt(intersections.len);
         const keys_len: f64 = @floatFromInt(keys.len);
         const depth = std.math.log(f64, keys_len, items_len);
@@ -117,12 +119,6 @@ pub const Seto = struct {
     fn createSurfaces(self: *Self) !void {
         if (!self.drawSurfaces()) return;
 
-        const keys = [_]*const [1:0]u8{ "a", "s", "d", "f", "g", "h", "j", "k", "l" };
-        if (keys.len <= 1) {
-            std.debug.print("Error: keys length must be greater than 1\n", .{});
-            std.os.exit(1);
-        }
-
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
@@ -130,10 +126,10 @@ pub const Seto = struct {
         var intersections = try self.getIntersections();
         defer self.alloc.free(intersections);
 
-        self.updateDepth(intersections, &keys);
+        self.updateDepth(intersections, self.config.keys);
 
-        var tree = try Tree.new(self.alloc, &keys, self.depth, intersections);
-        const branch_info = try tree.iter(&keys);
+        var tree = Tree.new(self.alloc, self.config.keys, self.depth, intersections);
+        const branch_info = try tree.iter(self.config.keys);
         self.removeWrongChar(branch_info);
         defer tree.alloc.deinit();
         tree.find(self.seat.buffer.items);
@@ -188,17 +184,16 @@ pub const Seto = struct {
 
         const size: i32 = @intCast(width * height * 4);
 
+        const fd = try std.os.memfd_create("seto", 0);
+        defer std.os.close(fd);
+        try std.os.ftruncate(fd, @intCast(size));
+        const shm = self.shm orelse return error.NoWlShm;
+
         // TODO: Make it multi output
         for (self.outputs.items) |*output| {
             if (!output.isConfigured()) continue;
-            const fd = try std.os.memfd_create("seto", 0);
-            defer std.os.close(fd);
-            try std.os.ftruncate(fd, @intCast(size));
-
-            const shm = self.shm orelse return error.NoWlShm;
             const pool = try shm.createPool(fd, size);
             defer pool.destroy();
-
             try output.draw(pool, fd, data);
         }
     }

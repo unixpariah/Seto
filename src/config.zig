@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const Config = struct {
+    keys: []const u8 = "asdfghjkl",
     font: Font = Font{},
     background_color: [4]f64 = .{ 0.5, 0.5, 0.5, 0.5 },
     grid: Grid = Grid{},
