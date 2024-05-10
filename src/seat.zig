@@ -1,4 +1,5 @@
 const std = @import("std");
+const posix = std.posix;
 
 const xkb = @import("xkbcommon");
 const wayland = @import("wayland");
@@ -67,12 +68,12 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         .enter => {},
         .leave => {},
         .keymap => |ev| {
-            defer std.posix.close(ev.fd);
+            defer posix.close(ev.fd);
 
             if (ev.format != .xkb_v1) return;
 
-            const keymap_string = std.posix.mmap(null, ev.size, std.posix.PROT.READ, std.posix.MAP{ .TYPE = .PRIVATE }, ev.fd, 0) catch return;
-            defer std.posix.munmap(keymap_string);
+            const keymap_string = posix.mmap(null, ev.size, posix.PROT.READ, posix.MAP{ .TYPE = .PRIVATE }, ev.fd, 0) catch return;
+            defer posix.munmap(keymap_string);
 
             const keymap = xkb.Keymap.newFromBuffer(
                 seto.seat.xkb_context,

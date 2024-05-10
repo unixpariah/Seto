@@ -4,7 +4,7 @@ const yaml = @import("yaml");
 pub const Config = struct {
     keys: []const u8 = "asdfghjkl",
     font: Font = Font{},
-    background_color: [4]f64 = .{ 0.5, 0.5, 0.5, 0.5 },
+    background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
     grid: Grid = Grid{},
 
     const Self = @This();

@@ -1,6 +1,6 @@
 const std = @import("std");
-const os = std.os;
 const mem = std.mem;
+const posix = std.posix;
 
 const wayland = @import("wayland");
 const zwlr = wayland.client.zwlr;
@@ -51,15 +51,9 @@ pub const Surface = struct {
         const stride = width * 4;
         const size: usize = @intCast(stride * height);
 
-        var list = std.ArrayList(u8).init(self.alloc);
-        defer list.deinit();
-        try list.resize(size);
-
-        @memcpy(list.items, image);
-
-        const data = try std.posix.mmap(null, size, std.posix.PROT.READ | std.posix.PROT.WRITE, std.posix.MAP{ .TYPE = .SHARED }, fd, 0);
-        defer std.posix.munmap(data);
-        @memcpy(data, list.items);
+        const data = try posix.mmap(null, size, posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, fd, 0);
+        defer posix.munmap(data);
+        @memcpy(data, image);
 
         const buffer = try pool.createBuffer(0, width, height, stride, wl.Shm.Format.argb8888);
         defer buffer.destroy();
@@ -105,10 +99,10 @@ pub fn xdgOutputListener(
         if (surface.xdg_output == output) {
             switch (event) {
                 .name => |e| {
-                    surface.output_info.name = surface.output_info.alloc.dupe(u8, std.mem.span(e.name)) catch return;
+                    surface.output_info.name = surface.output_info.alloc.dupe(u8, mem.span(e.name)) catch return;
                 },
                 .description => |e| {
-                    surface.output_info.description = surface.output_info.alloc.dupe(u8, std.mem.span(e.description)) catch return;
+                    surface.output_info.description = surface.output_info.alloc.dupe(u8, mem.span(e.description)) catch return;
                 },
                 .logical_position => |pos| {
                     surface.output_info.x = pos.x;

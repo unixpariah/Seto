@@ -1,4 +1,6 @@
 const std = @import("std");
+const mem = std.mem;
+const posix = std.posix;
 
 const Tree = @import("tree.zig").Tree;
 const OutputInfo = @import("surface.zig").OutputInfo;
@@ -38,7 +40,7 @@ pub const Seto = struct {
 
     seat: Seat,
     outputs: std.ArrayList(Surface),
-    alloc: std.mem.Allocator,
+    alloc: mem.Allocator,
     config: Config = Config{},
 
     depth: usize = 0,
@@ -48,7 +50,7 @@ pub const Seto = struct {
 
     const Self = @This();
 
-    fn new(alloc: std.mem.Allocator) Self {
+    fn new(alloc: mem.Allocator) Self {
         return .{
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
@@ -106,7 +108,7 @@ pub const Seto = struct {
                 break;
             }
             const len = self.seat.buffer.items.len - 1;
-            if (std.mem.eql(u8, self.seat.buffer.items[len][0..1], branch.path[len .. len + 1])) {
+            if (mem.eql(u8, self.seat.buffer.items[len][0..1], branch.path[len .. len + 1])) {
                 any_matches = true;
             }
         }
@@ -147,7 +149,7 @@ pub const Seto = struct {
         for (branch_info) |branch| {
             var matching: u8 = 0;
             for (self.seat.buffer.items, 0..) |char, i| {
-                if (std.mem.eql(u8, char[0..1], branch.path[i .. i + 1])) {
+                if (mem.eql(u8, char[0..1], branch.path[i .. i + 1])) {
                     matching += 1;
                     continue;
                 }
@@ -184,9 +186,9 @@ pub const Seto = struct {
 
         const size: i32 = @intCast(width * height * 4);
 
-        const fd = try std.posix.memfd_create("seto", 0);
-        defer std.posix.close(fd);
-        try std.posix.ftruncate(fd, @intCast(size));
+        const fd = try posix.memfd_create("seto", 0);
+        defer posix.close(fd);
+        try posix.ftruncate(fd, @intCast(size));
         const shm = self.shm orelse return error.NoWlShm;
 
         // TODO: Make it multi output
@@ -249,7 +251,7 @@ pub fn main() !void {
 fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Seto) void {
     switch (event) {
         .global => |global| {
-            const event_str = std.meta.stringToEnum(EventInterfaces, std.mem.span(global.interface)) orelse return;
+            const event_str = std.meta.stringToEnum(EventInterfaces, mem.span(global.interface)) orelse return;
             switch (event_str) {
                 .wl_shm => {
                     seto.shm = registry.bind(global.name, wl.Shm, wl.Shm.generated_version) catch |err| @panic(@errorName(err));
