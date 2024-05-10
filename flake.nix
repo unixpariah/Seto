@@ -24,14 +24,13 @@
     devShells.${system}.default = pkgs.mkShell {
       packages = with pkgs; [
         zls.packages.${system}.default
-        zig_0_11
+        zig
         pkg-config
         cairo
         wayland
         wayland-scanner
         wayland-protocols
         libxkbcommon
-        valgrind
       ];
     };
   };

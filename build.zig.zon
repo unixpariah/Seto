@@ -1,10 +1,11 @@
 .{
     .name = "Seto",
     .version = "0.1.0",
+    .paths = .{""},
     .dependencies = .{
         .giza = .{
-            .url = "https://github.com/koenigskraut/giza/archive/master.tar.gz",
-            .hash = "12208f61d924763f21984584ab492b00a2446822d0dfa246b2640563e9e208646cb2",
+            .url = "https://github.com/unixpariah/giza/archive/master.tar.gz",
+            .hash = "1220a27bc28f480f5ba4d54c33a84be7df586f17d0a427cbba05d5d053c9e4895879",
         },
     },
 }

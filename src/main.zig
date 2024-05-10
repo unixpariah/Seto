@@ -35,13 +35,13 @@ pub const Seto = struct {
     compositor: ?*wl.Compositor = null,
     layer_shell: ?*zwlr.LayerShellV1 = null,
     output_manager: ?*zxdg.OutputManagerV1 = null,
+
     seat: Seat,
     outputs: std.ArrayList(Surface),
     alloc: std.mem.Allocator,
     config: Config = Config{},
 
     depth: usize = 0,
-
     redraw: bool = false,
     first_draw: bool = true,
     exit: bool = false,
@@ -59,8 +59,8 @@ pub const Seto = struct {
     fn getDimensions(self: *Self) [2]i32 {
         var x: [2]i32 = .{ 0, 0 };
         var y: [2]i32 = .{ 0, 0 };
-        for (self.outputs.items) |output| {
-            if (!output.isConfigured()) continue;
+        for (self.outputs.items, 0..) |output, i| {
+            if (!output.isConfigured() or i > 0) continue;
             const info = output.output_info;
 
             if (info.x < x[0]) x[0] = info.x;
@@ -79,7 +79,7 @@ pub const Seto = struct {
 
         var intersections = std.ArrayList([2]usize).init(self.alloc);
         defer intersections.deinit();
-        var grid = self.config.grid;
+        const grid = self.config.grid;
         var i: usize = grid.offset[0] % grid.size[0];
         while (i <= width) : (i += grid.size[0]) {
             var j: usize = grid.offset[1] % grid.size[1];
@@ -123,7 +123,7 @@ pub const Seto = struct {
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
-        var intersections = try self.getIntersections();
+        const intersections = try self.getIntersections();
         defer self.alloc.free(intersections);
 
         self.updateDepth(intersections, self.config.keys);
@@ -184,9 +184,9 @@ pub const Seto = struct {
 
         const size: i32 = @intCast(width * height * 4);
 
-        const fd = try std.os.memfd_create("seto", 0);
-        defer std.os.close(fd);
-        try std.os.ftruncate(fd, @intCast(size));
+        const fd = try std.posix.memfd_create("seto", 0);
+        defer std.posix.close(fd);
+        try std.posix.ftruncate(fd, @intCast(size));
         const shm = self.shm orelse return error.NoWlShm;
 
         // TODO: Make it multi output
@@ -231,6 +231,7 @@ pub fn main() !void {
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
     var seto = Seto.new(alloc);
+    _ = Config.load(alloc);
     defer seto.destroy();
 
     registry.setListener(*Seto, registryListener, &seto);
@@ -242,15 +243,6 @@ pub fn main() !void {
             handleKey(&seto);
         }
         try seto.createSurfaces();
-    }
-
-    // Clear font cache in debug to remove the "memory leaks" from valgrind output
-    if (@import("builtin").mode == .Debug) {
-        const c_cairo = @cImport(@cInclude("cairo.h"));
-        const c_font = @cImport(@cInclude("fontconfig/fontconfig.h"));
-
-        c_font.FcFini();
-        c_cairo.cairo_debug_reset_static_data();
     }
 }
 

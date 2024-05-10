@@ -1,5 +1,4 @@
 const std = @import("std");
-const os = std.os;
 
 const xkb = @import("xkbcommon");
 const wayland = @import("wayland");
@@ -34,7 +33,7 @@ pub const Seat = struct {
 
     pub fn repeatKey(self: *Self) bool {
         var timer = self.repeat.timer orelse return false;
-        var delay = self.repeat.delay orelse return false;
+        const delay = self.repeat.delay orelse return false;
         return timer.read() / std.time.ns_per_ms > delay;
     }
 
@@ -68,12 +67,12 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         .enter => {},
         .leave => {},
         .keymap => |ev| {
-            defer os.close(ev.fd);
+            defer std.posix.close(ev.fd);
 
             if (ev.format != .xkb_v1) return;
 
-            const keymap_string = os.mmap(null, ev.size, os.PROT.READ, os.MAP.PRIVATE, ev.fd, 0) catch return;
-            defer os.munmap(keymap_string);
+            const keymap_string = std.posix.mmap(null, ev.size, std.posix.PROT.READ, std.posix.MAP{ .TYPE = .PRIVATE }, ev.fd, 0) catch return;
+            defer std.posix.munmap(keymap_string);
 
             const keymap = xkb.Keymap.newFromBuffer(
                 seto.seat.xkb_context,

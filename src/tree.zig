@@ -85,16 +85,12 @@ fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, in
     for (keys) |key| {
         if (depth <= 1) {
             const position = block: {
-                if (tree_index.* < intersections.len) {
-                    break :block intersections[tree_index.*];
-                } else {
-                    break :block null;
-                }
+                if (tree_index.* < intersections.len) break :block intersections[tree_index.*] else break :block null;
             };
             try tree.put(key, .{ .position = position });
             tree_index.* += 1;
         } else {
-            var new_tree = try createNestedTree(alloc, keys, depth - 1, intersections, tree_index);
+            const new_tree = try createNestedTree(alloc, keys, depth - 1, intersections, tree_index);
             try tree.put(key, .{ .node = new_tree });
         }
     }
