@@ -9,8 +9,6 @@ const zxdg = wayland.client.zxdg;
 
 const Seto = @import("main.zig").Seto;
 
-const cairo = @import("cairo");
-
 pub const OutputInfo = struct {
     name: ?[]const u8 = null,
     description: ?[]const u8 = null,

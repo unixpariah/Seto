@@ -1,5 +1,6 @@
 const std = @import("std");
 const yaml = @import("yaml");
+const fs = std.fs;
 
 pub const Config = struct {
     keys: []const u8 = "asdfghjkl",
@@ -14,19 +15,19 @@ pub const Config = struct {
         defer a_alloc.deinit();
 
         const home = std.posix.getenv("HOME") orelse @panic("Home directory not found using default config");
-        const config_dir = std.fs.path.join(a_alloc.allocator(), &[_][]const u8{ home, ".config/seto" }) catch @panic("");
-        std.fs.accessAbsolute(config_dir, .{}) catch {
-            _ = std.fs.makeDirAbsolute(config_dir) catch @panic("");
+        const config_dir = fs.path.join(a_alloc.allocator(), &[_][]const u8{ home, ".config/seto" }) catch @panic("");
+        fs.accessAbsolute(config_dir, .{}) catch {
+            _ = fs.makeDirAbsolute(config_dir) catch @panic("");
         };
-        const config_file = std.fs.path.join(a_alloc.allocator(), &[_][]const u8{ config_dir, "config.yaml" }) catch @panic("");
-        std.fs.accessAbsolute(config_file, .{}) catch {
-            _ = std.fs.createFileAbsolute(config_file, .{}) catch @panic("");
+        const config_file = fs.path.join(a_alloc.allocator(), &[_][]const u8{ config_dir, "config.yaml" }) catch @panic("");
+        fs.accessAbsolute(config_file, .{}) catch {
+            _ = fs.createFileAbsolute(config_file, .{}) catch @panic("");
         };
 
-        const file = std.fs.openFileAbsolute(config_file, .{}) catch @panic("");
+        const file = fs.openFileAbsolute(config_file, .{}) catch @panic("");
         var buffer: [4098]u8 = undefined;
         _ = file.read(&buffer) catch @panic("");
-        std.debug.print("{s}", .{buffer});
+
         return .{};
     }
 };

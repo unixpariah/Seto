@@ -15,10 +15,9 @@ const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 
-const wayland = @import("wayland");
-const xkb = @import("xkbcommon");
 const cairo = @import("cairo");
 
+const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
@@ -61,8 +60,8 @@ pub const Seto = struct {
     fn getDimensions(self: *Self) [2]i32 {
         var x: [2]i32 = .{ 0, 0 };
         var y: [2]i32 = .{ 0, 0 };
-        for (self.outputs.items, 0..) |output, i| {
-            if (!output.isConfigured() or i > 0) continue;
+        for (self.outputs.items) |output| {
+            if (!output.isConfigured()) continue;
             const info = output.output_info;
 
             if (info.x < x[0]) x[0] = info.x;
@@ -182,18 +181,29 @@ pub const Seto = struct {
         }
 
         context.stroke();
-        const data = try cairo_surface.getData();
 
         const size: i32 = @intCast(width * height * 4);
 
-        const fd = try posix.memfd_create("seto", 0);
-        defer posix.close(fd);
-        try posix.ftruncate(fd, @intCast(size));
         const shm = self.shm orelse return error.NoWlShm;
 
-        // TODO: Make it multi output
+        // TODO: make it more output agnostic (trying to sound smart)
         for (self.outputs.items) |*output| {
             if (!output.isConfigured()) continue;
+
+            const info = output.output_info;
+            const sur = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
+            defer sur.destroy();
+            const c = try cairo.Context.create(sur.asSurface());
+            defer c.destroy();
+
+            c.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-info.x), @floatFromInt(info.y));
+            c.paint();
+
+            const data = try sur.getData();
+
+            const fd = try posix.memfd_create("seto", 0);
+            defer posix.close(fd);
+            try posix.ftruncate(fd, @intCast(size));
             const pool = try shm.createPool(fd, size);
             defer pool.destroy();
             try output.draw(pool, fd, data);
@@ -238,7 +248,6 @@ pub fn main() !void {
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
-
     while (!seto.exit) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         if (seto.seat.repeatKey()) {
