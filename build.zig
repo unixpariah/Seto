@@ -23,7 +23,7 @@ pub fn build(b: *std.Build) void {
 
     const xkbcommon = b.createModule(.{ .root_source_file = .{ .path = "deps/zig-xkbcommon/src/xkbcommon.zig" } });
 
-    const yaml = b.createModule(.{ .root_source_file = .{ .path = "deps/yaml/src/yaml.zig" } });
+    const yaml = b.createModule(.{ .root_source_file = .{ .path = "deps/yaml/yaml.zig" } });
 
     const exe = b.addExecutable(.{
         .name = "seto",
@@ -39,6 +39,7 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("wayland-client");
     exe.linkSystemLibrary("cairo");
     exe.linkSystemLibrary("xkbcommon");
+    exe.linkSystemLibrary("yaml");
 
     exe.linkLibC();
 

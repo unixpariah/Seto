@@ -3,30 +3,29 @@ const yaml = @import("yaml");
 const fs = std.fs;
 
 pub const Config = struct {
-    keys: []const u8 = "asdfghjkl",
-    font: Font = Font{},
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
+    keys: Keys = Keys{},
+    font: Font = Font{},
     grid: Grid = Grid{},
 
     const Self = @This();
 
-    pub fn load(alloc: std.mem.Allocator) Self {
-        var a_alloc = std.heap.ArenaAllocator.init(alloc);
+    pub fn load(allocator: std.mem.Allocator) !Self {
+        var a_alloc = std.heap.ArenaAllocator.init(allocator);
+        const alloc = a_alloc.allocator();
         defer a_alloc.deinit();
 
-        const home = std.posix.getenv("HOME") orelse @panic("Home directory not found using default config");
-        const config_dir = fs.path.join(a_alloc.allocator(), &[_][]const u8{ home, ".config/seto" }) catch @panic("");
+        const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
+        const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
         fs.accessAbsolute(config_dir, .{}) catch {
-            _ = fs.makeDirAbsolute(config_dir) catch @panic("");
+            _ = try fs.makeDirAbsolute(config_dir);
         };
-        const config_file = fs.path.join(a_alloc.allocator(), &[_][]const u8{ config_dir, "config.yaml" }) catch @panic("");
+        const config_file = try fs.path.join(alloc, &[_][]const u8{ config_dir, "config.yaml" });
         fs.accessAbsolute(config_file, .{}) catch {
-            _ = fs.createFileAbsolute(config_file, .{}) catch @panic("");
+            const file = try fs.createFileAbsolute(config_file, .{});
+            std.debug.print("Config file not found, creating one at {s}\n", .{config_file});
+            _ = try file.write(config);
         };
-
-        const file = fs.openFileAbsolute(config_file, .{}) catch @panic("");
-        var buffer: [4098]u8 = undefined;
-        _ = file.read(&buffer) catch @panic("");
 
         return .{};
     }
@@ -39,8 +38,17 @@ const Font = struct {
     family: [:0]const u8 = "Arial",
 };
 
-const Grid = struct {
+pub const Grid = struct {
     color: [4]f64 = .{ 1, 1, 1, 1 },
-    size: [2]usize = .{ 80, 80 },
-    offset: [2]usize = .{ 0, 0 },
+    size: [2]isize = .{ 80, 80 },
+    offset: [2]isize = .{ 0, 0 },
 };
+
+const Keys = struct {
+    quit: u8 = 'q',
+    search: []const u8 = "asdfghjkl",
+    move: *const [4]u8 = &[_]u8{ 'z', 'x', 'n', 'm' },
+    resize: *const [4]u8 = &[_]u8{ 'Z', 'X', 'N', 'M' },
+};
+
+const config = "background_color: [ 1, 1, 1, 0.4 ]\nkeys:\n    search: asdfghjkl\n    move: [ z, x, n, m ]\n    resize: [ Z, X, N, M ]\nfont:\n    color: [ 1, 1, 1 ]\n    highlight_color: [ 1, 1, 0 ]\n    size: 16\n    family: Arial\ngrid:\n    color: [ 1, 1, 1, 1]\n    size: [ 80, 80 ]\n    offset:    [ 0, 0 ]";

@@ -1,5 +1,6 @@
 const std = @import("std");
 const posix = std.posix;
+const Grid = @import("config.zig").Grid;
 
 const xkb = @import("xkbcommon");
 const wayland = @import("wayland");
@@ -130,6 +131,26 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
     }
 }
 
+fn moveX(grid: *Grid, value: i32) void {
+    if (grid.offset[0] >= grid.size[0]) grid.offset[0] -= grid.size[0];
+    if (grid.offset[0] < 5) grid.offset[0] = grid.size[0];
+    grid.offset[0] += value;
+}
+
+fn moveY(grid: *Grid, value: i32) void {
+    if (grid.offset[1] >= grid.size[1]) grid.offset[1] -= grid.size[1];
+    if (grid.offset[1] < 5) grid.offset[1] = grid.size[1];
+    grid.offset[1] += value;
+}
+
+fn resizeX(grid: *Grid, value: i32) void {
+    if (grid.size[0] + value > 0) grid.size[0] += value;
+}
+
+fn resizeY(grid: *Grid, value: i32) void {
+    if (grid.size[1] + value > 0) grid.size[1] += value;
+}
+
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
     const grid = &self.config.grid;
@@ -139,62 +160,28 @@ pub fn handleKey(self: *Seto) void {
         xkb.names.mod.ctrl,
         @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
     ) == 1;
-    switch (key) {
-        xkb.Keysym.m => {
-            if (grid.offset[0] >= grid.size[0]) grid.offset[0] -= grid.size[0];
-            grid.offset[0] += 5;
-            return;
-        },
-        xkb.Keysym.n => {
-            if (grid.offset[1] < 5) grid.offset[1] = grid.size[1];
-            grid.offset[1] -= 5;
-            return;
-        },
-        xkb.Keysym.x => {
-            if (grid.offset[1] >= grid.size[1]) grid.offset[1] -= grid.size[1];
-            grid.offset[1] += 5;
-            return;
-        },
-        xkb.Keysym.z => {
-            if (grid.offset[0] < 5) grid.offset[0] = grid.size[0];
-            grid.offset[0] -= 5;
-            return;
-        },
-        xkb.Keysym.M => {
-            grid.size[0] += 5;
-            return;
-        },
-        xkb.Keysym.N => {
-            if (grid.size[1] >= 5) grid.size[1] -= 5;
-            return;
-        },
-        xkb.Keysym.X => {
-            grid.size[1] += 5;
-            return;
-        },
-        xkb.Keysym.Z => {
-            if (grid.size[0] >= 5) grid.size[0] -= 5;
-            return;
-        },
-        xkb.Keysym.q => self.exit = true,
-        xkb.Keysym.c => {
-            if (ctrl_active) {
-                self.exit = true;
-                return;
-            }
-        },
-        xkb.Keysym.BackSpace => {
-            _ = self.seat.buffer.popOrNull();
-            return;
-        },
-        xkb.Keysym.Shift_R | xkb.Keysym.Shift_R => return,
-        else => {},
+
+    {
+        var buffer: [64]u8 = undefined;
+        const keysym: xkb.Keysym = @enumFromInt(key);
+        _ = keysym.toUTF8(&buffer, 64);
+        if (buffer[0] == self.config.keys.move[0]) moveX(grid, -5);
+        if (buffer[0] == self.config.keys.move[1]) moveY(grid, 5);
+        if (buffer[0] == self.config.keys.move[2]) moveY(grid, -5);
+        if (buffer[0] == self.config.keys.move[3]) moveX(grid, 5);
+
+        if (buffer[0] == self.config.keys.resize[0]) resizeX(grid, -5);
+        if (buffer[0] == self.config.keys.resize[1]) resizeY(grid, 5);
+        if (buffer[0] == self.config.keys.resize[2]) resizeY(grid, -5);
+        if (buffer[0] == self.config.keys.resize[3]) resizeX(grid, 5);
+
+        if (buffer[0] == self.config.keys.quit) self.exit = true;
+        if (buffer[0] == 'c' and ctrl_active) self.exit = true;
+        if (buffer[0] == 8) _ = self.seat.buffer.popOrNull(); // Backspace
     }
 
-    if (self.seat.buffer.items.len < self.depth) {
-        var buffer: [64]u8 = undefined;
-        const keynum: xkb.Keysym = @enumFromInt(key);
-        _ = keynum.getName(&buffer, 64);
-        self.seat.buffer.append(buffer) catch return;
-    }
+    var buffer: [64]u8 = undefined;
+    const keynum: xkb.Keysym = @enumFromInt(key);
+    _ = keynum.getName(&buffer, 64);
+    self.seat.buffer.append(buffer) catch return;
 }

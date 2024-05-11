@@ -3,10 +3,10 @@ SET0_BIN = ./zig-out/bin/seto
 
 .PHONY: release debug
 
-debug: $(SET0_BIN)
+debug:
 	@$(ZIG_BUILD)
 	@$(SET0_BIN)
 
-release: $(SET0_BIN)
-	@$(ZIG_BUILD) -Doptimize=ReleaseSmall
+release:
+	@$(ZIG_BUILD) -Doptimize=ReleaseFast
 	@$(SET0_BIN)

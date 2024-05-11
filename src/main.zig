@@ -81,11 +81,11 @@ pub const Seto = struct {
         var intersections = std.ArrayList([2]usize).init(self.alloc);
         defer intersections.deinit();
         const grid = self.config.grid;
-        var i: usize = grid.offset[0] % grid.size[0];
+        var i: isize = @mod(grid.offset[0], grid.size[0]);
         while (i <= width) : (i += grid.size[0]) {
-            var j: usize = grid.offset[1] % grid.size[1];
+            var j: isize = @mod(grid.offset[1], grid.size[1]);
             while (j <= height) : (j += grid.size[1]) {
-                try intersections.append(.{ i, j });
+                try intersections.append(.{ @intCast(i), @intCast(j) });
             }
         }
 
@@ -127,10 +127,10 @@ pub const Seto = struct {
         const intersections = try self.getIntersections();
         defer self.alloc.free(intersections);
 
-        self.updateDepth(intersections, self.config.keys);
+        self.updateDepth(intersections, self.config.keys.search);
 
-        var tree = Tree.new(self.alloc, self.config.keys, self.depth, intersections);
-        const branch_info = try tree.iter(self.config.keys);
+        var tree = Tree.new(self.alloc, self.config.keys.search, self.depth, intersections);
+        const branch_info = try tree.iter(self.config.keys.search);
         self.removeWrongChar(branch_info);
         defer tree.alloc.deinit();
         tree.find(self.seat.buffer.items);
@@ -243,7 +243,7 @@ pub fn main() !void {
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
     var seto = Seto.new(alloc);
-    _ = Config.load(alloc);
+    _ = Config.load(alloc) catch |err| std.debug.print("{}", .{err});
     defer seto.destroy();
 
     registry.setListener(*Seto, registryListener, &seto);

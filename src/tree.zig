@@ -14,7 +14,7 @@ pub const Tree = struct {
     pub fn new(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize) Self {
         var a_alloc = std.heap.ArenaAllocator.init(alloc);
         var tree_index: usize = 0;
-        const tree = createNestedTree(a_alloc.allocator(), keys, depth, intersections, &tree_index) catch |err| std.debug.panic("{}", .{err});
+        const tree = createNestedTree(a_alloc.allocator(), keys, depth, intersections, &tree_index);
         return .{ .tree = tree, .alloc = a_alloc };
     }
 
@@ -36,9 +36,15 @@ pub const Tree = struct {
         for (keys) |key| {
             var nt_key: [1]u8 = undefined;
             nt_key[0] = key;
-            if (self.tree.get(key)) |node| try node.collect(self.alloc.allocator(), keys, &nt_key, &arr);
+            if (self.tree.get(key)) |node| {
+                try switch (node) {
+                    .position => |pos| if (pos) |nn_pos| arr.append(.{ .pos = nn_pos, .path = &nt_key }),
+                    .node => node.collect(self.alloc.allocator(), keys, &nt_key, &arr),
+                };
+            }
         }
 
+        std.debug.print("{any}\n", .{arr.items});
         return try arr.toOwnedSlice();
     }
 };
@@ -79,7 +85,7 @@ const Node = union(enum) {
     }
 };
 
-fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize, tree_index: *usize) !std.AutoHashMap(u8, Node) {
+fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize, tree_index: *usize) std.AutoHashMap(u8, Node) {
     var tree = std.AutoHashMap(u8, Node).init(alloc);
 
     for (keys) |key| {
@@ -87,11 +93,11 @@ fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, in
             const position = block: {
                 if (tree_index.* < intersections.len) break :block intersections[tree_index.*] else break :block null;
             };
-            try tree.put(key, .{ .position = position });
+            tree.put(key, .{ .position = position }) catch |err| std.debug.panic("{}", .{err});
             tree_index.* += 1;
         } else {
-            const new_tree = try createNestedTree(alloc, keys, depth - 1, intersections, tree_index);
-            try tree.put(key, .{ .node = new_tree });
+            const new_tree = createNestedTree(alloc, keys, depth - 1, intersections, tree_index);
+            tree.put(key, .{ .node = new_tree }) catch |err| std.debug.panic("{}", .{err});
         }
     }
 

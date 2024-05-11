@@ -9,3 +9,4 @@
 - wlroots
 - libxkbcommon
 - cairo
+- libyaml
