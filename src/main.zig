@@ -99,6 +99,15 @@ pub const Seto = struct {
         self.depth = @intFromFloat(std.math.ceil(depth));
     }
 
+    fn rem(self: *Self, tree: *Tree) void {
+        _ = tree.find(self.seat.buffer.items) catch |err| {
+            switch (err) {
+                error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
+                error.EndNotReached => {},
+            }
+        };
+    }
+
     fn removeWrongChar(self: *Self, branch_info: []Result) void {
         var any_matches = false;
         for (branch_info) |branch| {
@@ -131,9 +140,10 @@ pub const Seto = struct {
 
         var tree = Tree.new(self.alloc, self.config.keys.search, self.depth, intersections);
         const branch_info = try tree.iter(self.config.keys.search);
-        self.removeWrongChar(branch_info);
+        self.rem(&tree);
+        //self.removeWrongChar(branch_info);
         defer tree.alloc.deinit();
-        tree.find(self.seat.buffer.items);
+        tree.find(self.seat.buffer.items) catch std.debug.print("", .{});
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();

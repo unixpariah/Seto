@@ -18,16 +18,13 @@ pub const Tree = struct {
         return .{ .tree = tree, .alloc = a_alloc };
     }
 
-    pub fn find(self: *Self, keys: [][64]u8) void {
+    pub fn find(self: *Self, keys: [][64]u8) !void {
         if (keys.len > 0) {
-            const node = self.tree.get(keys[0][0]);
-            if (node) |n| {
-                if (n.traverse(keys[1..keys.len])) |result| {
-                    const positions = std.fmt.allocPrintZ(self.alloc.allocator(), "{},{}\n", .{ result[0], result[1] }) catch return;
-                    _ = std.io.getStdOut().write(positions) catch |err| std.debug.panic("{}", .{err});
-                    std.process.exit(0);
-                }
-            }
+            const node = self.tree.get(keys[0][0]) orelse return error.KeyNotFound;
+            const result = try node.traverse(keys[1..keys.len]);
+            const positions = std.fmt.allocPrintZ(self.alloc.allocator(), "{},{}\n", .{ result[0], result[1] }) catch return;
+            _ = std.io.getStdOut().write(positions) catch |err| std.debug.panic("{}", .{err});
+            std.process.exit(0);
         }
     }
 
@@ -44,7 +41,6 @@ pub const Tree = struct {
             }
         }
 
-        std.debug.print("{any}\n", .{arr.items});
         return try arr.toOwnedSlice();
     }
 };
@@ -55,16 +51,17 @@ const Node = union(enum) {
 
     const Self = @This();
 
-    fn traverse(self: *const Self, keys: [][64]u8) ?[2]usize {
+    fn traverse(self: *const Self, keys: [][64]u8) ![2]usize {
         switch (self.*) {
             .node => |node| {
                 if (keys.len > 0) {
-                    if (node.get(keys[0][0])) |n| return n.traverse(keys[1..keys.len]);
+                    const n = node.get(keys[0][0]) orelse return error.KeyNotFound;
+                    return n.traverse(keys[1..keys.len]);
                 }
             },
-            .position => |pos| return pos,
+            .position => |pos| if (pos) |p| return p,
         }
-        return null;
+        return error.EndNotReached;
     }
 
     fn collect(self: *const Self, alloc: std.mem.Allocator, keys: []const u8, path: []const u8, result: *std.ArrayList(Result)) !void {
