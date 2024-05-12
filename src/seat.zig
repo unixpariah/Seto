@@ -251,8 +251,12 @@ test "move" {
         moveY(&grid, -index);
         assert(grid.offset[1] == grid.size[1] - index);
 
+        // TODO: make these tests work :(
         // initial = grid.offset;
         // moveX(&grid, index + 2);
         // assert(grid.offset[0] == index - 2);
+
+        // moveY(&grid, index + 2);
+        // assert(grid.offset[1] == index - 2);
     }
 }

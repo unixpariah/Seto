@@ -100,3 +100,10 @@ fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, in
 
     return tree;
 }
+
+test "tree" {
+    const keys: []const u8 = "asdfghjkl";
+    _ = keys;
+
+    //const tree = Tree.new(std.heap.c_allocator, keys, 3, intersections: [][2]usize);
+}

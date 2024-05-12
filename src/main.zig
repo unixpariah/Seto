@@ -99,33 +99,6 @@ pub const Seto = struct {
         self.depth = @intFromFloat(std.math.ceil(depth));
     }
 
-    fn rem(self: *Self, tree: *Tree) void {
-        _ = tree.find(self.seat.buffer.items) catch |err| {
-            switch (err) {
-                error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
-                error.EndNotReached => {},
-            }
-        };
-    }
-
-    fn removeWrongChar(self: *Self, branch_info: []Result) void {
-        var any_matches = false;
-        for (branch_info) |branch| {
-            if (self.seat.buffer.items.len == 0) {
-                any_matches = true;
-                break;
-            }
-            const len = self.seat.buffer.items.len - 1;
-            if (mem.eql(u8, self.seat.buffer.items[len][0..1], branch.path[len .. len + 1])) {
-                any_matches = true;
-            }
-        }
-
-        if (!any_matches) {
-            _ = self.seat.buffer.pop();
-        }
-    }
-
     fn createSurfaces(self: *Self) !void {
         if (!self.drawSurfaces()) return;
 
@@ -139,11 +112,14 @@ pub const Seto = struct {
         self.updateDepth(intersections, self.config.keys.search);
 
         var tree = Tree.new(self.alloc, self.config.keys.search, self.depth, intersections);
-        const branch_info = try tree.iter(self.config.keys.search);
-        self.rem(&tree);
-        //self.removeWrongChar(branch_info);
         defer tree.alloc.deinit();
-        tree.find(self.seat.buffer.items) catch std.debug.print("", .{});
+        const branch_info = try tree.iter(self.config.keys.search);
+        _ = tree.find(self.seat.buffer.items) catch |err| {
+            switch (err) {
+                error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
+                error.EndNotReached => {},
+            }
+        };
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();

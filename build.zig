@@ -47,4 +47,13 @@ pub fn build(b: *std.Build) void {
     scanner.addCSource(exe);
 
     b.installArtifact(exe);
+
+    const unit_tests_step = b.step("test", "Run all tests");
+    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = .{ .path = "src/seat.zig" } })).step);
+    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = .{ .path = "src/tree.zig" } })).step);
+
+    const run_cmd = b.addRunArtifact(exe);
+    run_cmd.step.dependOn(b.getInstallStep());
+    const run_step = b.step("run", "Run client");
+    run_step.dependOn(&run_cmd.step);
 }
