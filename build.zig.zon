@@ -5,7 +5,7 @@
     .dependencies = .{
         .giza = .{
             .url = "https://github.com/unixpariah/giza/archive/master.tar.gz",
-            .hash = "1220a27bc28f480f5ba4d54c33a84be7df586f17d0a427cbba05d5d053c9e4895879",
+            .hash = "12205343b298a246d9476941a716f376d4cb06074af5799a3373c41875e98a448f26",
         },
     },
 }

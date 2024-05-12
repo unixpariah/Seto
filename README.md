@@ -4,25 +4,41 @@
 
 - zig
 - wayland
-- wayland-protocols
-- wayland-scanner
-- wlroots
 - libxkbcommon
 - cairo
 - libyaml
-- pkg-config
 
 ## Installation
 
 - **Compile from source**
 
-1 . Install dependencies
+1. Clone repository:
 
 ```bash
-apt-get install zig libwayland libxkbcommon cairo libyaml pkg-config
+git clone https://github.com/unixpariah/seto.git && cd seto
 ```
 
-2. Compile and install
+2 . Install dependencies
+
+- Debian:
+
+```bash
+apt-get install zig libwayland libxkbcommon cairo libyaml
+```
+
+- Arch:
+
+```bash
+pacman -S zig wayland libxkbcommon cairo libyaml
+```
+
+- NixOs:
+
+```bash
+nix develop
+```
+
+3. Compile and install
 
 ```zig
 zig build -p /usr/local
