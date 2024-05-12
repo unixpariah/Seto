@@ -102,8 +102,24 @@ fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, in
 }
 
 test "tree" {
+    //const assert = std.debug.assert;
     const keys: []const u8 = "asdfghjkl";
-    _ = keys;
 
-    //const tree = Tree.new(std.heap.c_allocator, keys, 3, intersections: [][2]usize);
+    const width: u32 = 1920;
+    const height: u32 = 1080;
+
+    var intersections = std.ArrayList([2]usize).init(std.heap.page_allocator);
+    defer intersections.deinit();
+    const offset = .{ 0, 0 };
+    const size = .{ 80, 80 };
+    var i: isize = @mod(offset[0], size[0]);
+    while (i <= width) : (i += size[0]) {
+        var j: isize = @mod(offset[1], size[1]);
+        while (j <= height) : (j += size[1]) {
+            try intersections.append(.{ @intCast(i), @intCast(j) });
+        }
+    }
+
+    const tree = Tree.new(std.heap.page_allocator, keys, 3, intersections.items);
+    _ = tree;
 }

@@ -104,13 +104,16 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
             }
         },
         .key => |ev| {
-            if (ev.state == .released) {
-                seto.seat.repeat.timer = null;
-                seto.seat.repeat.key = null;
-                seto.redraw = false;
+            switch (ev.state) {
+                .released => {
+                    seto.seat.repeat.timer = null;
+                    seto.seat.repeat.key = null;
+                    seto.redraw = false;
+                    return;
+                },
+                .pressed => {},
+                else => return,
             }
-            if (ev.state != .pressed) return;
-
             seto.seat.repeat.timer = std.time.Timer.start() catch return;
 
             const xkb_state = seto.seat.xkb_state orelse return;
@@ -131,31 +134,6 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
     }
 }
 
-fn moveX(grid: *Grid, value: i32) void {
-    if (grid.offset[0] >= grid.size[0]) grid.offset[0] -= grid.size[0];
-    if (grid.offset[0] < -value) grid.offset[0] = grid.size[0];
-    grid.offset[0] += value;
-}
-
-fn moveY(grid: *Grid, value: i32) void {
-    if (grid.offset[1] >= grid.size[1]) grid.offset[1] -= grid.size[1];
-    if (grid.offset[1] < -value) grid.offset[1] = grid.size[1];
-    grid.offset[1] += value;
-}
-
-fn resizeX(grid: *Grid, value: i32) void {
-    if (grid.size[0] + value >= 0) grid.size[0] += value else {
-        grid.size[0] += value;
-        grid.size[0] = -grid.size[0];
-    }
-}
-
-fn resizeY(grid: *Grid, value: i32) void {
-    if (grid.size[1] + value >= 0) grid.size[1] += value else {
-        grid.size[0] += value;
-    }
-}
-
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
     const grid = &self.config.grid;
@@ -170,93 +148,22 @@ pub fn handleKey(self: *Seto) void {
         var buffer: [64]u8 = undefined;
         const keysym: xkb.Keysym = @enumFromInt(key);
         _ = keysym.toUTF8(&buffer, 64);
-        if (buffer[0] == self.config.keys.move[0]) moveX(grid, -5);
-        if (buffer[0] == self.config.keys.move[1]) moveY(grid, 5);
-        if (buffer[0] == self.config.keys.move[2]) moveY(grid, -5);
-        if (buffer[0] == self.config.keys.move[3]) moveX(grid, 5);
+        if (self.config.keys.move.get(buffer[0])) |function| {
+            switch (function) {
+                .moveY => |value| grid.moveY(value),
+                .moveX => |value| grid.moveX(value),
+                .resizeX => |value| grid.resizeX(value),
+                .resizeY => |value| grid.resizeY(value),
+                .remove => _ = self.seat.buffer.popOrNull(),
+                .quit => self.exit = true,
+            }
+        }
 
-        if (buffer[0] == self.config.keys.resize[0]) resizeX(grid, -5);
-        if (buffer[0] == self.config.keys.resize[1]) resizeY(grid, 5);
-        if (buffer[0] == self.config.keys.resize[2]) resizeY(grid, -5);
-        if (buffer[0] == self.config.keys.resize[3]) resizeX(grid, 5);
-
-        if (buffer[0] == self.config.keys.quit) self.exit = true;
         if (buffer[0] == 'c' and ctrl_active) self.exit = true;
-        if (buffer[0] == 8) _ = self.seat.buffer.popOrNull(); // Backspace
     }
 
     var buffer: [64]u8 = undefined;
     const keynum: xkb.Keysym = @enumFromInt(key);
     _ = keynum.getName(&buffer, 64);
     self.seat.buffer.append(buffer) catch return;
-}
-
-test "resize" {
-    const assert = std.debug.assert;
-
-    for (1..10) |i| {
-        var grid = Grid{};
-        var initial = grid.size;
-        const index: i32 = @intCast(i);
-        resizeX(&grid, index);
-        assert(grid.size[0] == initial[0] + index);
-
-        resizeY(&grid, index);
-        assert(grid.size[1] == initial[1] + index);
-
-        initial = grid.size;
-        resizeX(&grid, -index);
-        assert(grid.size[0] == initial[0] - index);
-
-        resizeY(&grid, -index);
-        assert(grid.size[1] == initial[1] - index);
-
-        grid.size[0] = index;
-        grid.size[1] = index;
-        initial = grid.size;
-        resizeX(&grid, -index * 2);
-        assert(grid.size[0] == index);
-
-        resizeY(&grid, -index * 2);
-        assert(grid.size[1] == index);
-
-        resizeX(&grid, index * 2);
-        assert(grid.size[0] == index);
-
-        resizeY(&grid, index);
-        assert(grid.size[1] == initial[1] + index);
-    }
-}
-
-test "move" {
-    const assert = std.debug.assert;
-
-    for (1..10) |i| {
-        var grid = Grid{};
-        var initial = grid.offset;
-        const index: i32 = @intCast(i);
-        moveX(&grid, index);
-        assert(grid.offset[0] == initial[0] + index);
-
-        moveY(&grid, index);
-        assert(grid.offset[1] == initial[1] + index);
-
-        grid.offset[0] = 0;
-        initial = grid.offset;
-        moveX(&grid, -index);
-        assert(grid.offset[0] == grid.size[0] - index);
-
-        grid.offset[1] = 0;
-        initial = grid.offset;
-        moveY(&grid, -index);
-        assert(grid.offset[1] == grid.size[1] - index);
-
-        // TODO: make these tests work :(
-        // initial = grid.offset;
-        // moveX(&grid, index + 2);
-        // assert(grid.offset[0] == index - 2);
-
-        // moveY(&grid, index + 2);
-        // assert(grid.offset[1] == index - 2);
-    }
 }

@@ -40,7 +40,7 @@ pub const Seto = struct {
     seat: Seat,
     outputs: std.ArrayList(Surface),
     alloc: mem.Allocator,
-    config: Config = Config{},
+    config: Config,
 
     depth: usize = 0,
     redraw: bool = false,
@@ -50,10 +50,12 @@ pub const Seto = struct {
     const Self = @This();
 
     fn new(alloc: mem.Allocator) Self {
+        const config = Config.load(alloc) catch @panic("");
         return .{
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
+            .config = config,
         };
     }
 
@@ -212,6 +214,7 @@ pub const Seto = struct {
         }
         self.outputs.deinit();
         self.seat.destroy();
+        self.config.keys.move.deinit();
     }
 };
 
@@ -229,7 +232,6 @@ pub fn main() !void {
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
     var seto = Seto.new(alloc);
-    _ = Config.load(alloc) catch |err| std.debug.print("{}", .{err});
     defer seto.destroy();
 
     registry.setListener(*Seto, registryListener, &seto);
