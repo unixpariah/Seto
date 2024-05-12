@@ -103,20 +103,17 @@ pub const Seto = struct {
 
     fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
         const grid = self.config.grid;
-        var ii: isize = @mod(grid.offset[0], grid.size[0]);
-        while (ii <= width) : (ii += grid.size[0]) {
-            const grid_color = self.config.grid.color;
-            context.*.setSourceRgb(grid_color[0], grid_color[1], grid_color[2]);
-            context.*.moveTo(@floatFromInt(ii), 0);
-            context.*.lineTo(@floatFromInt(ii), @floatFromInt(height));
+        var i: isize = @mod(grid.offset[0], grid.size[0]);
+        context.*.setSourceRgb(grid.color[0], grid.color[1], grid.color[2]);
+        while (i <= width) : (i += grid.size[0]) {
+            context.*.moveTo(@floatFromInt(i), 0);
+            context.*.lineTo(@floatFromInt(i), @floatFromInt(height));
         }
 
-        ii = @mod(grid.offset[1], grid.size[1]);
-        while (ii <= width) : (ii += grid.size[1]) {
-            const grid_color = self.config.grid.color;
-            context.*.setSourceRgb(grid_color[0], grid_color[1], grid_color[2]);
-            context.*.moveTo(0, @floatFromInt(ii));
-            context.*.lineTo(@floatFromInt(width), @floatFromInt(ii));
+        i = @mod(grid.offset[1], grid.size[1]);
+        while (i <= width) : (i += grid.size[1]) {
+            context.*.moveTo(0, @floatFromInt(i));
+            context.*.lineTo(@floatFromInt(width), @floatFromInt(i));
         }
 
         context.*.stroke();
@@ -153,7 +150,6 @@ pub const Seto = struct {
         const bg_color = self.config.background_color;
         context.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
         context.paintWithAlpha(bg_color[3]);
-        const font = self.config.font;
 
         const branch_info = try tree.iter(self.config.keys.search);
         for (branch_info) |branch| {
@@ -169,6 +165,7 @@ pub const Seto = struct {
             }
 
             context.moveTo(@floatFromInt(branch.pos[0] + 5), @floatFromInt(branch.pos[1] + 15));
+            const font = self.config.font;
             context.selectFontFace(font.family, .Normal, .Normal);
             context.setFontSize(font.size);
             for (0..self.depth) |i| {

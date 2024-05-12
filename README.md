@@ -6,7 +6,6 @@
 - wayland
 - libxkbcommon
 - cairo
-- libyaml
 
 ## Installation
 
@@ -23,13 +22,13 @@ git clone https://github.com/unixpariah/seto.git && cd seto
 - Debian:
 
 ```bash
-apt-get install zig libwayland libxkbcommon cairo libyaml
+apt-get install zig libwayland libxkbcommon cairo
 ```
 
 - Arch:
 
 ```bash
-pacman -S zig wayland libxkbcommon cairo libyaml
+pacman -S zig wayland libxkbcommon cairo
 ```
 
 - NixOs:
@@ -41,7 +40,7 @@ nix develop
 3. Compile and install
 
 ```zig
-zig build -p /usr/local
+zig build -Doptimize=ReleaseFast -p /usr/local
 ```
 
 ## Configuration

@@ -84,7 +84,6 @@ const Node = union(enum) {
 
 fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize, tree_index: *usize) std.AutoHashMap(u8, Node) {
     var tree = std.AutoHashMap(u8, Node).init(alloc);
-
     for (keys) |key| {
         if (depth <= 1) {
             const position = block: {

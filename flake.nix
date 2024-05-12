@@ -31,7 +31,6 @@
         wayland-scanner
         wayland-protocols
         libxkbcommon
-        libyaml
       ];
     };
   };

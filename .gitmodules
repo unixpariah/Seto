@@ -7,6 +7,3 @@
 [submodule "deps/zig-xkbcommon"]
 	path = deps/zig-xkbcommon
 	url = https://github.com/ifreund/zig-xkbcommon.git
-[submodule "deps/yaml"]
-	path = deps/yaml
-	url = https://github.com/nektro/zig-yaml.git
