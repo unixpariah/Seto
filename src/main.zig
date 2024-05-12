@@ -101,6 +101,27 @@ pub const Seto = struct {
         self.depth = @intFromFloat(std.math.ceil(depth));
     }
 
+    fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
+        const grid = self.config.grid;
+        var ii: isize = @mod(grid.offset[0], grid.size[0]);
+        while (ii <= width) : (ii += grid.size[0]) {
+            const grid_color = self.config.grid.color;
+            context.*.setSourceRgb(grid_color[0], grid_color[1], grid_color[2]);
+            context.*.moveTo(@floatFromInt(ii), 0);
+            context.*.lineTo(@floatFromInt(ii), @floatFromInt(height));
+        }
+
+        ii = @mod(grid.offset[1], grid.size[1]);
+        while (ii <= width) : (ii += grid.size[1]) {
+            const grid_color = self.config.grid.color;
+            context.*.setSourceRgb(grid_color[0], grid_color[1], grid_color[2]);
+            context.*.moveTo(0, @floatFromInt(ii));
+            context.*.lineTo(@floatFromInt(width), @floatFromInt(ii));
+        }
+
+        context.*.stroke();
+    }
+
     fn createSurfaces(self: *Self) !void {
         if (!self.drawSurfaces()) return;
 
@@ -115,7 +136,6 @@ pub const Seto = struct {
 
         var tree = Tree.new(self.alloc, self.config.keys.search, self.depth, intersections);
         defer tree.alloc.deinit();
-        const branch_info = try tree.iter(self.config.keys.search);
         _ = tree.find(self.seat.buffer.items) catch |err| {
             switch (err) {
                 error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
@@ -128,11 +148,14 @@ pub const Seto = struct {
         const context = try cairo.Context.create(cairo_surface.asSurface());
         defer context.destroy();
 
+        self.drawGrid(width, height, &context);
+
         const bg_color = self.config.background_color;
         context.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
         context.paintWithAlpha(bg_color[3]);
         const font = self.config.font;
 
+        const branch_info = try tree.iter(self.config.keys.search);
         for (branch_info) |branch| {
             var matching: u8 = 0;
             for (self.seat.buffer.items, 0..) |char, i| {
@@ -144,14 +167,6 @@ pub const Seto = struct {
                 matching = 0;
                 break;
             }
-
-            const grid_color = self.config.grid.color;
-            context.setSourceRgb(grid_color[0], grid_color[1], grid_color[2]);
-            context.moveTo(@floatFromInt(branch.pos[0]), 0);
-            context.lineTo(@floatFromInt(branch.pos[0]), @floatFromInt(height));
-            context.moveTo(0, @floatFromInt(branch.pos[1]));
-            context.lineTo(@floatFromInt(width), @floatFromInt(branch.pos[1]));
-            context.stroke();
 
             context.moveTo(@floatFromInt(branch.pos[0] + 5), @floatFromInt(branch.pos[1] + 15));
             context.selectFontFace(font.family, .Normal, .Normal);
@@ -167,8 +182,6 @@ pub const Seto = struct {
                 context.showText(positions[0..1 :0]);
             }
         }
-
-        context.stroke();
 
         const size: i32 = @intCast(width * height * 4);
 
@@ -214,7 +227,7 @@ pub const Seto = struct {
         }
         self.outputs.deinit();
         self.seat.destroy();
-        self.config.keys.move.deinit();
+        self.config.keys.bindings.deinit();
     }
 };
 

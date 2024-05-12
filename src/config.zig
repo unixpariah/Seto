@@ -28,7 +28,7 @@ pub const Config = struct {
         //      _ = try file.write(config);
         //  };
 
-        var keys = Keys{ .move = std.AutoHashMap(u8, Function).init(allocator) };
+        var keys = Keys{ .bindings = std.AutoHashMap(u8, Function).init(allocator) };
         try keys.bindings.put('z', .{ .moveX = -5 });
         try keys.bindings.put('x', .{ .moveY = 5 });
         try keys.bindings.put('n', .{ .moveY = -5 });
