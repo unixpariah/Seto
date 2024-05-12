@@ -29,19 +29,19 @@ pub const Config = struct {
         //  };
 
         var keys = Keys{ .move = std.AutoHashMap(u8, Function).init(allocator) };
-        try keys.move.put('z', .{ .moveX = -5 });
-        try keys.move.put('x', .{ .moveY = 5 });
-        try keys.move.put('n', .{ .moveY = -5 });
-        try keys.move.put('m', .{ .moveX = 5 });
+        try keys.bindings.put('z', .{ .moveX = -5 });
+        try keys.bindings.put('x', .{ .moveY = 5 });
+        try keys.bindings.put('n', .{ .moveY = -5 });
+        try keys.bindings.put('m', .{ .moveX = 5 });
 
-        try keys.move.put('Z', .{ .resizeX = -5 });
-        try keys.move.put('X', .{ .resizeY = 5 });
-        try keys.move.put('N', .{ .resizeY = -5 });
-        try keys.move.put('M', .{ .resizeX = 5 });
+        try keys.bindings.put('Z', .{ .resizeX = -5 });
+        try keys.bindings.put('X', .{ .resizeY = 5 });
+        try keys.bindings.put('N', .{ .resizeY = -5 });
+        try keys.bindings.put('M', .{ .resizeX = 5 });
 
-        try keys.move.put(8, .remove);
+        try keys.bindings.put(8, .remove);
 
-        try keys.move.put('q', .quit);
+        try keys.bindings.put('q', .quit);
 
         return .{ .keys = keys };
     }
@@ -97,10 +97,8 @@ const Function = union(enum) {
 };
 
 const Keys = struct {
-    quit: u8 = 'q',
     search: []const u8 = "asdfghjkl",
-    move: std.AutoHashMap(u8, Function),
-    resize: *const [4]u8 = &[_]u8{ 'Z', 'X', 'N', 'M' },
+    bindings: std.AutoHashMap(u8, Function),
 };
 
 const config = "background_color: [ 1, 1, 1, 0.4 ]\nkeys:\n    search: asdfghjkl\n    move: [ z, x, n, m ]\n    resize: [ Z, X, N, M ]\nfont:\n    color: [ 1, 1, 1 ]\n    highlight_color: [ 1, 1, 0 ]\n    size: 16\n    family: Arial\ngrid:\n    color: [ 1, 1, 1, 1]\n    size: [ 80, 80 ]\n    offset:    [ 0, 0 ]";
