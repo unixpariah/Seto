@@ -71,11 +71,15 @@ const Node = union(enum) {
                     var new_key: [1]u8 = undefined;
                     new_key[0] = key;
                     const new_path = try std.fmt.allocPrint(alloc, "{s}{s}", .{ path, new_key });
-                    try node.get(key).?.collect(alloc, keys, new_path, result);
+                    if (node.get(key)) |n| {
+                        try n.collect(alloc, keys, new_path, result);
+                    }
                 },
                 .position => |position| {
                     const pos = position orelse return;
-                    try result.append(.{ .pos = pos, .path = path });
+                    const res: Result = .{ .pos = pos, .path = path };
+                    try result.append(res);
+                    break;
                 },
             }
         }
@@ -86,11 +90,10 @@ fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, in
     var tree = std.AutoHashMap(u8, Node).init(alloc);
     for (keys) |key| {
         if (depth <= 1) {
-            const position = block: {
-                if (tree_index.* < intersections.len) break :block intersections[tree_index.*] else break :block null;
-            };
-            tree.put(key, .{ .position = position }) catch |err| std.debug.panic("{}", .{err});
-            tree_index.* += 1;
+            if (tree_index.* < intersections.len) {
+                tree.put(key, .{ .position = intersections[tree_index.*] }) catch |err| std.debug.panic("{}", .{err});
+                tree_index.* += 1;
+            }
         } else {
             const new_tree = createNestedTree(alloc, keys, depth - 1, intersections, tree_index);
             tree.put(key, .{ .node = new_tree }) catch |err| std.debug.panic("{}", .{err});
@@ -119,6 +122,8 @@ test "tree" {
         }
     }
 
-    const tree = Tree.new(std.heap.page_allocator, keys, 3, intersections.items);
-    _ = tree;
+    var tree = Tree.new(std.heap.page_allocator, keys, 3, intersections.items);
+    const arr = try tree.iter(keys);
+    std.debug.print("{any}\n", .{arr});
+    //assert(arr.len == intersections.items.len);
 }

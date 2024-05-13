@@ -142,14 +142,14 @@ pub const Seto = struct {
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();
-        const context = try cairo.Context.create(cairo_surface.asSurface());
-        defer context.destroy();
+        const ctx = try cairo.Context.create(cairo_surface.asSurface());
+        defer ctx.destroy();
 
-        self.drawGrid(width, height, &context);
+        self.drawGrid(width, height, &ctx);
 
         const bg_color = self.config.background_color;
-        context.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
-        context.paintWithAlpha(bg_color[3]);
+        ctx.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
+        ctx.paintWithAlpha(bg_color[3]);
 
         const branch_info = try tree.iter(self.config.keys.search);
         for (branch_info) |branch| {
@@ -164,19 +164,19 @@ pub const Seto = struct {
                 break;
             }
 
-            context.moveTo(@floatFromInt(branch.pos[0] + 5), @floatFromInt(branch.pos[1] + 15));
+            ctx.moveTo(@floatFromInt(branch.pos[0] + 5), @floatFromInt(branch.pos[1] + 15));
             const font = self.config.font;
-            context.selectFontFace(font.family, .Normal, .Normal);
-            context.setFontSize(font.size);
+            ctx.selectFontFace(font.family, .Normal, .Normal);
+            ctx.setFontSize(font.size);
             for (0..self.depth) |i| {
-                context.setSourceRgb(font.color[0], font.color[1], font.color[2]);
+                ctx.setSourceRgb(font.color[0], font.color[1], font.color[2]);
                 if (i < matching) {
-                    context.setSourceRgb(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2]);
+                    ctx.setSourceRgb(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2]);
                 }
                 var positions: [2]u8 = undefined;
                 positions[0] = branch.path[i];
                 positions[1] = 0;
-                context.showText(positions[0..1 :0]);
+                ctx.showText(positions[0..1 :0]);
             }
         }
 
@@ -189,15 +189,15 @@ pub const Seto = struct {
             if (!output.isConfigured()) continue;
 
             const info = output.output_info;
-            const sur = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
-            defer sur.destroy();
-            const c = try cairo.Context.create(sur.asSurface());
-            defer c.destroy();
+            const output_surface = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
+            defer output_surface.destroy();
+            const output_ctx = try cairo.Context.create(output_surface.asSurface());
+            defer output_ctx.destroy();
 
-            c.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-info.x), @floatFromInt(info.y));
-            c.paint();
+            output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-info.x), @floatFromInt(info.y));
+            output_ctx.paint();
 
-            const data = try sur.getData();
+            const data = try output_surface.getData();
 
             const fd = try posix.memfd_create("seto", 0);
             defer posix.close(fd);
