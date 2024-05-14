@@ -4,8 +4,12 @@
     .paths = .{""},
     .dependencies = .{
         .giza = .{
-            .url = "https://github.com/unixpariah/giza/archive/master.tar.gz",
+            .url = "https://github.com/unixpariah/giza/archive/refs/heads/master.tar.gz",
             .hash = "12205343b298a246d9476941a716f376d4cb06074af5799a3373c41875e98a448f26",
+        },
+        .ztoml = .{
+            .url = "https://github.com/unixpariah/ztoml/archive/refs/heads/main.tar.gz",
+            .hash = "1220295b3c8eb206a318fa1dc1fd0c276d168f0eb8d602ec119bb82cf7460c72fbda",
         },
     },
 }

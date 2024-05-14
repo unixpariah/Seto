@@ -1,6 +1,7 @@
 const std = @import("std");
 const yaml = @import("yaml");
 const fs = std.fs;
+const assert = std.debug.assert;
 
 pub const Config = struct {
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
@@ -43,6 +44,11 @@ pub const Config = struct {
 
         try keys.bindings.put('q', .quit);
 
+        if (keys.search.len <= 1) {
+            std.debug.print("Error: A minimum of two search keys required.\n", .{});
+            std.process.exit(1);
+        }
+
         return .{ .keys = keys };
     }
 };
@@ -74,16 +80,19 @@ pub const Grid = struct {
     }
 
     pub fn resizeX(self: *Self, value: i32) void {
-        if (self.size[0] + value >= 0) self.size[0] += value else {
-            self.size[0] += value;
-            self.size[0] = -self.size[0];
+        var new_size = self.size[0] + value;
+        if (new_size <= 0) {
+            new_size = 1;
         }
+        self.size[0] = new_size;
     }
 
     pub fn resizeY(self: *Self, value: i32) void {
-        if (self.size[1] + value >= 0) self.size[1] += value else {
-            self.size[0] += value;
+        var new_size = self.size[1] + value;
+        if (new_size <= 0) {
+            new_size = 1;
         }
+        self.size[1] = new_size;
     }
 };
 
@@ -104,8 +113,6 @@ const Keys = struct {
 const config = "background_color: [ 1, 1, 1, 0.4 ]\nkeys:\n    search: asdfghjkl\n    move: [ z, x, n, m ]\n    resize: [ Z, X, N, M ]\nfont:\n    color: [ 1, 1, 1 ]\n    highlight_color: [ 1, 1, 0 ]\n    size: 16\n    family: Arial\ngrid:\n    color: [ 1, 1, 1, 1]\n    size: [ 80, 80 ]\n    offset:    [ 0, 0 ]";
 
 test "resize" {
-    const assert = std.debug.assert;
-
     for (1..10) |i| {
         var grid = Grid{};
         var initial = grid.size;
@@ -126,23 +133,15 @@ test "resize" {
         grid.size[0] = index;
         grid.size[1] = index;
         initial = grid.size;
-        grid.resizeX(-index * 2);
-        assert(grid.size[0] == index);
+        grid.resizeX(-std.math.maxInt(i32));
+        assert(grid.size[0] == 1);
 
-        grid.resizeY(-index * 2);
-        assert(grid.size[1] == index);
-
-        grid.resizeX(index * 2);
-        assert(grid.size[0] == index);
-
-        grid.resizeY(index);
-        assert(grid.size[1] == initial[1] + index);
+        grid.resizeY(-std.math.maxInt(i32));
+        assert(grid.size[1] == 1);
     }
 }
 
 test "move" {
-    const assert = std.debug.assert;
-
     for (1..10) |i| {
         var grid = Grid{};
         var initial = grid.offset;
