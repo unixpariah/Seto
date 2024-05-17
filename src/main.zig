@@ -115,7 +115,7 @@ pub const Seto = struct {
         }
 
         i = @mod(grid.offset[1], grid.size[1]);
-        while (i <= width) : (i += grid.size[1]) {
+        while (i <= height) : (i += grid.size[1]) {
             context.*.moveTo(0, @floatFromInt(i));
             context.*.lineTo(@floatFromInt(width), @floatFromInt(i));
         }
@@ -189,22 +189,22 @@ pub const Seto = struct {
 
         const shm = self.shm orelse return error.NoWlShm;
 
-        var prev: ?[2]i32 = null;
+        var prev: ?OutputInfo = null;
         var pos: [2]i32 = .{ 0, 0 };
         for (self.outputs.items) |*output| {
             if (!output.isConfigured()) continue;
 
             const info = output.output_info;
-            defer prev = .{ info.width, info.height };
+            defer prev = info;
             const output_surface = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
             defer output_surface.destroy();
             const output_ctx = try cairo.Context.create(output_surface.asSurface());
             defer output_ctx.destroy();
 
             if (prev) |p| {
-                if (info.x < p[0]) {
+                if (info.x <= p.x) {
                     pos[0] = 0;
-                    pos[1] += p[1];
+                    pos[1] += p.height;
                 }
             }
 
