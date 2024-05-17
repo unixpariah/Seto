@@ -89,11 +89,10 @@ const Node = union(enum) {
 fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize, tree_index: *usize) std.AutoHashMap(u8, Node) {
     var tree = std.AutoHashMap(u8, Node).init(alloc);
     for (keys) |key| {
+        if (tree_index.* >= intersections.len) break;
         if (depth <= 1) {
-            if (tree_index.* < intersections.len) {
-                tree.put(key, .{ .position = intersections[tree_index.*] }) catch |err| std.debug.panic("{}", .{err});
-                tree_index.* += 1;
-            }
+            tree.put(key, .{ .position = intersections[tree_index.*] }) catch |err| std.debug.panic("{}", .{err});
+            tree_index.* += 1;
         } else {
             const new_tree = createNestedTree(alloc, keys, depth - 1, intersections, tree_index);
             tree.put(key, .{ .node = new_tree }) catch |err| std.debug.panic("{}", .{err});

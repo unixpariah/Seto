@@ -16,15 +16,14 @@ pub const OutputInfo = struct {
     width: i32 = 0,
     x: i32 = 0,
     y: i32 = 0,
-    wl: *wl.Output,
-    alloc: mem.Allocator,
+    wl_output: *wl.Output,
 
     const Self = @This();
 
-    fn destroy(self: *Self) void {
-        self.wl.destroy();
-        self.alloc.free(self.name.?);
-        self.alloc.free(self.description.?);
+    fn destroy(self: *Self, alloc: mem.Allocator) void {
+        self.wl_output.destroy();
+        alloc.free(self.name.?);
+        alloc.free(self.description.?);
     }
 };
 
@@ -41,6 +40,15 @@ pub const Surface = struct {
 
     pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo, name: u32) Self {
         return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output, .name = name };
+    }
+
+    pub fn cmp(self: Self, a: Self, b: Self) bool {
+        _ = self;
+        if (a.output_info.x != b.output_info.x) {
+            return a.output_info.x < b.output_info.x;
+        } else {
+            return a.output_info.y < b.output_info.y;
+        }
     }
 
     pub fn draw(self: *Self, pool: *wl.ShmPool, fd: i32, image: [*]u8) !void {
@@ -68,7 +76,7 @@ pub const Surface = struct {
     pub fn destroy(self: *Self) void {
         self.layer_surface.destroy();
         self.surface.destroy();
-        self.output_info.destroy();
+        self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
     }
 };
@@ -97,10 +105,10 @@ pub fn xdgOutputListener(
         if (surface.xdg_output == output) {
             switch (event) {
                 .name => |e| {
-                    surface.output_info.name = surface.output_info.alloc.dupe(u8, mem.span(e.name)) catch return;
+                    surface.output_info.name = seto.alloc.dupe(u8, mem.span(e.name)) catch return;
                 },
                 .description => |e| {
-                    surface.output_info.description = surface.output_info.alloc.dupe(u8, mem.span(e.description)) catch return;
+                    surface.output_info.description = seto.alloc.dupe(u8, mem.span(e.description)) catch return;
                 },
                 .logical_position => |pos| {
                     surface.output_info.x = pos.x;

@@ -75,6 +75,10 @@ pub const Seto = struct {
         return .{ x[1] - x[0], y[1] - y[0] };
     }
 
+    fn sortOutputs(self: *Self) void {
+        std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], comptime Surface.cmp);
+    }
+
     fn getIntersections(self: *Seto) ![][2]usize {
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
@@ -121,6 +125,7 @@ pub const Seto = struct {
 
     fn createSurfaces(self: *Self) !void {
         if (!self.drawSurfaces()) return;
+        self.sortOutputs();
 
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
@@ -184,7 +189,7 @@ pub const Seto = struct {
 
         const shm = self.shm orelse return error.NoWlShm;
 
-        // TODO: make it more output agnostic (trying to sound smart)
+        var prev: [2]i32 = .{ 0, 0 };
         for (self.outputs.items) |*output| {
             if (!output.isConfigured()) continue;
 
@@ -194,7 +199,8 @@ pub const Seto = struct {
             const output_ctx = try cairo.Context.create(output_surface.asSurface());
             defer output_ctx.destroy();
 
-            output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-info.x), @floatFromInt(info.y));
+            output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-prev[0]), @floatFromInt(-prev[1]));
+            prev = .{ info.width, 0 };
             output_ctx.paint();
 
             const data = try output_surface.getData();
@@ -293,7 +299,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 
                     const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
 
-                    const output_info = OutputInfo{ .alloc = seto.alloc, .wl = global_output };
+                    const output_info = OutputInfo{ .wl_output = global_output };
                     const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info, global.name);
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
