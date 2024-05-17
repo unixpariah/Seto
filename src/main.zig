@@ -189,18 +189,27 @@ pub const Seto = struct {
 
         const shm = self.shm orelse return error.NoWlShm;
 
-        var prev: [2]i32 = .{ 0, 0 };
+        var prev: ?[2]i32 = null;
+        var pos: [2]i32 = .{ 0, 0 };
         for (self.outputs.items) |*output| {
             if (!output.isConfigured()) continue;
 
             const info = output.output_info;
+            defer prev = .{ info.width, info.height };
             const output_surface = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
             defer output_surface.destroy();
             const output_ctx = try cairo.Context.create(output_surface.asSurface());
             defer output_ctx.destroy();
 
-            output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-prev[0]), @floatFromInt(-prev[1]));
-            prev = .{ info.width, 0 };
+            if (prev) |p| {
+                if (info.x < p[0]) {
+                    pos[0] = 0;
+                    pos[1] += p[1];
+                }
+            }
+
+            output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-pos[0]), @floatFromInt(-pos[1]));
+            pos[0] += info.width;
             output_ctx.paint();
 
             const data = try output_surface.getData();
