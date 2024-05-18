@@ -1,5 +1,5 @@
 const std = @import("std");
-const yaml = @import("yaml");
+const cairo = @import("cairo");
 const fs = std.fs;
 const assert = std.debug.assert;
 
@@ -53,11 +53,13 @@ pub const Config = struct {
     }
 };
 
-const Font = struct {
+pub const Font = struct {
     color: [3]f64 = .{ 1, 1, 1 },
     highlight_color: [3]f64 = .{ 1, 1, 0 },
     size: f64 = 16,
-    family: [:0]const u8 = "Arial",
+    family: [:0]const u8 = "JetBransMono Nerd Font",
+    slant: cairo.FontFace.FontSlant = .Normal,
+    weight: cairo.FontFace.FontWeight = .Normal,
 };
 
 pub const Grid = struct {

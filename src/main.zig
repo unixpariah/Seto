@@ -42,7 +42,7 @@ pub const Seto = struct {
     alloc: mem.Allocator,
     config: Config,
 
-    depth: usize = 0,
+    depth: u8 = 0,
     redraw: bool = false,
     first_draw: bool = true,
     exit: bool = false,
@@ -123,6 +123,10 @@ pub const Seto = struct {
         context.*.stroke();
     }
 
+    fn drawText(self: *Self, tree: *Tree, ctx: *cairo.Context, buffer: [][64]u8) void {
+        tree.iter(self.config.keys.search, ctx, self.config.font, buffer, self.depth) catch return;
+    }
+
     fn createSurfaces(self: *Self) !void {
         if (!self.drawSurfaces()) return;
         self.sortOutputs();
@@ -156,32 +160,7 @@ pub const Seto = struct {
         ctx.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
         ctx.paintWithAlpha(bg_color[3]);
 
-        const branch_info = try tree.iter(self.config.keys.search);
-        for (branch_info) |branch| {
-            var matching: u8 = 0;
-            for (self.seat.buffer.items, 0..) |char, i| {
-                if (mem.eql(u8, char[0..1], branch.path[i .. i + 1])) {
-                    matching += 1;
-                    continue;
-                }
-
-                matching = 0;
-                break;
-            }
-
-            ctx.moveTo(@floatFromInt(branch.pos[0] + 5), @floatFromInt(branch.pos[1] + 15));
-            const font = self.config.font;
-            ctx.selectFontFace(font.family, .Normal, .Normal);
-            ctx.setFontSize(font.size);
-            for (0..self.depth) |i| {
-                ctx.setSourceRgb(font.color[0], font.color[1], font.color[2]);
-                if (i < matching) {
-                    ctx.setSourceRgb(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2]);
-                }
-                var positions: [2]u8 = .{ branch.path[i], 0 };
-                ctx.showText(positions[0..1 :0]);
-            }
-        }
+        self.drawText(&tree, ctx, self.seat.buffer.items);
 
         const size: i32 = @intCast(width * height * 4);
 
@@ -200,10 +179,7 @@ pub const Seto = struct {
             defer output_ctx.destroy();
 
             if (prev) |p| {
-                if (info.x <= p.x) {
-                    pos[0] = 0;
-                    pos[1] += p.height;
-                }
+                if (info.x <= p.x) pos = .{ 0, p.height };
             }
 
             output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-pos[0]), @floatFromInt(-pos[1]));
@@ -261,9 +237,7 @@ pub fn main() !void {
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
     while (!seto.exit) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
-        if (seto.seat.repeatKey()) {
-            handleKey(&seto);
-        }
+        if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
     }
 }

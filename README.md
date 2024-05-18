@@ -42,7 +42,3 @@ nix develop
 ```zig
 zig build -Doptimize=ReleaseFast -p /usr/local
 ```
-
-## Configuration
-
-The configuration files will be generated at XDG_HOME_CONFIG/seto/config.yaml on first run.

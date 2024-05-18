@@ -1,9 +1,26 @@
 const std = @import("std");
+const cairo = @import("cairo");
+const Font = @import("config.zig").Font;
 
 pub const Result = struct {
     path: []const u8,
     pos: [2]usize,
 };
+
+fn drawText(ctx: *cairo.Context, font: Font, position: [2]usize, path: []u8, matches: u8) void {
+    ctx.moveTo(@floatFromInt(position[0] + 5), @floatFromInt(position[1] + 15));
+    ctx.selectFontFace(font.family, font.slant, font.weight);
+    ctx.setFontSize(font.size);
+
+    for (path, 0..) |char, i| {
+        ctx.setSourceRgb(font.color[0], font.color[1], font.color[2]);
+        if (i < matches) {
+            ctx.setSourceRgb(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2]);
+        }
+        const a: [2]u8 = .{ char, 0 };
+        ctx.showText(a[0..1 :0]);
+    }
+}
 
 pub const Tree = struct {
     tree: std.AutoHashMap(u8, Node),
@@ -28,22 +45,20 @@ pub const Tree = struct {
         }
     }
 
-    pub fn iter(self: *Self, keys: []const u8) ![](Result) {
-        const alloc = self.alloc.allocator();
-        var arr = std.ArrayList(Result).init(alloc);
-        var path = std.ArrayList(u8).init(alloc);
+    pub fn iter(self: *Self, keys: []const u8, ctx: *cairo.Context, font: Font, buffer: [][64]u8, depth: usize) !void {
+        var path = try self.alloc.child_allocator.alloc(u8, depth);
+        defer self.alloc.child_allocator.free(path);
+
         for (keys) |key| {
             if (self.tree.get(key)) |node| {
-                try path.append(key);
+                path[0] = key;
+                const matches: u8 = if (buffer.len > 0 and buffer[0][0] == key) 1 else 0;
                 try switch (node) {
-                    .position => |pos| arr.append(.{ .pos = pos, .path = &[1]u8{key} }),
-                    .node => node.collect(alloc, keys, &path, &arr),
+                    .position => |position| drawText(ctx, font, position, path, matches),
+                    .node => node.collect(keys, path, ctx, buffer, font, 1, matches),
                 };
-                _ = path.popOrNull();
             }
         }
-
-        return try arr.toOwnedSlice();
     }
 };
 
@@ -66,23 +81,21 @@ const Node = union(enum) {
         return error.EndNotReached;
     }
 
-    fn collect(self: *const Self, alloc: std.mem.Allocator, keys: []const u8, path: *std.ArrayList(u8), result: *std.ArrayList(Result)) !void {
+    fn collect(self: *const Self, keys: []const u8, path: []u8, ctx: *cairo.Context, buffer: [][64]u8, font: Font, index: u8, matches: u8) !void {
         for (keys) |key| {
             switch (self.*) {
                 .node => |node| {
-                    _ = try path.append(key);
+                    path[index] = key;
                     if (node.get(key)) |n| {
-                        try n.collect(alloc, keys, path, result);
+                        const m = if (matches == index and buffer.len > index and buffer[index][0] == key) matches + 1 else if (buffer.len > index) 0 else matches;
+                        try n.collect(keys, path, ctx, buffer, font, index + 1, m);
                     }
                 },
                 .position => |position| {
-                    const p = try path.clone();
-                    const res: Result = .{ .pos = position, .path = p.items };
-                    try result.append(res);
+                    drawText(ctx, font, position, path, matches);
                     break;
                 },
             }
-            _ = path.popOrNull();
         }
     }
 };
@@ -101,28 +114,4 @@ fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, in
     }
 
     return tree;
-}
-
-test "tree" {
-    const assert = std.debug.assert;
-    const keys: []const u8 = "asdfghjkl";
-
-    const width: u32 = 1920;
-    const height: u32 = 1080;
-
-    var intersections = std.ArrayList([2]usize).init(std.heap.page_allocator);
-    defer intersections.deinit();
-    const offset = .{ 0, 0 };
-    const size = .{ 80, 80 };
-    var i: isize = @mod(offset[0], size[0]);
-    while (i <= width) : (i += size[0]) {
-        var j: isize = @mod(offset[1], size[1]);
-        while (j <= height) : (j += size[1]) {
-            try intersections.append(.{ @intCast(i), @intCast(j) });
-        }
-    }
-
-    var tree = Tree.new(std.heap.page_allocator, keys, 3, intersections.items);
-    const arr = try tree.iter(keys);
-    assert(arr.len == intersections.items.len);
 }
