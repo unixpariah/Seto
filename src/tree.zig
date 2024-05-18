@@ -29,15 +29,17 @@ pub const Tree = struct {
     }
 
     pub fn iter(self: *Self, keys: []const u8) ![](Result) {
-        var arr = std.ArrayList(Result).init(self.alloc.allocator());
+        const alloc = self.alloc.allocator();
+        var arr = std.ArrayList(Result).init(alloc);
+        var path = std.ArrayList(u8).init(alloc);
         for (keys) |key| {
-            var nt_key: [1]u8 = undefined;
-            nt_key[0] = key;
             if (self.tree.get(key)) |node| {
+                try path.append(key);
                 try switch (node) {
-                    .position => |pos| if (pos) |nn_pos| arr.append(.{ .pos = nn_pos, .path = &nt_key }),
-                    .node => node.collect(self.alloc.allocator(), keys, &nt_key, &arr),
+                    .position => |pos| arr.append(.{ .pos = pos, .path = &[1]u8{key} }),
+                    .node => node.collect(alloc, keys, &path, &arr),
                 };
+                _ = path.popOrNull();
             }
         }
 
@@ -47,7 +49,7 @@ pub const Tree = struct {
 
 const Node = union(enum) {
     node: std.AutoHashMap(u8, Node),
-    position: ?[2]usize,
+    position: [2]usize,
 
     const Self = @This();
 
@@ -59,29 +61,28 @@ const Node = union(enum) {
                     return n.traverse(keys[1..keys.len]);
                 }
             },
-            .position => |pos| if (pos) |p| return p,
+            .position => |pos| return pos,
         }
         return error.EndNotReached;
     }
 
-    fn collect(self: *const Self, alloc: std.mem.Allocator, keys: []const u8, path: []const u8, result: *std.ArrayList(Result)) !void {
+    fn collect(self: *const Self, alloc: std.mem.Allocator, keys: []const u8, path: *std.ArrayList(u8), result: *std.ArrayList(Result)) !void {
         for (keys) |key| {
             switch (self.*) {
                 .node => |node| {
-                    var new_key: [1]u8 = undefined;
-                    new_key[0] = key;
-                    const new_path = try std.fmt.allocPrint(alloc, "{s}{s}", .{ path, new_key });
+                    _ = try path.append(key);
                     if (node.get(key)) |n| {
-                        try n.collect(alloc, keys, new_path, result);
+                        try n.collect(alloc, keys, path, result);
                     }
                 },
                 .position => |position| {
-                    const pos = position orelse return;
-                    const res: Result = .{ .pos = pos, .path = path };
+                    const p = try path.clone();
+                    const res: Result = .{ .pos = position, .path = p.items };
                     try result.append(res);
                     break;
                 },
             }
+            _ = path.popOrNull();
         }
     }
 };

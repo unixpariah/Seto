@@ -178,9 +178,7 @@ pub const Seto = struct {
                 if (i < matching) {
                     ctx.setSourceRgb(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2]);
                 }
-                var positions: [2]u8 = undefined;
-                positions[0] = branch.path[i];
-                positions[1] = 0;
+                var positions: [2]u8 = .{ branch.path[i], 0 };
                 ctx.showText(positions[0..1 :0]);
             }
         }
