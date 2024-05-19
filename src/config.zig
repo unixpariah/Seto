@@ -120,23 +120,22 @@ const Function = union(enum) {
 
     const Self = @This();
 
-    fn stringToFunction(string: []const u8, value: ?i32) Self {
+    fn stringToFunction(string: []const u8, value: ?i32) !Self {
         if (std.mem.eql(u8, string, "remove")) {
             return .remove;
         } else if (std.mem.eql(u8, string, "quit")) {
             return .quit;
         } else if (std.mem.eql(u8, string, "moveX")) {
-            return .{ .moveX = value.? };
+            return .{ .moveX = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "moveY")) {
-            return .{ .moveY = value.? };
+            return .{ .moveY = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "resizeX")) {
-            return .{ .resizeX = value.? };
+            return .{ .resizeX = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "resizeY")) {
-            return .{ .resizeY = value.? };
-        } else {
-            std.debug.print("Unkown function {s}\n", .{string});
-            std.process.exit(1);
+            return .{ .resizeY = value orelse return error.NullValue };
         }
+
+        return error.UnkownFunction;
     }
 };
 
@@ -185,7 +184,18 @@ const Keys = struct {
             };
 
             const length = std.mem.len(value.@"0");
-            try self.bindings.put(key, Function.stringToFunction(value.@"0"[0..length], value.@"1"));
+            const func = Function.stringToFunction(value.@"0"[0..length], value.@"1") catch |err| {
+                switch (err) {
+                    error.UnkownFunction => {
+                        std.debug.print("Unkown function \"{s}\"\n", .{value.@"0"[0..length]});
+                    },
+                    error.NullValue => {
+                        std.debug.print("Value for function \"{s}\" can't be null\n", .{value.@"0"[0..length]});
+                    },
+                }
+                std.process.exit(1);
+            };
+            try self.bindings.put(key, func);
             lua.pop(1);
         }
         lua.pop(1);
