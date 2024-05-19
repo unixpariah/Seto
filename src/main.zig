@@ -225,6 +225,7 @@ pub const Seto = struct {
         self.outputs.deinit();
         self.seat.destroy();
         self.config.keys.bindings.deinit();
+        self.config.destroy();
     }
 };
 

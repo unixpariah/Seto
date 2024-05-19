@@ -5,108 +5,65 @@ const Lua = ziglua.Lua;
 const fs = std.fs;
 const assert = std.debug.assert;
 
+fn getPath(alloc: std.mem.Allocator) ![]u8 {
+    const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
+    const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
+    fs.accessAbsolute(config_dir, .{}) catch {
+        _ = try fs.makeDirAbsolute(config_dir);
+    };
+    const config_path = try fs.path.join(alloc, &[_][]const u8{ config_dir, "config.lua" });
+    fs.accessAbsolute(config_path, .{}) catch {
+        const file = try fs.createFileAbsolute(config_path, .{});
+        std.debug.print("Config file not found, creating one at {s}\n", .{config_path});
+        _ = try file.write(lua_config);
+    };
+
+    return config_path;
+}
+
 pub const Config = struct {
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
     keys: Keys,
     font: Font = Font{},
     grid: Grid = Grid{},
+    alloc: std.mem.Allocator,
 
     const Self = @This();
 
     pub fn load(allocator: std.mem.Allocator) !Self {
         var a_alloc = std.heap.ArenaAllocator.init(allocator);
-        const alloc = a_alloc.allocator();
         defer a_alloc.deinit();
 
-        const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
-        const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
-        fs.accessAbsolute(config_dir, .{}) catch {
-            _ = try fs.makeDirAbsolute(config_dir);
-        };
-        const config_path = try fs.path.join(alloc, &[_][]const u8{ config_dir, "config.lua" });
-        fs.accessAbsolute(config_path, .{}) catch {
-            const file = try fs.createFileAbsolute(config_path, .{});
-            std.debug.print("Config file not found, creating one at {s}\n", .{config_path});
-            _ = try file.write(config);
-        };
+        var config = Config{ .keys = Keys{ .bindings = std.AutoHashMap(u8, Function).init(allocator) }, .alloc = allocator };
+        try config.parseConfig(&a_alloc);
+
+        if (config.keys.search.len <= 1) {
+            std.debug.print("Error: A minimum of two search keys required.\n", .{});
+            std.process.exit(1);
+        }
+
+        return config;
+    }
+
+    fn parseConfig(self: *Self, alloc: *std.heap.ArenaAllocator) !void {
+        const config_path = try getPath(alloc.allocator());
 
         var buf: [4098]u8 = undefined;
         const file = try fs.openFileAbsolute(config_path, .{});
         const read_bytes = try file.read(&buf);
         buf[read_bytes] = 0;
 
-        var keys = Keys{ .bindings = std.AutoHashMap(u8, Function).init(allocator) };
-
-        var lua = try Lua.init(alloc);
+        var lua = try Lua.init(alloc.allocator());
+        defer lua.deinit();
         try lua.doString(buf[0..read_bytes :0]);
-        _ = try lua.getGlobal("config");
-        _ = lua.pushString("keys");
-        _ = lua.getTable(-2);
-        _ = lua.pushString("search");
-        _ = lua.getTable(-2);
-        const a = try lua.toString(-1);
-        const len = std.mem.len(a);
 
-        const temp = try allocator.alloc(u8, len);
-        @memcpy(temp, a[0..len]);
-        keys.search = temp;
+        try self.keys.keysTable(&lua, alloc);
+    }
 
-        try keys.bindings.put('z', .{ .moveX = -5 });
-        try keys.bindings.put('x', .{ .moveY = 5 });
-        try keys.bindings.put('n', .{ .moveY = -5 });
-        try keys.bindings.put('m', .{ .moveX = 5 });
-
-        try keys.bindings.put('Z', .{ .resizeX = -5 });
-        try keys.bindings.put('X', .{ .resizeY = 5 });
-        try keys.bindings.put('N', .{ .resizeY = -5 });
-        try keys.bindings.put('M', .{ .resizeX = 5 });
-
-        try keys.bindings.put(8, .remove);
-
-        try keys.bindings.put('q', .quit);
-
-        if (keys.search.len <= 1) {
-            std.debug.print("Error: A minimum of two search keys required.\n", .{});
-            std.process.exit(1);
-        }
-
-        return .{ .keys = keys };
+    pub fn destroy(self: *Self) void {
+        self.alloc.free(self.keys.search);
     }
 };
-
-const config =
-    \\Config = {
-    \\    background_color = {1, 1, 1, 0.4},
-    \\    font = {
-    \\        color = {1, 1, 1},
-    \\        highlight_color = {1, 1, 0},
-    \\        size = 16,
-    \\        family = "JetBrainsMono Nerd Font",
-    \\        slant = "Normal",
-    \\        weight = "Normal",
-    \\    },
-    \\    grid = {
-    \\        color = {1, 1, 1, 1},
-    \\        size = {80, 80},
-    \\        offset = {0, 0},
-    \\    },
-    \\    keys = {
-    \\        search = "asdfghjkl",
-    \\        bindings = {
-    \\            z = {moveX = -5},
-    \\            x = {moveY = 5},
-    \\            n = {moveY = -5},
-    \\            m = {moveX = 5},
-    \\            Z = {resizeX = -5},
-    \\            X = {resizeY = 5},
-    \\            N = {resizeY = -5},
-    \\            M = {resizeX = 5},
-    \\            [8] = "remove",
-    \\            q = "quit",
-    \\        },
-    \\    },
-    \\}
-;
 
 pub const Font = struct {
     color: [3]f64 = .{ 1, 1, 1 },
@@ -160,12 +117,114 @@ const Function = union(enum) {
     moveY: i32,
     remove,
     quit,
+
+    const Self = @This();
+
+    fn stringToFunction(string: []const u8, value: ?i32) Self {
+        if (std.mem.eql(u8, string, "remove")) {
+            return .remove;
+        } else if (std.mem.eql(u8, string, "quit")) {
+            return .quit;
+        } else if (std.mem.eql(u8, string, "moveX")) {
+            return .{ .moveX = value.? };
+        } else if (std.mem.eql(u8, string, "moveY")) {
+            return .{ .moveY = value.? };
+        } else if (std.mem.eql(u8, string, "resizeX")) {
+            return .{ .resizeX = value.? };
+        } else if (std.mem.eql(u8, string, "resizeY")) {
+            return .{ .resizeY = value.? };
+        } else {
+            std.debug.print("Unkown function {s}\n", .{string});
+            std.process.exit(1);
+        }
+    }
 };
 
 const Keys = struct {
     search: []const u8 = "asdfghjkl",
     bindings: std.AutoHashMap(u8, Function),
+
+    const Self = @This();
+
+    fn keysTable(self: *Self, lua: *Lua, alloc: *std.heap.ArenaAllocator) !void {
+        _ = lua.pushString("keys");
+        _ = lua.getTable(1);
+        _ = lua.pushString("search");
+        _ = lua.getTable(2);
+        const keys = try lua.toString(3);
+        lua.pop(1);
+        const len = std.mem.len(keys);
+
+        const temp = try alloc.child_allocator.alloc(u8, len);
+        @memcpy(temp, keys[0..len]);
+        self.search = temp;
+
+        _ = lua.pushString("bindings");
+        _ = lua.getTable(2);
+
+        lua.pushNil();
+        while (lua.next(3) == true) {
+            const key: u8 = if (lua.isNumber(4))
+                @intFromFloat(try lua.toNumber(4))
+            else
+                (try lua.toString(4))[0];
+
+            const value: std.meta.Tuple(&.{ [*:0]const u8, ?i32 }) = x: {
+                if (lua.isString(5)) {
+                    break :x .{ try lua.toString(5), null };
+                } else {
+                    const k: [2]u8 = .{ key, 0 };
+                    defer lua.pop(3);
+                    _ = lua.pushString(k[0..1 :0]);
+                    _ = lua.getTable(5);
+                    _ = lua.pushNil();
+                    if (lua.next(5)) {
+                        break :x .{ try lua.toString(7), @intFromFloat(try lua.toNumber(8)) };
+                    }
+                }
+            };
+
+            const length = std.mem.len(value.@"0");
+            try self.bindings.put(key, Function.stringToFunction(value.@"0"[0..length], value.@"1"));
+            lua.pop(1);
+        }
+        lua.pop(1);
+    }
 };
+
+const lua_config =
+    \\return {
+    \\	background_color = { 1, 1, 1, 0.4 },
+    \\	font = {
+    \\		color = { 1, 1, 1 },
+    \\		highlight_color = { 1, 1, 0 },
+    \\		size = 16,
+    \\		family = "JetBrainsMono Nerd Font",
+    \\		slant = "Normal",
+    \\		weight = "Normal",
+    \\	},
+    \\	grid = {
+    \\		color = { 1, 1, 1, 1 },
+    \\		size = { 80, 80 },
+    \\		offset = { 0, 0 },
+    \\	},
+    \\	keys = {
+    \\		search = "asdfghjkl",
+    \\		bindings = {
+    \\			z = { moveX = -5 },
+    \\			x = { moveY = 5 },
+    \\			n = { moveY = -5 },
+    \\			m = { moveX = 5 },
+    \\			Z = { resizeX = -5 },
+    \\			X = { resizeY = 5 },
+    \\			N = { resizeY = -5 },
+    \\			M = { resizeX = 5 },
+    \\			[8] = "remove",
+    \\			q = "quit",
+    \\		},
+    \\	},
+    \\}
+;
 
 test "resize" {
     for (1..10) |i| {
