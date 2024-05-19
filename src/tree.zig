@@ -25,6 +25,7 @@ fn drawText(ctx: *cairo.Context, font: Font, position: [2]usize, path: []u8, mat
 pub const Tree = struct {
     tree: std.AutoHashMap(u8, Node),
     alloc: std.heap.ArenaAllocator,
+    keys: []const u8,
 
     const Self = @This();
 
@@ -32,7 +33,21 @@ pub const Tree = struct {
         var a_alloc = std.heap.ArenaAllocator.init(alloc);
         var tree_index: usize = 0;
         const tree = createNestedTree(a_alloc.allocator(), keys, depth, intersections, &tree_index);
-        return .{ .tree = tree, .alloc = a_alloc };
+        return .{ .tree = tree, .alloc = a_alloc, .keys = keys };
+    }
+
+    pub fn updateCoords(self: *Self, offset: [2]usize) void {
+        for (self.keys) |key| {
+            if (self.tree.getPtr(key)) |node| {
+                switch (node.*) {
+                    .position => |*position| {
+                        position[0] += offset[0];
+                        position[1] += offset[1];
+                    },
+                    .node => node.updateCoords(self.keys, offset),
+                }
+            }
+        }
     }
 
     pub fn find(self: *Self, keys: [][64]u8) !void {
@@ -45,17 +60,18 @@ pub const Tree = struct {
         }
     }
 
-    pub fn iter(self: *Self, keys: []const u8, ctx: *cairo.Context, font: Font, buffer: [][64]u8, depth: usize) !void {
+    // TODO: how tf do I name it
+    pub fn iter(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, depth: usize) !void {
         var path = try self.alloc.child_allocator.alloc(u8, depth);
         defer self.alloc.child_allocator.free(path);
 
-        for (keys) |key| {
+        for (self.keys) |key| {
             if (self.tree.get(key)) |node| {
                 path[0] = key;
                 const matches: u8 = if (buffer.len > 0 and buffer[0][0] == key) 1 else 0;
                 try switch (node) {
                     .position => |position| drawText(ctx, font, position, path, matches),
-                    .node => node.collect(keys, path, ctx, buffer, font, 1, matches),
+                    .node => node.collect(self.keys, path, ctx, buffer, font, 1, matches),
                 };
             }
         }
@@ -81,6 +97,7 @@ const Node = union(enum) {
         return error.EndNotReached;
     }
 
+    // TODO: how tf do I name it
     fn collect(self: *const Self, keys: []const u8, path: []u8, ctx: *cairo.Context, buffer: [][64]u8, font: Font, index: u8, matches: u8) !void {
         for (keys) |key| {
             switch (self.*) {

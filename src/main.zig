@@ -135,7 +135,7 @@ pub const Seto = struct {
     }
 
     fn drawText(self: *Self, tree: *Tree, ctx: *cairo.Context, buffer: [][64]u8) void {
-        tree.iter(self.config.keys.search, ctx, self.config.font, buffer, self.depth) catch return;
+        tree.iter(ctx, self.config.font, buffer, self.depth) catch return;
     }
 
     fn createSurfaces(self: *Self) !void {

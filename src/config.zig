@@ -1,5 +1,7 @@
 const std = @import("std");
 const cairo = @import("cairo");
+const ziglua = @import("ziglua");
+const Lua = ziglua.Lua;
 const fs = std.fs;
 const assert = std.debug.assert;
 
@@ -12,24 +14,43 @@ pub const Config = struct {
     const Self = @This();
 
     pub fn load(allocator: std.mem.Allocator) !Self {
-        // TODO: Leaving it commented until I find some config lang parser
-        //  var a_alloc = std.heap.ArenaAllocator.init(allocator);
-        //  const alloc = a_alloc.allocator();
-        //  defer a_alloc.deinit();
+        var a_alloc = std.heap.ArenaAllocator.init(allocator);
+        const alloc = a_alloc.allocator();
+        defer a_alloc.deinit();
 
-        //  const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
-        //  const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
-        //  fs.accessAbsolute(config_dir, .{}) catch {
-        //      _ = try fs.makeDirAbsolute(config_dir);
-        //  };
-        //  const config_file = try fs.path.join(alloc, &[_][]const u8{ config_dir, "config.yaml" });
-        //  fs.accessAbsolute(config_file, .{}) catch {
-        //      const file = try fs.createFileAbsolute(config_file, .{});
-        //      std.debug.print("Config file not found, creating one at {s}\n", .{config_file});
-        //      _ = try file.write(config);
-        //  };
+        const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
+        const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
+        fs.accessAbsolute(config_dir, .{}) catch {
+            _ = try fs.makeDirAbsolute(config_dir);
+        };
+        const config_path = try fs.path.join(alloc, &[_][]const u8{ config_dir, "config.lua" });
+        fs.accessAbsolute(config_path, .{}) catch {
+            const file = try fs.createFileAbsolute(config_path, .{});
+            std.debug.print("Config file not found, creating one at {s}\n", .{config_path});
+            _ = try file.write(config);
+        };
+
+        var buf: [4098]u8 = undefined;
+        const file = try fs.openFileAbsolute(config_path, .{});
+        const read_bytes = try file.read(&buf);
+        buf[read_bytes] = 0;
 
         var keys = Keys{ .bindings = std.AutoHashMap(u8, Function).init(allocator) };
+
+        var lua = try Lua.init(alloc);
+        try lua.doString(buf[0..read_bytes :0]);
+        _ = try lua.getGlobal("config");
+        _ = lua.pushString("keys");
+        _ = lua.getTable(-2);
+        _ = lua.pushString("search");
+        _ = lua.getTable(-2);
+        const a = try lua.toString(-1);
+        const len = std.mem.len(a);
+
+        const temp = try allocator.alloc(u8, len);
+        @memcpy(temp, a[0..len]);
+        keys.search = temp;
+
         try keys.bindings.put('z', .{ .moveX = -5 });
         try keys.bindings.put('x', .{ .moveY = 5 });
         try keys.bindings.put('n', .{ .moveY = -5 });
@@ -52,6 +73,40 @@ pub const Config = struct {
         return .{ .keys = keys };
     }
 };
+
+const config =
+    \\Config = {
+    \\    background_color = {1, 1, 1, 0.4},
+    \\    font = {
+    \\        color = {1, 1, 1},
+    \\        highlight_color = {1, 1, 0},
+    \\        size = 16,
+    \\        family = "JetBrainsMono Nerd Font",
+    \\        slant = "Normal",
+    \\        weight = "Normal",
+    \\    },
+    \\    grid = {
+    \\        color = {1, 1, 1, 1},
+    \\        size = {80, 80},
+    \\        offset = {0, 0},
+    \\    },
+    \\    keys = {
+    \\        search = "asdfghjkl",
+    \\        bindings = {
+    \\            z = {moveX = -5},
+    \\            x = {moveY = 5},
+    \\            n = {moveY = -5},
+    \\            m = {moveX = 5},
+    \\            Z = {resizeX = -5},
+    \\            X = {resizeY = 5},
+    \\            N = {resizeY = -5},
+    \\            M = {resizeX = 5},
+    \\            [8] = "remove",
+    \\            q = "quit",
+    \\        },
+    \\    },
+    \\}
+;
 
 pub const Font = struct {
     color: [3]f64 = .{ 1, 1, 1 },
@@ -111,8 +166,6 @@ const Keys = struct {
     search: []const u8 = "asdfghjkl",
     bindings: std.AutoHashMap(u8, Function),
 };
-
-const config = "background_color: [ 1, 1, 1, 0.4 ]\nkeys:\n    search: asdfghjkl\n    move: [ z, x, n, m ]\n    resize: [ Z, X, N, M ]\nfont:\n    color: [ 1, 1, 1 ]\n    highlight_color: [ 1, 1, 0 ]\n    size: 16\n    family: Arial\ngrid:\n    color: [ 1, 1, 1, 1]\n    size: [ 80, 80 ]\n    offset:    [ 0, 0 ]";
 
 test "resize" {
     for (1..10) |i| {
