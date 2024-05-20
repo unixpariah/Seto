@@ -24,7 +24,7 @@ fn getPath(alloc: std.mem.Allocator) ![:0]u8 {
 pub const Config = struct {
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
     keys: Keys,
-    font: Font = Font{},
+    font: Font,
     grid: Grid,
     alloc: std.mem.Allocator,
 
@@ -39,10 +39,9 @@ pub const Config = struct {
         var lua = try Lua.init(a_alloc.allocator());
         try lua.doFile(config_path);
 
-        var config = Config{ .alloc = allocator, .keys = try Keys.new(&lua, &a_alloc), .grid = try Grid.new(&lua) };
+        var config = Config{ .alloc = allocator, .keys = try Keys.new(&lua, &a_alloc), .grid = try Grid.new(&lua), .font = try Font.new(&lua, a_alloc.child_allocator) };
 
         _ = lua.pushString("background_color");
-
         _ = lua.getTable(1);
         if (!lua.isNil(2)) {
             var index: u8 = 0;
@@ -52,7 +51,6 @@ pub const Config = struct {
                     std.debug.print("Background color should be in RGBA format\n", .{});
                     std.process.exit(1);
                 }
-
                 config.background_color[index] = try lua.toNumber(4);
                 lua.pop(1);
             }
@@ -68,6 +66,7 @@ pub const Config = struct {
 
     pub fn destroy(self: *Self) void {
         self.alloc.free(self.keys.search);
+        self.alloc.free(self.font.family);
     }
 };
 
@@ -75,9 +74,118 @@ pub const Font = struct {
     color: [3]f64 = .{ 1, 1, 1 },
     highlight_color: [3]f64 = .{ 1, 1, 0 },
     size: f64 = 16,
-    family: [:0]const u8 = "JetBransMono Nerd Font",
+    family: [:0]const u8 = "Arial",
     slant: cairo.FontFace.FontSlant = .Normal,
     weight: cairo.FontFace.FontWeight = .Normal,
+
+    const Self = @This();
+
+    fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
+        var font = Font{};
+
+        _ = lua.pushString("font");
+        _ = lua.getTable(1);
+
+        _ = lua.pushString("color");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            var index: u8 = 0;
+            while (lua.next(3)) : (index += 1) {
+                if (!lua.isNumber(5) or index > 2) {
+                    std.debug.print("Font color should be in a RGB format\n", .{});
+                    std.process.exit(1);
+                }
+                font.color[index] = try lua.toNumber(5);
+                lua.pop(1);
+            }
+            if (index < 3) {
+                std.debug.print("Font color should be in a RGB format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("highlight_color");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            var index: u8 = 0;
+            while (lua.next(3)) : (index += 1) {
+                if (!lua.isNumber(5) or index > 2) {
+                    std.debug.print("Font highlight color should be in a RGB format\n", .{});
+                    std.process.exit(1);
+                }
+                font.highlight_color[index] = try lua.toNumber(5);
+                lua.pop(1);
+            }
+            if (index < 3) {
+                std.debug.print("Font highlight color should be in a RGB format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("size");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            if (!lua.isNumber(3)) {
+                std.debug.print("Font size should be a number\n", .{});
+                std.process.exit(1);
+            }
+            font.size = try lua.toNumber(3);
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("family");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            if (!lua.isString(3)) {
+                std.debug.print("Font family should be a string\n", .{});
+                std.process.exit(1);
+            }
+            const font_family = try lua.toString(3);
+            const len = std.mem.len(font_family);
+            const buffer = try alloc.alloc(u8, len + 1);
+            buffer[len] = 0;
+            @memcpy(buffer[0..len], font_family[0..len]);
+            font.family = buffer[0..len :0];
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("slant");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            if (!lua.isString(3)) {
+                std.debug.print("Font slant should be a string\n", .{});
+                std.process.exit(1);
+            }
+            const font_slant = try lua.toString(3);
+            font.slant = std.meta.stringToEnum(cairo.FontFace.FontSlant, std.mem.span(font_slant)) orelse {
+                std.debug.print("Font slant \"{s}\" not found\nAvailable options are:\n - Normal\n - Italic \n - Oblique\n", .{font_slant});
+                std.process.exit(1);
+            };
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("weight");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            if (!lua.isString(3)) {
+                std.debug.print("Font weight should be a string\n", .{});
+                std.process.exit(1);
+            }
+            const font_weight = try lua.toString(3);
+            font.weight = std.meta.stringToEnum(cairo.FontFace.FontWeight, std.mem.span(font_weight)) orelse {
+                std.debug.print("Font weight \"{s}\" not found\nAvailable options are:\n - Normal\n - Bold\n", .{font_weight});
+                std.process.exit(1);
+            };
+        }
+        lua.pop(1);
+
+        lua.pop(1);
+        return font;
+    }
 };
 
 pub const Grid = struct {
@@ -99,6 +207,7 @@ pub const Grid = struct {
 
         _ = lua.pushString("color");
         _ = lua.getTable(2);
+
         if (!lua.isNil(3)) {
             lua.pushNil();
             var index: u8 = 0;
@@ -304,7 +413,7 @@ const lua_config =
     \\		color = { 1, 1, 1 },
     \\		highlight_color = { 1, 1, 0 },
     \\		size = 16,
-    \\		family = "JetBrainsMono Nerd Font",
+    \\		family = "Arial",
     \\		slant = "Normal",
     \\		weight = "Normal",
     \\	},
