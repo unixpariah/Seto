@@ -22,7 +22,7 @@ fn getPath(alloc: std.mem.Allocator) ![:0]u8 {
 }
 
 pub const Config = struct {
-    background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
+    background_color: [4]f64,
     keys: Keys,
     font: Font = Font{},
     grid: Grid = Grid{},
@@ -39,7 +39,24 @@ pub const Config = struct {
         var lua = try Lua.init(a_alloc.allocator());
         try lua.doFile(config_path);
 
-        const config = Config{ .alloc = allocator, .keys = try Keys.new(&lua, &a_alloc) };
+        _ = lua.pushString("background_color");
+        _ = lua.getTable(1);
+        lua.pushNil();
+        var background_color: [4]f64 = undefined;
+        var index: u8 = 0;
+        while (lua.next(2)) : (index += 1) {
+            if (!lua.isNumber(4) or index > 3) {
+                std.debug.print("Error while evaluating background color\n", .{});
+                std.process.exit(1);
+            }
+
+            const num = try lua.toNumber(4);
+            background_color[index] = num;
+            lua.pop(1);
+        }
+        lua.pop(1);
+
+        const config = Config{ .alloc = allocator, .keys = try Keys.new(&lua, &a_alloc), .background_color = background_color };
 
         return config;
     }
@@ -154,7 +171,7 @@ const Keys = struct {
         _ = lua.getTable(2);
 
         lua.pushNil();
-        while (lua.next(3) == true) {
+        while (lua.next(3)) {
             const key: u8 = if (lua.isNumber(4))
                 @intFromFloat(try lua.toNumber(4))
             else
