@@ -22,10 +22,10 @@ fn getPath(alloc: std.mem.Allocator) ![:0]u8 {
 }
 
 pub const Config = struct {
-    background_color: [4]f64,
+    background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
     keys: Keys,
     font: Font = Font{},
-    grid: Grid = Grid{},
+    grid: Grid,
     alloc: std.mem.Allocator,
 
     const Self = @This();
@@ -39,31 +39,29 @@ pub const Config = struct {
         var lua = try Lua.init(a_alloc.allocator());
         try lua.doFile(config_path);
 
+        var config = Config{ .alloc = allocator, .keys = try Keys.new(&lua, &a_alloc), .grid = try Grid.new(&lua) };
+
         _ = lua.pushString("background_color");
 
-        var background_color: [4]f64 = .{ 1, 1, 1, 0.4 };
         _ = lua.getTable(1);
         if (!lua.isNil(2)) {
             var index: u8 = 0;
             lua.pushNil();
             while (lua.next(2)) : (index += 1) {
                 if (!lua.isNumber(4) or index > 3) {
-                    std.debug.print("Error while evaluating background color\n", .{});
+                    std.debug.print("Background color should be in RGBA format\n", .{});
                     std.process.exit(1);
                 }
 
-                const num = try lua.toNumber(4);
-                background_color[index] = num;
+                config.background_color[index] = try lua.toNumber(4);
                 lua.pop(1);
             }
             if (index < 4) {
-                std.debug.print("Error while evaluating background color\n", .{});
+                std.debug.print("Background color should be in RGBA format\n", .{});
                 std.process.exit(1);
             }
         }
         lua.pop(1);
-
-        const config = Config{ .alloc = allocator, .keys = try Keys.new(&lua, &a_alloc), .background_color = background_color };
 
         return config;
     }
@@ -88,6 +86,80 @@ pub const Grid = struct {
     offset: [2]isize = .{ 0, 0 },
 
     const Self = @This();
+
+    fn new(lua: *Lua) !Self {
+        var grid = Grid{};
+
+        _ = lua.pushString("grid");
+        _ = lua.getTable(1);
+
+        if (lua.isNil(2)) {
+            return grid;
+        }
+
+        _ = lua.pushString("color");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            var index: u8 = 0;
+            while (lua.next(3)) : (index += 1) {
+                if (!lua.isNumber(5) or index > 3) {
+                    std.debug.print("Grid color should be in a RGBA format\n", .{});
+                    std.process.exit(1);
+                }
+                grid.color[index] = try lua.toNumber(5);
+                lua.pop(1);
+            }
+            if (index < 4) {
+                std.debug.print("Grid color should be in a RGBA format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("size");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            var index: u8 = 0;
+            while (lua.next(3)) : (index += 1) {
+                if (!lua.isNumber(5) or index > 1) {
+                    std.debug.print("Grid size should be in a {{ width, height }} format\n", .{});
+                    std.process.exit(1);
+                }
+                grid.size[index] = @intFromFloat(try lua.toNumber(5));
+                lua.pop(1);
+            }
+            if (index < 2) {
+                std.debug.print("Grid size should be in a {{ width, height }} format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("offset");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            var index: u8 = 0;
+            while (lua.next(3)) : (index += 1) {
+                if (!lua.isNumber(5) or index > 1) {
+                    std.debug.print("Grid offset should be in a {{ x, y }} format\n", .{});
+                    std.process.exit(1);
+                }
+                grid.offset[index] = @intFromFloat(try lua.toNumber(5));
+                lua.pop(1);
+            }
+            if (index < 2) {
+                std.debug.print("Grid offset should be in a {{ x, y }} format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
+        lua.pop(1);
+        return grid;
+    }
 
     pub fn moveX(self: *Self, value: i32) void {
         if (self.offset[0] < -value) self.offset[0] = self.size[0];
