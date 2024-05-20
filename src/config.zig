@@ -40,19 +40,26 @@ pub const Config = struct {
         try lua.doFile(config_path);
 
         _ = lua.pushString("background_color");
+
+        var background_color: [4]f64 = .{ 1, 1, 1, 0.4 };
         _ = lua.getTable(1);
-        lua.pushNil();
-        var background_color: [4]f64 = undefined;
-        var index: u8 = 0;
-        while (lua.next(2)) : (index += 1) {
-            if (!lua.isNumber(4) or index > 3) {
+        if (!lua.isNil(2)) {
+            var index: u8 = 0;
+            lua.pushNil();
+            while (lua.next(2)) : (index += 1) {
+                if (!lua.isNumber(4) or index > 3) {
+                    std.debug.print("Error while evaluating background color\n", .{});
+                    std.process.exit(1);
+                }
+
+                const num = try lua.toNumber(4);
+                background_color[index] = num;
+                lua.pop(1);
+            }
+            if (index < 4) {
                 std.debug.print("Error while evaluating background color\n", .{});
                 std.process.exit(1);
             }
-
-            const num = try lua.toNumber(4);
-            background_color[index] = num;
-            lua.pop(1);
         }
         lua.pop(1);
 
@@ -147,61 +154,71 @@ const Keys = struct {
     const Self = @This();
 
     fn new(lua: *Lua, alloc: *std.heap.ArenaAllocator) !Self {
+        const default_search = try alloc.child_allocator.alloc(u8, 9);
+        @memcpy(default_search, "asdfghjkl");
+
+        var keys_s = Keys{ .search = default_search, .bindings = std.AutoHashMap(u8, Function).init(alloc.child_allocator) };
+
         _ = lua.pushString("keys");
         _ = lua.getTable(1);
+        if (lua.isNil(2)) return keys_s;
         _ = lua.pushString("search");
         _ = lua.getTable(2);
-        const keys = lua.toString(3) catch "asdfghjkl";
+        if (lua.isString(3)) {
+            alloc.child_allocator.free(default_search);
+            const keys = try lua.toString(3);
+
+            keys_s.search = create_buffer: {
+                const len = std.mem.len(keys);
+                if (len <= 1) {
+                    std.debug.print("Error: A minimum of two search keys required.\n", .{});
+                    std.process.exit(1);
+                }
+
+                const buffer = try alloc.child_allocator.alloc(u8, len);
+                @memcpy(buffer, keys[0..len]);
+                break :create_buffer buffer;
+            };
+        }
         lua.pop(1);
-
-        const buffer = create_buffer: {
-            const len = std.mem.len(keys);
-            if (len <= 1) {
-                std.debug.print("Error: A minimum of two search keys required.\n", .{});
-                std.process.exit(1);
-            }
-
-            const buffer = try alloc.child_allocator.alloc(u8, len);
-            @memcpy(buffer, keys[0..len]);
-            break :create_buffer buffer;
-        };
-        var keys_s = Keys{ .search = buffer, .bindings = std.AutoHashMap(u8, Function).init(alloc.child_allocator) };
 
         _ = lua.pushString("bindings");
         _ = lua.getTable(2);
 
-        lua.pushNil();
-        while (lua.next(3)) {
-            const key: u8 = if (lua.isNumber(4))
-                @intFromFloat(try lua.toNumber(4))
-            else
-                (try lua.toString(4))[0];
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            while (lua.next(3)) {
+                const key: u8 = if (lua.isNumber(4))
+                    @intFromFloat(try lua.toNumber(4))
+                else
+                    (try lua.toString(4))[0];
 
-            const value: std.meta.Tuple(&.{ [*:0]const u8, ?i32 }) = x: {
-                if (lua.isString(5)) {
-                    break :x .{ try lua.toString(5), null };
-                } else {
-                    defer lua.pop(3);
-                    const inner_key: [2]u8 = .{ key, 0 };
-                    _ = lua.pushString(inner_key[0..1 :0]);
-                    _ = lua.getTable(5);
-                    _ = lua.pushNil();
-                    if (lua.next(5)) {
-                        break :x .{ try lua.toString(7), @intFromFloat(try lua.toNumber(8)) };
+                const value: std.meta.Tuple(&.{ [*:0]const u8, ?i32 }) = x: {
+                    if (lua.isString(5)) {
+                        break :x .{ try lua.toString(5), null };
+                    } else {
+                        defer lua.pop(3);
+                        const inner_key: [2]u8 = .{ key, 0 };
+                        _ = lua.pushString(inner_key[0..1 :0]);
+                        _ = lua.getTable(5);
+                        _ = lua.pushNil();
+                        if (lua.next(5)) {
+                            break :x .{ try lua.toString(7), @intFromFloat(try lua.toNumber(8)) };
+                        }
                     }
-                }
-            };
+                };
 
-            const len = std.mem.len(value.@"0");
-            const func = Function.stringToFunction(value.@"0"[0..len], value.@"1") catch |err| {
-                switch (err) {
-                    error.UnkownFunction => std.debug.print("Unkown function \"{s}\"\n", .{value.@"0"[0..len]}),
-                    error.NullValue => std.debug.print("Value for function \"{s}\" can't be null\n", .{value.@"0"[0..len]}),
-                }
-                std.process.exit(1);
-            };
-            try keys_s.bindings.put(key, func);
-            lua.pop(1);
+                const len = std.mem.len(value.@"0");
+                const func = Function.stringToFunction(value.@"0"[0..len], value.@"1") catch |err| {
+                    switch (err) {
+                        error.UnkownFunction => std.debug.print("Unkown function \"{s}\"\n", .{value.@"0"[0..len]}),
+                        error.NullValue => std.debug.print("Value for function \"{s}\" can't be null\n", .{value.@"0"[0..len]}),
+                    }
+                    std.process.exit(1);
+                };
+                try keys_s.bindings.put(key, func);
+                lua.pop(1);
+            }
         }
         lua.pop(2);
         return keys_s;

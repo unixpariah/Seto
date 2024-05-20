@@ -14,7 +14,7 @@
 1. Clone repository:
 
 ```bash
-git clone https://github.com/unixpariah/seto.git && cd seto
+git clone --recurse-submodules https://github.com/unixpariah/seto.git && cd seto
 ```
 
 2 . Install dependencies
