@@ -74,17 +74,21 @@ pub const Font = struct {
     color: [3]f64 = .{ 1, 1, 1 },
     highlight_color: [3]f64 = .{ 1, 1, 0 },
     size: f64 = 16,
-    family: [:0]const u8 = "Arial",
+    family: [:0]const u8,
     slant: cairo.FontFace.FontSlant = .Normal,
     weight: cairo.FontFace.FontWeight = .Normal,
 
     const Self = @This();
 
     fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
-        var font = Font{};
+        var buf = try alloc.alloc(u8, 6);
+        @memcpy(buf[0..5], "Arial");
+        buf[5] = 0;
+        var font = Font{ .family = buf[0..5 :0] };
 
         _ = lua.pushString("font");
         _ = lua.getTable(1);
+        if (lua.isNil(2)) return font;
 
         _ = lua.pushString("color");
         _ = lua.getTable(2);
@@ -140,6 +144,7 @@ pub const Font = struct {
         _ = lua.pushString("family");
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
+            alloc.free(font.family);
             if (!lua.isString(3)) {
                 std.debug.print("Font family should be a string\n", .{});
                 std.process.exit(1);
