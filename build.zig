@@ -1,5 +1,5 @@
 const std = @import("std");
-const Scanner = @import("deps/zig-wayland/build.zig").Scanner;
+const Scanner = @import("zig-wayland").Scanner;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -21,7 +21,7 @@ pub fn build(b: *std.Build) void {
 
     const cairo = b.dependency("giza", opts).module("cairo");
 
-    const xkbcommon = b.createModule(.{ .root_source_file = .{ .path = "deps/zig-xkbcommon/src/xkbcommon.zig" } });
+    const xkbcommon = b.dependency("zig-xkbcommon", .{}).module("xkbcommon");
 
     const ziglua = b.dependency("ziglua", .{
         .target = target,

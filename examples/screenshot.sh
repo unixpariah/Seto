@@ -38,6 +38,6 @@ fi
 # Format coordinates
 end="${top_left_x},${top_left_y} ${x_diff}x${y_diff}"
 
-sleep 1 # Make sure that seto isnt still on the screen TODO: fix
+#sleep 1 # Make sure that seto isnt still on the screen TODO: fix
 
 grim -g "$end" - | wl-copy -t image/png

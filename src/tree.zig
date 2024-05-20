@@ -50,14 +50,15 @@ pub const Tree = struct {
         }
     }
 
-    pub fn find(self: *Self, keys: [][64]u8) !void {
+    pub fn find(self: *Self, keys: [][64]u8) !bool {
         if (keys.len > 0) {
             const node = self.tree.get(keys[0][0]) orelse return error.KeyNotFound;
             const result = try node.traverse(keys[1..keys.len]);
-            const positions = std.fmt.allocPrintZ(self.alloc.allocator(), "{},{}\n", .{ result[0], result[1] }) catch return;
+            const positions = std.fmt.allocPrintZ(self.alloc.allocator(), "{},{}\n", .{ result[0], result[1] }) catch return false;
             _ = std.io.getStdOut().write(positions) catch |err| std.debug.panic("{}", .{err});
-            std.process.exit(0);
+            return true;
         }
+        return false;
     }
 
     // TODO: how tf do I name it

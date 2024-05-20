@@ -346,7 +346,7 @@ const Keys = struct {
         var keys_s = Keys{ .search = default_search, .bindings = std.AutoHashMap(u8, Function).init(alloc.child_allocator) };
 
         _ = lua.pushString("keys");
-        _ = lua.getTable(1);
+        _ = lua.getTable(1); // TODO: Idk if I should care but this is the place where it errors if file is completely empty
         if (lua.isNil(2)) return keys_s;
         _ = lua.pushString("search");
         _ = lua.getTable(2);

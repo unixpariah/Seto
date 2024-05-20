@@ -15,6 +15,8 @@ const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 
+const parseArgs = @import("cli.zig").parseArgs;
+
 const cairo = @import("cairo");
 
 const wayland = @import("wayland");
@@ -153,12 +155,16 @@ pub const Seto = struct {
 
         var tree = Tree.new(self.alloc, self.config.keys.search, self.depth, intersections);
         defer tree.alloc.deinit();
-        _ = tree.find(self.seat.buffer.items) catch |err| {
+        if (tree.find(self.seat.buffer.items) catch |err| x: {
             switch (err) {
                 error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
                 error.EndNotReached => {},
             }
-        };
+            break :x false;
+        }) self.exit = true;
+
+        const shm = self.shm orelse return error.NoWlShm;
+        const size: i32 = @intCast(width * height * 4);
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();
@@ -172,10 +178,6 @@ pub const Seto = struct {
         ctx.paintWithAlpha(bg_color[3]);
 
         self.drawText(&tree, ctx, self.seat.buffer.items);
-
-        const size: i32 = @intCast(width * height * 4);
-
-        const shm = self.shm orelse return error.NoWlShm;
 
         var prev: ?OutputInfo = null;
         var pos: [2]i32 = .{ 0, 0 };
@@ -244,6 +246,8 @@ pub fn main() !void {
 
     var seto = Seto.new(alloc);
     defer seto.destroy();
+
+    try parseArgs(&seto);
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
