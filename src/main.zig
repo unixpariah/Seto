@@ -33,6 +33,11 @@ const EventInterfaces = enum {
     zxdg_output_manager_v1,
 };
 
+pub const Mode = union(enum) {
+    Region: ?[2]usize,
+    Single,
+};
+
 pub const Seto = struct {
     shm: ?*wl.Shm = null,
     compositor: ?*wl.Compositor = null,
@@ -48,6 +53,7 @@ pub const Seto = struct {
     redraw: bool = false,
     first_draw: bool = true,
     exit: bool = false,
+    mode: Mode = .Single,
 
     const Self = @This();
 
@@ -136,12 +142,40 @@ pub const Seto = struct {
         context.*.stroke();
     }
 
-    fn drawText(self: *Self, tree: *Tree, ctx: *cairo.Context, buffer: [][64]u8) void {
-        tree.iter(ctx, self.config.font, buffer, self.depth) catch return;
+    fn printToStdout(self: *Self, tree: *Tree) void {
+        const coords = tree.find(self.seat.buffer.items) catch |err| {
+            switch (err) {
+                error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
+                error.EndNotReached => {},
+            }
+            return;
+        };
+        switch (self.mode) {
+            .Region => |positions| {
+                if (positions) |pos| {
+                    const top_left: [2]usize = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
+                    const bottom_right: [2]usize = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
+                    const size: [2]usize = .{ bottom_right[0] - top_left[0], bottom_right[1] - top_left[1] };
+                    const format = std.fmt.allocPrintZ(self.alloc, "{},{} {}x{}\n", .{ top_left[0], top_left[1], size[0], size[1] }) catch @panic("OOM");
+                    defer self.alloc.free(format);
+                    _ = std.io.getStdOut().write(format) catch @panic("Write error");
+                    self.exit = true;
+                } else {
+                    self.mode = .{ .Region = coords };
+                    self.seat.buffer.clearAndFree();
+                }
+            },
+            .Single => {
+                const positions = std.fmt.allocPrintZ(self.alloc, "{},{}\n", .{ coords[0], coords[1] }) catch @panic("OOM");
+                defer self.alloc.free(positions);
+                _ = std.io.getStdOut().write(positions) catch @panic("Write error");
+                self.exit = true;
+            },
+        }
     }
 
     fn createSurfaces(self: *Self) !void {
-        if (!self.drawSurfaces()) return;
+        if (!self.shouldDraw()) return;
         self.sortOutputs();
 
         const dimensions = self.getDimensions();
@@ -155,13 +189,8 @@ pub const Seto = struct {
 
         var tree = Tree.new(self.alloc, self.config.keys.search, self.depth, intersections);
         defer tree.alloc.deinit();
-        if (tree.find(self.seat.buffer.items) catch |err| x: {
-            switch (err) {
-                error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
-                error.EndNotReached => {},
-            }
-            break :x false;
-        }) self.exit = true;
+
+        self.printToStdout(&tree);
 
         const shm = self.shm orelse return error.NoWlShm;
         const size: i32 = @intCast(width * height * 4);
@@ -171,13 +200,12 @@ pub const Seto = struct {
         const ctx = try cairo.Context.create(cairo_surface.asSurface());
         defer ctx.destroy();
 
+        tree.drawText(ctx, self.config.font, self.seat.buffer.items, self.depth);
         self.drawGrid(width, height, &ctx);
 
         const bg_color = self.config.background_color;
         ctx.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
         ctx.paintWithAlpha(bg_color[3]);
-
-        self.drawText(&tree, ctx, self.seat.buffer.items);
 
         var prev: ?OutputInfo = null;
         var pos: [2]i32 = .{ 0, 0 };
@@ -210,7 +238,7 @@ pub const Seto = struct {
         }
     }
 
-    fn drawSurfaces(self: *Self) bool {
+    fn shouldDraw(self: *Self) bool {
         const draw = self.redraw or self.first_draw;
         self.first_draw = false;
         return draw;
