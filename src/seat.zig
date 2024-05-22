@@ -136,7 +136,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
-    const grid = &self.config.grid;
+    const grid = &self.config.?.grid;
     self.redraw = true;
 
     const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
@@ -148,7 +148,7 @@ pub fn handleKey(self: *Seto) void {
         var buffer: [64]u8 = undefined;
         const keysym: xkb.Keysym = @enumFromInt(key);
         _ = keysym.toUTF8(&buffer, 64);
-        if (self.config.keys.bindings.get(buffer[0])) |function| {
+        if (self.config.?.keys.bindings.get(buffer[0])) |function| {
             switch (function) {
                 .moveY => |value| grid.moveY(value),
                 .moveX => |value| grid.moveX(value),

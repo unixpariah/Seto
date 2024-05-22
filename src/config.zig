@@ -7,16 +7,8 @@ const assert = std.debug.assert;
 
 fn getPath(alloc: std.mem.Allocator) ![:0]u8 {
     const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
-    const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
-    fs.accessAbsolute(config_dir, .{}) catch {
-        _ = try fs.makeDirAbsolute(config_dir);
-    };
-    const config_path = try fs.path.joinZ(alloc, &[_][]const u8{ config_dir, "config.lua" });
-    fs.accessAbsolute(config_path, .{}) catch {
-        const file = try fs.createFileAbsolute(config_path, .{});
-        std.debug.print("Config file not found, creating one at {s}\n", .{config_path});
-        _ = try file.write(lua_config);
-    };
+    const config_path = fs.path.joinZ(alloc, &[_][]const u8{ home, ".config/seto/config.lua" }) catch @panic("OOM");
+    try fs.accessAbsolute(config_path, .{});
 
     return config_path;
 }
@@ -25,16 +17,16 @@ pub const Config = struct {
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
     keys: Keys,
     font: Font,
-    grid: Grid,
+    grid: Grid = Grid{},
     alloc: std.mem.Allocator,
 
     const Self = @This();
 
-    pub fn load(allocator: std.mem.Allocator) !Self {
+    pub fn load(allocator: std.mem.Allocator, path: ?[:0]const u8) !Self {
         var a_alloc = std.heap.ArenaAllocator.init(allocator);
         defer a_alloc.deinit();
 
-        const config_path = try getPath(a_alloc.allocator());
+        const config_path = if (path) |p| p else getPath(a_alloc.allocator()) catch return Config{ .alloc = allocator, .font = try Font.new_default(allocator), .keys = try Keys.new_default(allocator) };
 
         var lua = try Lua.init(a_alloc.allocator());
         try lua.doFile(config_path);
@@ -80,8 +72,15 @@ pub const Font = struct {
 
     const Self = @This();
 
+    fn new_default(alloc: std.mem.Allocator) !Self {
+        var buf = alloc.alloc(u8, 6) catch @panic("OOM");
+        @memcpy(buf[0..5], "Arial");
+        buf[5] = 0;
+        return Font{ .family = buf[0..5 :0] };
+    }
+
     fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
-        var buf = try alloc.alloc(u8, 6);
+        var buf = alloc.alloc(u8, 6) catch @panic("OOM");
         @memcpy(buf[0..5], "Arial");
         buf[5] = 0;
         var font = Font{ .family = buf[0..5 :0] };
@@ -338,6 +337,13 @@ const Keys = struct {
     bindings: std.AutoHashMap(u8, Function),
 
     const Self = @This();
+
+    fn new_default(alloc: std.mem.Allocator) !Self {
+        const default_search = try alloc.alloc(u8, 9);
+        @memcpy(default_search, "asdfghjkl");
+
+        return Keys{ .search = default_search, .bindings = std.AutoHashMap(u8, Function).init(alloc) };
+    }
 
     fn new(lua: *Lua, alloc: *std.heap.ArenaAllocator) !Self {
         const default_search = try alloc.child_allocator.alloc(u8, 9);

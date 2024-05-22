@@ -47,23 +47,24 @@ pub const Seto = struct {
     seat: Seat,
     outputs: std.ArrayList(Surface),
     alloc: mem.Allocator,
-    config: Config,
+    config: ?Config,
 
     depth: u8 = 0,
     redraw: bool = false,
     first_draw: bool = true,
     exit: bool = false,
     mode: Mode = .Single,
+    config_path: ?[:0]const u8,
 
     const Self = @This();
 
     fn new(alloc: mem.Allocator) Self {
-        const config = Config.load(alloc) catch @panic("");
         return .{
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
-            .config = config,
+            .config = null,
+            .config_path = null,
         };
     }
 
@@ -92,7 +93,7 @@ pub const Seto = struct {
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
-        const grid = self.config.grid;
+        const grid = self.config.?.grid;
 
         const start_i: isize = @mod(grid.offset[0], grid.size[0]);
         const start_j: isize = @mod(grid.offset[1], grid.size[1]);
@@ -125,7 +126,7 @@ pub const Seto = struct {
     }
 
     fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
-        const grid = self.config.grid;
+        const grid = self.config.?.grid;
         var i: isize = @mod(grid.offset[0], grid.size[0]);
         context.*.setSourceRgb(grid.color[0], grid.color[1], grid.color[2]);
         while (i <= width) : (i += grid.size[0]) {
@@ -185,9 +186,13 @@ pub const Seto = struct {
         const intersections = try self.getIntersections();
         defer self.alloc.free(intersections);
 
-        self.updateDepth(intersections, self.config.keys.search);
+        self.updateDepth(intersections, self.config.?.keys.search);
 
-        var tree = Tree.new(self.alloc, self.config.keys.search, self.depth, intersections);
+        const ignore_coords = switch (self.mode) {
+            .Region => |pos| pos,
+            .Single => null,
+        };
+        var tree = Tree.new(self.alloc, self.config.?.keys.search, self.depth, intersections, ignore_coords);
         defer tree.alloc.deinit();
 
         self.printToStdout(&tree);
@@ -200,10 +205,10 @@ pub const Seto = struct {
         const ctx = try cairo.Context.create(cairo_surface.asSurface());
         defer ctx.destroy();
 
-        tree.drawText(ctx, self.config.font, self.seat.buffer.items, self.depth);
+        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items, self.depth);
         self.drawGrid(width, height, &ctx);
 
-        const bg_color = self.config.background_color;
+        const bg_color = self.config.?.background_color;
         ctx.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
         ctx.paintWithAlpha(bg_color[3]);
 
@@ -249,13 +254,17 @@ pub const Seto = struct {
         self.layer_shell.?.destroy();
         self.shm.?.destroy();
         self.output_manager.?.destroy();
+
+        // TODO: Arena allocator will be glorious here
         for (self.outputs.items) |*output| {
             output.destroy();
         }
         self.outputs.deinit();
         self.seat.destroy();
-        self.config.keys.bindings.deinit();
-        self.config.destroy();
+        self.config.?.keys.bindings.deinit();
+        self.config.?.destroy();
+        if (self.config_path) |path|
+            self.alloc.free(path);
     }
 };
 
@@ -276,6 +285,9 @@ pub fn main() !void {
     defer seto.destroy();
 
     try parseArgs(&seto);
+
+    const config = Config.load(alloc, seto.config_path) catch @panic("");
+    seto.config = config;
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;

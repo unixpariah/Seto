@@ -12,7 +12,18 @@ pub fn parseArgs(seto: *Seto) !void {
             std.debug.print("{s}\n", .{help_message});
             std.process.exit(0);
         } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
-            std.debug.print("New config\n", .{});
+            const path = args.next() orelse {
+                std.debug.print("seto: Argument missing after: \"-c\"\nMore info with \"seto -h\"\n", .{});
+                std.process.exit(1);
+            };
+            std.fs.accessAbsolute(path, .{}) catch {
+                std.debug.print("Config file at path \"{s}\" not found\n", .{path});
+                std.process.exit(1);
+            };
+            const nt_path = seto.alloc.alloc(u8, path.len + 1) catch @panic("OOM");
+            @memcpy(nt_path[0..path.len], path);
+            nt_path[path.len] = 0;
+            seto.config_path = nt_path[0..path.len :0];
         } else {
             std.debug.print("Seto: Unkown option argument: \"{s}\"\nMore info with \"seto -h\"\n", .{arg});
             std.process.exit(0);

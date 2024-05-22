@@ -30,10 +30,10 @@ pub const Tree = struct {
 
     const Self = @This();
 
-    pub fn new(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize) Self {
+    pub fn new(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize, ignore_coords: ?[2]usize) Self {
         var a_alloc = std.heap.ArenaAllocator.init(alloc);
         var tree_index: usize = 0;
-        const tree = createNestedTree(a_alloc.allocator(), keys, depth, intersections, &tree_index);
+        const tree = createNestedTree(a_alloc.allocator(), keys, depth, intersections, &tree_index, ignore_coords);
         return .{ .tree = tree, .alloc = a_alloc, .keys = keys };
     }
 
@@ -101,17 +101,17 @@ const Node = union(enum) {
     }
 };
 
-fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize, tree_index: *usize) std.AutoHashMap(u8, Node) {
+fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]usize, tree_index: *usize, ignore_coords: ?[2]usize) std.AutoHashMap(u8, Node) {
     var tree = std.AutoHashMap(u8, Node).init(alloc);
     for (keys) |key| {
-        if (tree_index.* >= intersections.len) break;
+        if (tree_index.* >= intersections.len) return tree;
         if (depth <= 1) {
             tree.put(key, .{ .position = intersections[tree_index.*] }) catch @panic("OOM");
             tree_index.* += 1;
-        } else {
-            const new_tree = createNestedTree(alloc, keys, depth - 1, intersections, tree_index);
-            tree.put(key, .{ .node = new_tree }) catch @panic("OOM");
+            continue;
         }
+        const new_tree = createNestedTree(alloc, keys, depth - 1, intersections, tree_index, ignore_coords);
+        tree.put(key, .{ .node = new_tree }) catch @panic("OOM");
     }
 
     return tree;
