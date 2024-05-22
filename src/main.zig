@@ -34,7 +34,7 @@ const EventInterfaces = enum {
 };
 
 pub const Mode = union(enum) {
-    Region: ?[2]usize,
+    Region: ?[2]isize,
     Single,
 };
 
@@ -88,29 +88,26 @@ pub const Seto = struct {
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], comptime Surface.cmp);
     }
 
-    fn getIntersections(self: *Seto) ![][2]usize {
+    fn getIntersections(self: *Seto) ![][2]isize {
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
         const grid = self.config.?.grid;
 
-        const start_i: isize = @mod(grid.offset[0], grid.size[0]);
-        const start_j: isize = @mod(grid.offset[1], grid.size[1]);
-
-        const num_steps_i = @divTrunc((width - start_i), grid.size[0]) + 1;
-        const num_steps_j = @divTrunc((height - start_j), grid.size[1]) + 1;
+        const num_steps_i = @divTrunc((width - grid.offset[0]), grid.size[0]) + 1;
+        const num_steps_j = @divTrunc((height - grid.offset[1]), grid.size[1]) + 1;
 
         const total_intersections = num_steps_i * num_steps_j;
 
-        var intersections = try self.alloc.alloc([2]usize, @intCast(total_intersections));
+        var intersections = try self.alloc.alloc([2]isize, @intCast(total_intersections));
 
         var index: usize = 0;
-        var i = start_i;
+        var i = grid.offset[0];
         while (i <= width) : (i += grid.size[0]) {
-            var j = @mod(grid.offset[1], grid.size[1]);
+            var j = grid.offset[1];
             while (j <= height) : (j += grid.size[1]) {
-                intersections[index] = .{ @intCast(i), @intCast(j) };
+                intersections[index] = .{ i, j };
                 index += 1;
             }
         }
@@ -118,7 +115,7 @@ pub const Seto = struct {
         return intersections;
     }
 
-    fn updateDepth(self: *Self, intersections: [][2]usize, keys: []const u8) void {
+    fn updateDepth(self: *Self, intersections: [][2]isize, keys: []const u8) void {
         const items_len: f64 = @floatFromInt(intersections.len);
         const keys_len: f64 = @floatFromInt(keys.len);
         const depth = std.math.log(f64, keys_len, items_len);
@@ -127,14 +124,14 @@ pub const Seto = struct {
 
     fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
         const grid = self.config.?.grid;
-        var i: isize = @mod(grid.offset[0], grid.size[0]);
+        var i: isize = grid.offset[0];
         context.*.setSourceRgb(grid.color[0], grid.color[1], grid.color[2]);
         while (i <= width) : (i += grid.size[0]) {
             context.*.moveTo(@floatFromInt(i), 0);
             context.*.lineTo(@floatFromInt(i), @floatFromInt(height));
         }
 
-        i = @mod(grid.offset[1], grid.size[1]);
+        i = grid.offset[1];
         while (i <= height) : (i += grid.size[1]) {
             context.*.moveTo(0, @floatFromInt(i));
             context.*.lineTo(@floatFromInt(width), @floatFromInt(i));
@@ -154,9 +151,9 @@ pub const Seto = struct {
         switch (self.mode) {
             .Region => |positions| {
                 if (positions) |pos| {
-                    const top_left: [2]usize = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
-                    const bottom_right: [2]usize = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
-                    const size: [2]usize = .{ bottom_right[0] - top_left[0], bottom_right[1] - top_left[1] };
+                    const top_left: [2]isize = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
+                    const bottom_right: [2]isize = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
+                    const size: [2]isize = .{ bottom_right[0] - top_left[0], bottom_right[1] - top_left[1] };
                     const format = std.fmt.allocPrintZ(self.alloc, "{},{} {}x{}\n", .{ top_left[0], top_left[1], size[0], size[1] }) catch @panic("OOM");
                     defer self.alloc.free(format);
                     _ = std.io.getStdOut().write(format) catch @panic("Write error");
@@ -188,11 +185,7 @@ pub const Seto = struct {
 
         self.updateDepth(intersections, self.config.?.keys.search);
 
-        const ignore_coords = switch (self.mode) {
-            .Region => |pos| pos,
-            .Single => null,
-        };
-        var tree = Tree.new(self.alloc, self.config.?.keys.search, self.depth, intersections, ignore_coords);
+        var tree = Tree.new(self.alloc, self.config.?.keys.search, self.depth, intersections);
         defer tree.alloc.deinit();
 
         self.printToStdout(&tree);
@@ -205,7 +198,7 @@ pub const Seto = struct {
         const ctx = try cairo.Context.create(cairo_surface.asSurface());
         defer ctx.destroy();
 
-        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items, self.depth);
+        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items, self.depth, self.config.?.grid.text_offset);
         self.drawGrid(width, height, &ctx);
 
         const bg_color = self.config.?.background_color;
@@ -337,7 +330,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
 
                     const output_info = OutputInfo{ .wl_output = global_output };
-                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info, global.name);
+                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info);
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 
@@ -357,11 +350,6 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                 },
             }
         },
-
-        .global_remove => |global_removed| {
-            for (seto.outputs.items, 0..) |output, i| {
-                if (output.name == global_removed.name) _ = seto.outputs.swapRemove(i);
-            }
-        },
+        .global_remove => {}, // TODO: Implement remove output (not very important tho)
     }
 }

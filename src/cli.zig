@@ -20,10 +20,7 @@ pub fn parseArgs(seto: *Seto) !void {
                 std.debug.print("Config file at path \"{s}\" not found\n", .{path});
                 std.process.exit(1);
             };
-            const nt_path = seto.alloc.alloc(u8, path.len + 1) catch @panic("OOM");
-            @memcpy(nt_path[0..path.len], path);
-            nt_path[path.len] = 0;
-            seto.config_path = nt_path[0..path.len :0];
+            seto.config_path = seto.alloc.dupeZ(u8, path) catch @panic("OOM");
         } else {
             std.debug.print("Seto: Unkown option argument: \"{s}\"\nMore info with \"seto -h\"\n", .{arg});
             std.process.exit(0);

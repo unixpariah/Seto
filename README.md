@@ -47,6 +47,7 @@ return {
 		weight = "Normal",
 	},
 	grid = {
+        text_offset = { 5, 15 },
 		color = { 1, 1, 1, 1 },
 		size = { 80, 80 },
 		offset = { 0, 0 },

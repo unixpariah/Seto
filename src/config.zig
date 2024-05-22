@@ -73,17 +73,11 @@ pub const Font = struct {
     const Self = @This();
 
     fn new_default(alloc: std.mem.Allocator) !Self {
-        var buf = alloc.alloc(u8, 6) catch @panic("OOM");
-        @memcpy(buf[0..5], "Arial");
-        buf[5] = 0;
-        return Font{ .family = buf[0..5 :0] };
+        return Font{ .family = alloc.dupeZ(u8, "Arial") catch @panic("OOM") };
     }
 
     fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
-        var buf = alloc.alloc(u8, 6) catch @panic("OOM");
-        @memcpy(buf[0..5], "Arial");
-        buf[5] = 0;
-        var font = Font{ .family = buf[0..5 :0] };
+        var font = Font{ .family = alloc.dupeZ(u8, "Arial") catch @panic("OOM") };
 
         _ = lua.pushString("font");
         _ = lua.getTable(1);
@@ -149,11 +143,7 @@ pub const Font = struct {
                 std.process.exit(1);
             }
             const font_family = try lua.toString(3);
-            const len = std.mem.len(font_family);
-            const buffer = try alloc.alloc(u8, len + 1);
-            buffer[len] = 0;
-            @memcpy(buffer[0..len], font_family[0..len]);
-            font.family = buffer[0..len :0];
+            font.family = alloc.dupeZ(u8, std.mem.span(font_family)) catch @panic("OOM");
         }
         lua.pop(1);
 
@@ -196,6 +186,7 @@ pub const Grid = struct {
     color: [4]f64 = .{ 1, 1, 1, 1 },
     size: [2]isize = .{ 80, 80 },
     offset: [2]isize = .{ 0, 0 },
+    text_offset: [2]isize = .{ 5, 15 },
 
     const Self = @This();
 
@@ -270,6 +261,26 @@ pub const Grid = struct {
         }
         lua.pop(1);
 
+        _ = lua.pushString("text_offset");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            var index: u8 = 0;
+            while (lua.next(3)) : (index += 1) {
+                if (!lua.isNumber(5) or index > 1) {
+                    std.debug.print("Text offset should be in a {{ x, y }} format\n", .{});
+                    std.process.exit(1);
+                }
+                grid.text_offset[index] = @intFromFloat(try lua.toNumber(5));
+                lua.pop(1);
+            }
+            if (index < 2) {
+                std.debug.print("Text offset should be in a {{ x, y }} format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
         lua.pop(1);
         return grid;
     }
@@ -339,17 +350,11 @@ const Keys = struct {
     const Self = @This();
 
     fn new_default(alloc: std.mem.Allocator) !Self {
-        const default_search = try alloc.alloc(u8, 9);
-        @memcpy(default_search, "asdfghjkl");
-
-        return Keys{ .search = default_search, .bindings = std.AutoHashMap(u8, Function).init(alloc) };
+        return Keys{ .search = alloc.dupeZ(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
     }
 
     fn new(lua: *Lua, alloc: *std.heap.ArenaAllocator) !Self {
-        const default_search = try alloc.child_allocator.alloc(u8, 9);
-        @memcpy(default_search, "asdfghjkl");
-
-        var keys_s = Keys{ .search = default_search, .bindings = std.AutoHashMap(u8, Function).init(alloc.child_allocator) };
+        var keys_s = Keys{ .search = alloc.child_allocator.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc.child_allocator) };
 
         _ = lua.pushString("keys");
         _ = lua.getTable(1); // TODO: Idk if I should care but this is the place where it errors if file is completely empty
@@ -357,20 +362,9 @@ const Keys = struct {
         _ = lua.pushString("search");
         _ = lua.getTable(2);
         if (lua.isString(3)) {
-            alloc.child_allocator.free(default_search);
+            alloc.child_allocator.free(keys_s.search);
             const keys = try lua.toString(3);
-
-            keys_s.search = create_buffer: {
-                const len = std.mem.len(keys);
-                if (len <= 1) {
-                    std.debug.print("Error: A minimum of two search keys required.\n", .{});
-                    std.process.exit(1);
-                }
-
-                const buffer = try alloc.child_allocator.alloc(u8, len);
-                @memcpy(buffer, keys[0..len]);
-                break :create_buffer buffer;
-            };
+            keys_s.search = alloc.child_allocator.dupe(u8, std.mem.span(keys)) catch @panic("OOM");
         }
         lua.pop(1);
 

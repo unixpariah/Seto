@@ -30,30 +30,27 @@ pub const OutputInfo = struct {
 pub const Surface = struct {
     layer_surface: *zwlr.LayerSurfaceV1,
     surface: *wl.Surface,
-    dimensions: [2]c_int = undefined,
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
-    name: u32,
 
     const Self = @This();
 
-    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo, name: u32) Self {
-        return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output, .name = name };
+    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo) Self {
+        return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output };
     }
 
     pub fn cmp(self: Self, a: Self, b: Self) bool {
         _ = self;
-        if (a.output_info.x != b.output_info.x) {
-            return a.output_info.x < b.output_info.x;
-        } else {
+        if (a.output_info.x != b.output_info.x)
+            return a.output_info.x < b.output_info.x
+        else
             return a.output_info.y < b.output_info.y;
-        }
     }
 
     pub fn draw(self: *Self, pool: *wl.ShmPool, fd: i32, image: [*]u8) !void {
-        const width = self.dimensions[0];
-        const height = self.dimensions[1];
+        const width = self.output_info.width;
+        const height = self.output_info.height;
         const stride = width * 4;
         const size: usize = @intCast(stride * height);
 
@@ -70,7 +67,7 @@ pub const Surface = struct {
     }
 
     pub fn isConfigured(self: *const Self) bool {
-        return self.dimensions[0] > 0 and self.dimensions[1] > 0;
+        return self.output_info.width > 0 and self.output_info.height > 0;
     }
 
     pub fn destroy(self: *Self) void {
@@ -86,7 +83,6 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
         .configure => |configure| {
             for (seto.outputs.items) |*surface| {
                 if (surface.layer_surface == lsurf) {
-                    surface.dimensions = .{ @intCast(configure.width), @intCast(configure.height) };
                     surface.layer_surface.setSize(configure.width, configure.height);
                     surface.layer_surface.ackConfigure(configure.serial);
                 }
