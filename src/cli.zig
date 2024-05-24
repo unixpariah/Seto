@@ -1,7 +1,7 @@
 const std = @import("std");
 const Seto = @import("main.zig").Seto;
 
-pub fn parseArgs(seto: *Seto) !void {
+pub fn parseArgs(seto: *Seto) void {
     var args = std.process.args();
     var index: u8 = 0;
     while (args.next()) |arg| : (index += 1) {
@@ -34,6 +34,6 @@ const help_message =
     \\
     \\Options:
     \\  -r, --region        Select region of screen
-    \\  -h, --help          Print help information
     \\  -c, --config <PATH> Path to config file
+    \\  -h, --help          Print help information
 ;

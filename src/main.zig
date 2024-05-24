@@ -39,22 +39,21 @@ pub const Mode = union(enum) {
 };
 
 pub const Seto = struct {
-    shm: ?*wl.Shm = null,
     compositor: ?*wl.Compositor = null,
     layer_shell: ?*zwlr.LayerShellV1 = null,
     output_manager: ?*zxdg.OutputManagerV1 = null,
+    shm: ?*wl.Shm = null,
 
     seat: Seat,
     outputs: std.ArrayList(Surface),
-    alloc: mem.Allocator,
-    config: ?Config,
+    config: ?Config = null,
 
-    depth: u8 = 0,
-    redraw: bool = false,
     first_draw: bool = true,
     exit: bool = false,
     mode: Mode = .Single,
-    config_path: ?[:0]const u8,
+    config_path: ?[:0]const u8 = null,
+
+    alloc: mem.Allocator,
 
     const Self = @This();
 
@@ -63,8 +62,6 @@ pub const Seto = struct {
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
-            .config = null,
-            .config_path = null,
         };
     }
 
@@ -88,7 +85,7 @@ pub const Seto = struct {
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], comptime Surface.cmp);
     }
 
-    fn getIntersections(self: *Seto) ![][2]isize {
+    fn getIntersections(self: *Seto) [][2]isize {
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
@@ -100,7 +97,7 @@ pub const Seto = struct {
 
         const total_intersections = num_steps_i * num_steps_j;
 
-        var intersections = try self.alloc.alloc([2]isize, @intCast(total_intersections));
+        var intersections = self.alloc.alloc([2]isize, @intCast(total_intersections)) catch @panic("OOM");
 
         var index: usize = 0;
         var i = grid.offset[0];
@@ -113,13 +110,6 @@ pub const Seto = struct {
         }
 
         return intersections;
-    }
-
-    fn updateDepth(self: *Self, intersections: [][2]isize, keys: []const u8) void {
-        const items_len: f64 = @floatFromInt(intersections.len);
-        const keys_len: f64 = @floatFromInt(keys.len);
-        const depth = std.math.log(f64, keys_len, items_len);
-        self.depth = @intFromFloat(std.math.ceil(depth));
     }
 
     fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
@@ -180,25 +170,34 @@ pub const Seto = struct {
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
 
-        const intersections = try self.getIntersections();
+        const intersections = self.getIntersections();
         defer self.alloc.free(intersections);
 
-        self.updateDepth(intersections, self.config.?.keys.search);
+        const depth = getDepth(intersections, self.config.?.keys.search);
 
-        var tree = Tree.new(self.alloc, self.config.?.keys.search, self.depth, intersections);
+        var tree = Tree.new(self.alloc, self.config.?.keys.search, depth, intersections);
         defer tree.alloc.deinit();
 
         self.printToStdout(&tree);
+        if (self.exit) {
+            const outputs = self.outputs.items;
+            for (outputs) |*output| {
+                if (!output.isConfigured()) continue;
+                const data = try self.alloc.alloc(u8, @intCast(output.output_info.width * output.output_info.height * 4));
+                defer self.alloc.free(data);
+                @memset(data, 0);
 
-        const shm = self.shm orelse return error.NoWlShm;
-        const size: i32 = @intCast(width * height * 4);
+                try output.draw(data.ptr);
+            }
+            return;
+        }
 
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();
         const ctx = try cairo.Context.create(cairo_surface.asSurface());
         defer ctx.destroy();
 
-        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items, self.depth, self.config.?.grid.text_offset);
+        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items, self.config.?.font.offset);
         self.drawGrid(width, height, &ctx);
 
         const bg_color = self.config.?.background_color;
@@ -207,11 +206,11 @@ pub const Seto = struct {
 
         var prev: ?OutputInfo = null;
         var pos: [2]i32 = .{ 0, 0 };
-        for (self.outputs.items) |*output| {
-            if (!output.isConfigured()) continue;
 
+        const outputs = self.outputs.items;
+        for (outputs) |*output| {
+            if (!output.isConfigured()) continue;
             const info = output.output_info;
-            defer prev = info;
             const output_surface = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
             defer output_surface.destroy();
             const output_ctx = try cairo.Context.create(output_surface.asSurface());
@@ -226,29 +225,22 @@ pub const Seto = struct {
             output_ctx.paint();
 
             const data = try output_surface.getData();
-
-            const fd = try posix.memfd_create("seto", 0);
-            defer posix.close(fd);
-            try posix.ftruncate(fd, @intCast(size));
-            const pool = try shm.createPool(fd, size);
-            defer pool.destroy();
-            try output.draw(pool, fd, data);
+            try output.draw(data);
+            prev = info;
         }
     }
 
     fn shouldDraw(self: *Self) bool {
-        const draw = self.redraw or self.first_draw;
-        self.first_draw = false;
-        return draw;
+        defer self.first_draw = false;
+        return self.seat.repeat.key != null or self.first_draw;
     }
 
     fn destroy(self: *Self) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
-        self.shm.?.destroy();
         self.output_manager.?.destroy();
+        self.shm.?.destroy();
 
-        // TODO: Arena allocator will be glorious here
         for (self.outputs.items) |*output| {
             output.destroy();
         }
@@ -260,6 +252,13 @@ pub const Seto = struct {
             self.alloc.free(path);
     }
 };
+
+fn getDepth(intersections: [][2]isize, keys: []const u8) u8 {
+    const items_len: f64 = @floatFromInt(intersections.len);
+    const keys_len: f64 = @floatFromInt(keys.len);
+    const depth = std.math.log(f64, keys_len, items_len);
+    return @intFromFloat(std.math.ceil(depth));
+}
 
 pub fn main() !void {
     const display = try wl.Display.connect(null);
@@ -277,17 +276,21 @@ pub fn main() !void {
     var seto = Seto.new(alloc);
     defer seto.destroy();
 
-    try parseArgs(&seto);
+    parseArgs(&seto);
 
     const config = Config.load(alloc, seto.config_path) catch @panic("");
     seto.config = config;
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
-    while (!seto.exit) {
+    while (true) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
+        if (seto.exit) {
+            if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
+            break;
+        }
     }
 }
 
@@ -330,7 +333,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
 
                     const output_info = OutputInfo{ .wl_output = global_output };
-                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info);
+                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info, seto.shm.?);
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 

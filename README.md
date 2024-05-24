@@ -45,9 +45,9 @@ return {
 		family = "Arial",
 		slant = "Normal",
 		weight = "Normal",
+        offset = { 5, 15 },
 	},
 	grid = {
-        text_offset = { 5, 15 },
 		color = { 1, 1, 1, 1 },
 		size = { 80, 80 },
 		offset = { 0, 0 },

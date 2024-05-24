@@ -33,11 +33,16 @@ pub const Surface = struct {
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
+    mmap: ?[]align(mem.page_size) u8 = null,
+    fd: std.posix.fd_t,
+    pool: *wl.ShmPool,
 
     const Self = @This();
 
-    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo) Self {
-        return .{ .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output };
+    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo, shm: *wl.Shm) Self {
+        const fd = posix.memfd_create("seto", 0) catch |err| @panic(@errorName(err));
+        const pool = shm.createPool(fd, 1) catch |err| @panic(@errorName(err));
+        return .{ .fd = fd, .surface = surface, .layer_surface = layer_surface, .alloc = alloc, .output_info = output_info, .xdg_output = xdg_output, .pool = pool };
     }
 
     pub fn cmp(self: Self, a: Self, b: Self) bool {
@@ -48,21 +53,24 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *Self, pool: *wl.ShmPool, fd: i32, image: [*]u8) !void {
+    pub fn draw(self: *Self, data: [*]u8) !void {
         const width = self.output_info.width;
         const height = self.output_info.height;
         const stride = width * 4;
         const size: usize = @intCast(stride * height);
 
-        const data = try posix.mmap(null, size, posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, fd, 0);
-        defer posix.munmap(data);
-        @memcpy(data, image);
+        if (self.mmap == null) {
+            try posix.ftruncate(self.fd, @intCast(size));
+            self.pool.resize(@intCast(size));
+            self.mmap = try posix.mmap(null, size, posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, self.fd, 0);
+        }
+        @memcpy(self.mmap.?, data);
 
-        const buffer = try pool.createBuffer(0, width, height, stride, wl.Shm.Format.argb8888);
+        const buffer = try self.pool.createBuffer(0, width, height, stride, wl.Shm.Format.argb8888);
         defer buffer.destroy();
 
-        self.surface.attach(buffer, 0, 0);
         self.surface.damage(0, 0, width, height);
+        self.surface.attach(buffer, 0, 0);
         self.surface.commit();
     }
 
@@ -75,6 +83,11 @@ pub const Surface = struct {
         self.surface.destroy();
         self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
+        if (self.mmap) |mmap| {
+            posix.munmap(mmap);
+        }
+        self.pool.destroy();
+        std.posix.close(self.fd);
     }
 };
 

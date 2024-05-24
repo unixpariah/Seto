@@ -25,15 +25,16 @@ fn cairoDraw(ctx: *cairo.Context, font: Font, position: [2]isize, path: []u8, ma
 pub const Tree = struct {
     tree: std.AutoHashMap(u8, Node),
     alloc: std.heap.ArenaAllocator,
+    depth: u8,
     keys: []const u8,
 
     const Self = @This();
 
-    pub fn new(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]isize) Self {
+    pub fn new(alloc: std.mem.Allocator, keys: []const u8, depth: u8, intersections: [][2]isize) Self {
         var a_alloc = std.heap.ArenaAllocator.init(alloc);
         var tree_index: usize = 0;
         const tree = createNestedTree(a_alloc.allocator(), keys, depth, intersections, &tree_index);
-        return .{ .tree = tree, .alloc = a_alloc, .keys = keys };
+        return .{ .tree = tree, .alloc = a_alloc, .keys = keys, .depth = depth };
     }
 
     pub fn find(self: *Self, keys: [][64]u8) ![2]isize {
@@ -45,11 +46,10 @@ pub const Tree = struct {
         return error.EndNotReached;
     }
 
-    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, depth: usize, text_offset: [2]isize) void {
+    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, text_offset: [2]isize) void {
         ctx.selectFontFace(font.family, font.slant, font.weight);
         ctx.setFontSize(font.size);
-
-        var path = self.alloc.child_allocator.alloc(u8, depth + 1) catch @panic("OOM");
+        var path = self.alloc.child_allocator.alloc(u8, self.depth + 1) catch @panic("OOM");
         defer self.alloc.child_allocator.free(path);
 
         var iterator = self.tree.iterator();

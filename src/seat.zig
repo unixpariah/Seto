@@ -27,7 +27,7 @@ pub const Seat = struct {
 
     pub fn new(alloc: std.mem.Allocator) Self {
         return .{
-            .xkb_context = xkb.Context.new(.no_flags) orelse std.debug.panic("", .{}),
+            .xkb_context = xkb.Context.new(.no_flags) orelse @panic(""),
             .buffer = std.ArrayList([64]u8).init(alloc),
             .alloc = alloc,
         };
@@ -108,7 +108,6 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                 .released => {
                     seto.seat.repeat.timer = null;
                     seto.seat.repeat.key = null;
-                    seto.redraw = false;
                     return;
                 },
                 .pressed => {},
@@ -137,7 +136,6 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
     const grid = &self.config.?.grid;
-    self.redraw = true;
 
     const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
         xkb.names.mod.ctrl,

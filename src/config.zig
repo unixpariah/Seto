@@ -8,7 +8,10 @@ const assert = std.debug.assert;
 fn getPath(alloc: std.mem.Allocator) ![:0]u8 {
     const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
     const config_path = fs.path.joinZ(alloc, &[_][]const u8{ home, ".config/seto/config.lua" }) catch @panic("OOM");
-    try fs.accessAbsolute(config_path, .{});
+    fs.accessAbsolute(config_path, .{}) catch |err| {
+        alloc.free(config_path);
+        return err;
+    };
 
     return config_path;
 }
@@ -22,16 +25,25 @@ pub const Config = struct {
 
     const Self = @This();
 
-    pub fn load(allocator: std.mem.Allocator, path: ?[:0]const u8) !Self {
-        var a_alloc = std.heap.ArenaAllocator.init(allocator);
-        defer a_alloc.deinit();
+    pub fn load(alloc: std.mem.Allocator, path: ?[:0]const u8) !Self {
+        const config_path = if (path) |p| p else getPath(alloc) catch {
+            const keys = Keys{ .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
+            const font = Font{
+                .family = alloc.dupeZ(u8, "Arial") catch @panic("OOM"),
+            };
+            return Config{
+                .alloc = alloc,
+                .font = font,
+                .keys = keys,
+            };
+        };
+        defer alloc.free(config_path);
 
-        const config_path = if (path) |p| p else getPath(a_alloc.allocator()) catch return Config{ .alloc = allocator, .font = try Font.new_default(allocator), .keys = try Keys.new_default(allocator) };
-
-        var lua = try Lua.init(a_alloc.allocator());
+        var lua = try Lua.init(alloc);
+        defer lua.deinit();
         try lua.doFile(config_path);
 
-        var config = Config{ .alloc = allocator, .keys = try Keys.new(&lua, &a_alloc), .grid = try Grid.new(&lua), .font = try Font.new(&lua, a_alloc.child_allocator) };
+        var config = Config{ .alloc = alloc, .keys = try Keys.new(&lua, alloc), .grid = try Grid.new(&lua), .font = try Font.new(&lua, alloc) };
 
         _ = lua.pushString("background_color");
         _ = lua.getTable(1);
@@ -69,12 +81,9 @@ pub const Font = struct {
     family: [:0]const u8,
     slant: cairo.FontFace.FontSlant = .Normal,
     weight: cairo.FontFace.FontWeight = .Normal,
+    offset: [2]isize = .{ 5, 15 },
 
     const Self = @This();
-
-    fn new_default(alloc: std.mem.Allocator) !Self {
-        return Font{ .family = alloc.dupeZ(u8, "Arial") catch @panic("OOM") };
-    }
 
     fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
         var font = Font{ .family = alloc.dupeZ(u8, "Arial") catch @panic("OOM") };
@@ -177,6 +186,26 @@ pub const Font = struct {
         }
         lua.pop(1);
 
+        _ = lua.pushString("offset");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            var index: u8 = 0;
+            while (lua.next(3)) : (index += 1) {
+                if (!lua.isNumber(5) or index > 1) {
+                    std.debug.print("Text offset should be in a {{ x, y }} format\n", .{});
+                    std.process.exit(1);
+                }
+                font.offset[index] = @intFromFloat(try lua.toNumber(5));
+                lua.pop(1);
+            }
+            if (index < 2) {
+                std.debug.print("Text offset should be in a {{ x, y }} format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
         lua.pop(1);
         return font;
     }
@@ -186,7 +215,6 @@ pub const Grid = struct {
     color: [4]f64 = .{ 1, 1, 1, 1 },
     size: [2]isize = .{ 80, 80 },
     offset: [2]isize = .{ 0, 0 },
-    text_offset: [2]isize = .{ 5, 15 },
 
     const Self = @This();
 
@@ -261,26 +289,6 @@ pub const Grid = struct {
         }
         lua.pop(1);
 
-        _ = lua.pushString("text_offset");
-        _ = lua.getTable(2);
-        if (!lua.isNil(3)) {
-            lua.pushNil();
-            var index: u8 = 0;
-            while (lua.next(3)) : (index += 1) {
-                if (!lua.isNumber(5) or index > 1) {
-                    std.debug.print("Text offset should be in a {{ x, y }} format\n", .{});
-                    std.process.exit(1);
-                }
-                grid.text_offset[index] = @intFromFloat(try lua.toNumber(5));
-                lua.pop(1);
-            }
-            if (index < 2) {
-                std.debug.print("Text offset should be in a {{ x, y }} format\n", .{});
-                std.process.exit(1);
-            }
-        }
-        lua.pop(1);
-
         lua.pop(1);
         return grid;
     }
@@ -349,12 +357,8 @@ const Keys = struct {
 
     const Self = @This();
 
-    fn new_default(alloc: std.mem.Allocator) !Self {
-        return Keys{ .search = alloc.dupeZ(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
-    }
-
-    fn new(lua: *Lua, alloc: *std.heap.ArenaAllocator) !Self {
-        var keys_s = Keys{ .search = alloc.child_allocator.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc.child_allocator) };
+    fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
+        var keys_s = Keys{ .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
 
         _ = lua.pushString("keys");
         _ = lua.getTable(1); // TODO: Idk if I should care but this is the place where it errors if file is completely empty
@@ -362,9 +366,9 @@ const Keys = struct {
         _ = lua.pushString("search");
         _ = lua.getTable(2);
         if (lua.isString(3)) {
-            alloc.child_allocator.free(keys_s.search);
+            alloc.free(keys_s.search);
             const keys = try lua.toString(3);
-            keys_s.search = alloc.child_allocator.dupe(u8, std.mem.span(keys)) catch @panic("OOM");
+            keys_s.search = alloc.dupe(u8, std.mem.span(keys)) catch @panic("OOM");
         }
         lua.pop(1);
 
@@ -410,40 +414,6 @@ const Keys = struct {
         return keys_s;
     }
 };
-
-const lua_config =
-    \\return {
-    \\	background_color = { 1, 1, 1, 0.4 },
-    \\	font = {
-    \\		color = { 1, 1, 1 },
-    \\		highlight_color = { 1, 1, 0 },
-    \\		size = 16,
-    \\		family = "Arial",
-    \\		slant = "Normal",
-    \\		weight = "Normal",
-    \\	},
-    \\	grid = {
-    \\		color = { 1, 1, 1, 1 },
-    \\		size = { 80, 80 },
-    \\		offset = { 0, 0 },
-    \\	},
-    \\	keys = {
-    \\		search = "asdfghjkl",
-    \\		bindings = {
-    \\			z = { moveX = -5 },
-    \\			x = { moveY = 5 },
-    \\			n = { moveY = -5 },
-    \\			m = { moveX = 5 },
-    \\			Z = { resizeX = -5 },
-    \\			X = { resizeY = 5 },
-    \\			N = { resizeY = -5 },
-    \\			M = { resizeX = 5 },
-    \\			[8] = "remove",
-    \\			q = "quit",
-    \\		},
-    \\	},
-    \\}
-;
 
 test "resize" {
     for (1..10) |i| {
