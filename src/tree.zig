@@ -13,12 +13,12 @@ fn cairoDraw(ctx: *cairo.Context, font: Font, position: [2]isize, path: []u8, ma
     ctx.moveTo(@floatFromInt(position[0] + text_offset[0]), @floatFromInt(position[1] + text_offset[1]));
 
     for (0..matches) |i| {
-        ctx.setSourceRgb(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2]);
+        ctx.setSourceRgba(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2], font.highlight_color[3]);
         ctx.showText(&[2:0]u8{ path[i], 0 });
     }
 
     path[path.len - 1] = 0;
-    ctx.setSourceRgb(font.color[0], font.color[1], font.color[2]);
+    ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
     ctx.showText(path[matches .. path.len - 1 :0]);
 }
 
@@ -46,7 +46,7 @@ pub const Tree = struct {
         return error.EndNotReached;
     }
 
-    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, text_offset: [2]isize) void {
+    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, text_offset: [2]isize, mode: Mode) void {
         ctx.selectFontFace(font.family, font.slant, font.weight);
         ctx.setFontSize(font.size);
         var path = self.alloc.child_allocator.alloc(u8, self.depth + 1) catch @panic("OOM");
@@ -59,7 +59,7 @@ pub const Tree = struct {
             const matches: u8 = if (buffer.len > 0 and buffer[0][0] == key) 1 else 0;
             switch (node.value_ptr.*) {
                 .position => |position| cairoDraw(ctx, font, position, path, matches, text_offset),
-                .node => node.value_ptr.traverseAndRender(self.keys, path, ctx, buffer, font, 1, matches, text_offset),
+                .node => node.value_ptr.traverseAndRender(self.keys, path, ctx, buffer, font, 1, matches, text_offset, mode),
             }
         }
     }
@@ -84,17 +84,23 @@ const Node = union(enum) {
         return error.EndNotReached;
     }
 
-    fn traverseAndRender(self: *const Self, keys: []const u8, path: []u8, ctx: *cairo.Context, buffer: [][64]u8, font: Font, index: u8, matches: u8, text_offset: [2]isize) void {
+    fn traverseAndRender(self: *const Self, keys: []const u8, path: []u8, ctx: *cairo.Context, buffer: [][64]u8, font: Font, index: u8, matches: u8, text_offset: [2]isize, mode: Mode) void {
         for (keys) |key| {
             switch (self.*) {
                 .node => |node| {
                     path[index] = key;
                     if (node.get(key)) |n| {
                         const match = if (matches == index and buffer.len > index and buffer[index][0] == key) matches + 1 else if (buffer.len > index) 0 else matches;
-                        n.traverseAndRender(keys, path, ctx, buffer, font, index + 1, match, text_offset);
+                        n.traverseAndRender(keys, path, ctx, buffer, font, index + 1, match, text_offset, mode);
                     }
                 },
                 .position => |position| {
+                    switch (mode) {
+                        .Region => |pos| if (pos) |p| {
+                            if (p[0] == position[0] or p[1] == position[1]) break;
+                        },
+                        .Single => {},
+                    }
                     cairoDraw(ctx, font, position, path, matches, text_offset);
                     break;
                 },

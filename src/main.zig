@@ -3,6 +3,7 @@ const mem = std.mem;
 const posix = std.posix;
 
 const Tree = @import("tree.zig").Tree;
+const Tree2 = @import("tree.zig").Tree2;
 const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
 const Seat = @import("seat.zig").Seat;
@@ -43,16 +44,13 @@ pub const Seto = struct {
     layer_shell: ?*zwlr.LayerShellV1 = null,
     output_manager: ?*zxdg.OutputManagerV1 = null,
     shm: ?*wl.Shm = null,
-
     seat: Seat,
     outputs: std.ArrayList(Surface),
     config: ?Config = null,
-
     first_draw: bool = true,
     exit: bool = false,
     mode: Mode = .Single,
     config_path: ?[:0]const u8 = null,
-
     alloc: mem.Allocator,
 
     const Self = @This();
@@ -115,7 +113,6 @@ pub const Seto = struct {
     fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
         const grid = self.config.?.grid;
         var i: isize = grid.offset[0];
-        context.*.setSourceRgb(grid.color[0], grid.color[1], grid.color[2]);
         while (i <= width) : (i += grid.size[0]) {
             context.*.moveTo(@floatFromInt(i), 0);
             context.*.lineTo(@floatFromInt(i), @floatFromInt(height));
@@ -127,7 +124,22 @@ pub const Seto = struct {
             context.*.lineTo(@floatFromInt(width), @floatFromInt(i));
         }
 
+        context.*.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
         context.*.stroke();
+
+        switch (self.mode) {
+            .Region => |position| if (position) |pos| {
+                context.*.moveTo(0, @floatFromInt(pos[1]));
+                context.*.lineTo(@floatFromInt(width), @floatFromInt(pos[1]));
+
+                context.*.moveTo(@floatFromInt(pos[0]), 0);
+                context.*.lineTo(@floatFromInt(pos[0]), @floatFromInt(height));
+
+                context.*.setSourceRgba(grid.selected_color[0], grid.selected_color[1], grid.selected_color[2], grid.selected_color[3]);
+                context.*.stroke();
+            },
+            .Single => {},
+        }
     }
 
     fn printToStdout(self: *Self, tree: *Tree) void {
@@ -197,7 +209,7 @@ pub const Seto = struct {
         const ctx = try cairo.Context.create(cairo_surface.asSurface());
         defer ctx.destroy();
 
-        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items, self.config.?.font.offset);
+        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items, self.config.?.font.offset, self.mode);
         self.drawGrid(width, height, &ctx);
 
         const bg_color = self.config.?.background_color;
@@ -283,6 +295,7 @@ pub fn main() !void {
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
+    //var timer = try std.time.Timer.start();
     while (true) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         if (seto.seat.repeatKey()) handleKey(&seto);
@@ -291,6 +304,7 @@ pub fn main() !void {
             if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
             break;
         }
+        //std.debug.print("{}\n", .{timer.lap() / std.time.ns_per_ms});
     }
 }
 

@@ -75,8 +75,8 @@ pub const Config = struct {
 };
 
 pub const Font = struct {
-    color: [3]f64 = .{ 1, 1, 1 },
-    highlight_color: [3]f64 = .{ 1, 1, 0 },
+    color: [4]f64 = .{ 1, 1, 1, 1 },
+    highlight_color: [4]f64 = .{ 1, 1, 0, 1 },
     size: f64 = 16,
     family: [:0]const u8,
     slant: cairo.FontFace.FontSlant = .Normal,
@@ -98,15 +98,15 @@ pub const Font = struct {
             lua.pushNil();
             var index: u8 = 0;
             while (lua.next(3)) : (index += 1) {
-                if (!lua.isNumber(5) or index > 2) {
-                    std.debug.print("Font color should be in a RGB format\n", .{});
+                if (!lua.isNumber(5) or index > 3) {
+                    std.debug.print("Font color should be in a RGBA format\n", .{});
                     std.process.exit(1);
                 }
                 font.color[index] = try lua.toNumber(5);
                 lua.pop(1);
             }
-            if (index < 3) {
-                std.debug.print("Font color should be in a RGB format\n", .{});
+            if (index < 4) {
+                std.debug.print("Font color should be in a RGBA format\n", .{});
                 std.process.exit(1);
             }
         }
@@ -118,15 +118,15 @@ pub const Font = struct {
             lua.pushNil();
             var index: u8 = 0;
             while (lua.next(3)) : (index += 1) {
-                if (!lua.isNumber(5) or index > 2) {
-                    std.debug.print("Font highlight color should be in a RGB format\n", .{});
+                if (!lua.isNumber(5) or index > 3) {
+                    std.debug.print("Font highlight color should be in a RGBA format\n", .{});
                     std.process.exit(1);
                 }
                 font.highlight_color[index] = try lua.toNumber(5);
                 lua.pop(1);
             }
-            if (index < 3) {
-                std.debug.print("Font highlight color should be in a RGB format\n", .{});
+            if (index < 4) {
+                std.debug.print("Font highlight color should be in a RGBA format\n", .{});
                 std.process.exit(1);
             }
         }
@@ -213,6 +213,7 @@ pub const Font = struct {
 
 pub const Grid = struct {
     color: [4]f64 = .{ 1, 1, 1, 1 },
+    selected_color: [4]f64 = .{ 1, 0, 0, 1 },
     size: [2]isize = .{ 80, 80 },
     offset: [2]isize = .{ 0, 0 },
 
@@ -230,7 +231,6 @@ pub const Grid = struct {
 
         _ = lua.pushString("color");
         _ = lua.getTable(2);
-
         if (!lua.isNil(3)) {
             lua.pushNil();
             var index: u8 = 0;
@@ -244,6 +244,26 @@ pub const Grid = struct {
             }
             if (index < 4) {
                 std.debug.print("Grid color should be in a RGBA format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("selected_color");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            lua.pushNil();
+            var index: u8 = 0;
+            while (lua.next(3)) : (index += 1) {
+                if (!lua.isNumber(5) or index > 3) {
+                    std.debug.print("Grid selected color should be in a RGBA format\n", .{});
+                    std.process.exit(1);
+                }
+                grid.selected_color[index] = try lua.toNumber(5);
+                lua.pop(1);
+            }
+            if (index < 4) {
+                std.debug.print("Grid selected color should be in a RGBA format\n", .{});
                 std.process.exit(1);
             }
         }
