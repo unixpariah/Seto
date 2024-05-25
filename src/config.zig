@@ -343,10 +343,13 @@ pub const Grid = struct {
 };
 
 const Function = union(enum) {
-    resizeX: i32,
-    resizeY: i32,
-    moveX: i32,
-    moveY: i32,
+    resize_x: i32,
+    resize_y: i32,
+    move_x: i32,
+    move_y: i32,
+    move_selection_x: i32,
+    move_selection_y: i32,
+    cancel_selection,
     remove,
     quit,
 
@@ -357,14 +360,20 @@ const Function = union(enum) {
             return .remove;
         } else if (std.mem.eql(u8, string, "quit")) {
             return .quit;
-        } else if (std.mem.eql(u8, string, "moveX")) {
-            return .{ .moveX = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "moveY")) {
-            return .{ .moveY = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "resizeX")) {
-            return .{ .resizeX = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "resizeY")) {
-            return .{ .resizeY = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "cancel_selection")) {
+            return .cancel_selection;
+        } else if (std.mem.eql(u8, string, "move_x")) {
+            return .{ .move_x = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "move_y")) {
+            return .{ .move_y = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "resize_x")) {
+            return .{ .resize_x = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "resize_y")) {
+            return .{ .resize_y = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "move_selection_x")) {
+            return .{ .move_selection_x = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "move_selection_y")) {
+            return .{ .move_selection_y = value orelse return error.NullValue };
         }
 
         return error.UnkownFunction;

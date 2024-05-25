@@ -1,6 +1,7 @@
 const std = @import("std");
 const posix = std.posix;
 const Grid = @import("config.zig").Grid;
+const Mode = @import("main.zig").Mode;
 
 const xkb = @import("xkbcommon");
 const wayland = @import("wayland");
@@ -133,6 +134,24 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
     }
 }
 
+fn moveSelectionX(seto: *Seto, value: i32) void {
+    switch (seto.mode) {
+        .Region => |position| {
+            if (position) |_| seto.mode.Region.?[0] += value;
+        },
+        .Single => {},
+    }
+}
+
+fn moveSelectionY(seto: *Seto, value: i32) void {
+    switch (seto.mode) {
+        .Region => |position| {
+            if (position) |_| seto.mode.Region.?[1] += value;
+        },
+        .Single => {},
+    }
+}
+
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
     const grid = &self.config.?.grid;
@@ -148,11 +167,16 @@ pub fn handleKey(self: *Seto) void {
         _ = keysym.toUTF8(&buffer, 64);
         if (self.config.?.keys.bindings.get(buffer[0])) |function| {
             switch (function) {
-                .moveY => |value| grid.moveY(value),
-                .moveX => |value| grid.moveX(value),
-                .resizeX => |value| grid.resizeX(value),
-                .resizeY => |value| grid.resizeY(value),
+                .move_x => |value| grid.moveX(value),
+                .move_y => |value| grid.moveY(value),
+                .resize_x => |value| grid.resizeX(value),
+                .resize_y => |value| grid.resizeY(value),
                 .remove => _ = self.seat.buffer.popOrNull(),
+                .cancel_selection => if (self.mode == Mode.Region) {
+                    self.mode = Mode{ .Region = null };
+                },
+                .move_selection_x => |value| moveSelectionX(self, value),
+                .move_selection_y => |value| moveSelectionY(self, value),
                 .quit => self.exit = true,
             }
         }

@@ -39,8 +39,8 @@ seto -c <PATH>
 return {
 	background_color = { 1, 1, 1, 0.4 },
 	font = {
-		color = { 1, 1, 1 },
-		highlight_color = { 1, 1, 0 },
+		color = { 1, 1, 1, 1 },
+		highlight_color = { 1, 0, 0, 1 },
 		size = 16,
 		family = "Arial",
 		slant = "Normal",
@@ -49,23 +49,35 @@ return {
 	},
 	grid = {
 		color = { 1, 1, 1, 1 },
+		selected_color = { 1, 0, 0, 1 },
 		size = { 80, 80 },
 		offset = { 0, 0 },
 	},
 	keys = {
 		search = "asdfghjkl",
 		bindings = {
-			z = { moveX = -5 },   -- Move to left by 5 px on 'z'
-			x = { moveY = 5 },    -- Move to bottom by 5px on 'x'
-			n = { moveY = -5 },   -- Move to top by 5px on 'n'
-			m = { moveX = 5 },    -- Move to right by 5px on 'm'
-			Z = { resizeX = -5 }, -- Decrease width by 5px on Shift + 'z'
-			X = { resizeY = 5 },  -- Increase height by 5px on Shift + 'x'
-			N = { resizeY = -5 }, -- Decrease height by 5px on Shift + 'n'
-			M = { resizeX = 5 },  -- Increase width by 5px on Shift + 'm'
-			[8] = "remove",       -- Pop last typed character on xkb keycode 8 (Backspace)
-			q = "quit",           -- Quit program on 'q'
+			z = { move_x = -5 },          -- Move to left by 5 px on 'z'
+			x = { move_y = 5 },           -- Move to bottom by 5px on 'x'
+			n = { move_y = -5 },          -- Move to top by 5px on 'n'
+			m = { move_x = 5 },           -- Move to right by 5px on 'm'
+			Z = { resize_x = -5 },        -- Decrease width by 5px on Shift + 'z'
+			X = { resize_y = 5 },         -- Increase height by 5px on Shift + 'x'
+			N = { resize_y = -5 },        -- Decrease height by 5px on Shift + 'n'
+			M = { resize_x = 5 },         -- Increase width by 5px on Shift + 'm'
+            w = { move_selection_x = -5 } -- Move selection to left by 5 px on 'z'
+            e = { move_selection_y = 5 }  -- Move selection to bottom by 5px on 'x'
+            o = { move_selection_y = -5 } -- Move selection to top by 5px on 'n'
+            p = { move_selection_x = 5 }  -- Move selection to right by 5px on 'm'
+			c = "cancel_selection",       -- Remove selected position
+			[8] = "remove",               -- Pop last typed character on xkb keycode 8 (Backspace)
+			q = "quit",                   -- Quit program on 'q'
 		},
 	},
 }
 ```
+
+## TODO
+
+- Better tree structure
+- Reuse tree between draws instead of reallocating everything
+- Implement asking compositor for new frames
