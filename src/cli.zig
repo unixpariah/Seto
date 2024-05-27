@@ -12,15 +12,7 @@ pub fn parseArgs(seto: *Seto) void {
             std.debug.print("{s}\n", .{help_message});
             std.process.exit(0);
         } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
-            const path = args.next() orelse {
-                std.debug.print("seto: Argument missing after: \"-c\"\nMore info with \"seto -h\"\n", .{});
-                std.process.exit(1);
-            };
-            std.fs.accessAbsolute(path, .{}) catch {
-                std.debug.print("Config file at path \"{s}\" not found\n", .{path});
-                std.process.exit(1);
-            };
-            seto.config_path = seto.alloc.dupeZ(u8, path) catch @panic("OOM");
+            _ = args.next();
         } else {
             std.debug.print("Seto: Unkown option argument: \"{s}\"\nMore info with \"seto -h\"\n", .{arg});
             std.process.exit(0);
@@ -30,10 +22,37 @@ pub fn parseArgs(seto: *Seto) void {
 
 const help_message =
     \\Usage:
-    \\  seto: [options...]
+    \\  seto [options...]
     \\
-    \\Options:
-    \\  -r, --region        Select region of screen
-    \\  -c, --config <PATH> Path to config file
-    \\  -h, --help          Print help information
+    \\Settings:
+    \\  -r, --region                    Select region of screen
+    \\  -c, --config <PATH>             Specifies config file
+    \\
+    \\Miscellaneous:
+    \\  -h, --help                      Display help information and quit
+    \\  -v, --version                   Display version information and quit
+    \\
+    \\General styling:
+    \\  --background-color <HEX>        Set background color
+    \\
+    \\Font styling:
+    \\  --font-color <HEX>              Set font color
+    \\  --highlight-color <HEX>         Set highlighted color
+    \\  --font-size <INT>               Set font size
+    \\  --font-family "<STRING>"        Set font family
+    \\  --font-weight <STRING>          Set font weight
+    \\  --font-slant <STRING>           Set font slant
+    \\  --font-offset <INT,INT>         Change position of text on grid
+    \\
+    \\Grid styling:
+    \\  --grid-color <HEX>              Set color of grid
+    \\  --line-width <FLOAT>            Set width of grid lines
+    \\  --grid-size <INT,INT>           Set size of each square
+    \\  --grid-offset <INT,INT>         Change default position of grid
+    \\  --grid-selected-color <HEX>     Change color of selected position in region mode
+    \\  --selected-line-width <INT>     Change line width of selected position in region mode
+    \\
+    \\Keybindings:
+    \\  --search-keys <STRING>          Set keys used to search
+    \\  --bind-function <CHAR> <STRING> Bind function to specified key (see man seto for details)
 ;

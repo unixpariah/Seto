@@ -1,0 +1,13 @@
+%!CairoScript
+% render a gray background
+<< /content //COLOR /width 640 /height 480 >> surface context
+0.93 g set-source
+paint
+% render a red rectangle with a thick blue outline
+1 0 0 0.95 rgba set-source
+n 0 0 256 256 rectangle
+fill+
+0 0 1 rgb set-source
+8 set-line-width
+stroke+
+pop

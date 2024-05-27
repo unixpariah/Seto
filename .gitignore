@@ -3,3 +3,4 @@ zig-cache
 xdg_shell.c
 .direnv
 .cache
+zls

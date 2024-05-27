@@ -50,7 +50,6 @@ pub const Seto = struct {
     first_draw: bool = true,
     exit: bool = false,
     mode: Mode = .Single,
-    config_path: ?[:0]const u8 = null,
     alloc: mem.Allocator,
 
     const Self = @This();
@@ -262,8 +261,6 @@ pub const Seto = struct {
         self.seat.destroy();
         self.config.?.keys.bindings.deinit();
         self.config.?.destroy();
-        if (self.config_path) |path|
-            self.alloc.free(path);
     }
 };
 
@@ -290,10 +287,10 @@ pub fn main() !void {
     var seto = Seto.new(alloc);
     defer seto.destroy();
 
-    parseArgs(&seto);
-
-    const config = Config.load(alloc, seto.config_path) catch @panic("");
+    const config = Config.load(alloc) catch @panic("");
     seto.config = config;
+
+    parseArgs(&seto);
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;

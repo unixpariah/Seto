@@ -5,7 +5,26 @@ const Lua = ziglua.Lua;
 const fs = std.fs;
 const assert = std.debug.assert;
 
-fn getPath(alloc: std.mem.Allocator) ![:0]u8 {
+fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
+    var args = std.process.args();
+    var index: u8 = 0;
+    while (args.next()) |arg| : (index += 1) {
+        if (index == 0) continue;
+        if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
+            const path = args.next() orelse {
+                std.debug.print("seto: Argument missing after: \"-c\"\nMore info with \"seto -h\"\n", .{});
+                std.process.exit(1);
+            };
+
+            std.fs.accessAbsolute(path, .{}) catch {
+                std.debug.print("Config file at path \"{s}\" not found\n", .{path});
+                std.process.exit(1);
+            };
+
+            return std.fs.path.joinZ(alloc, &[_][]const u8{path});
+        }
+    }
+
     const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
     const config_path = fs.path.joinZ(alloc, &[_][]const u8{ home, ".config/seto/config.lua" }) catch @panic("OOM");
     fs.accessAbsolute(config_path, .{}) catch |err| {
@@ -25,8 +44,8 @@ pub const Config = struct {
 
     const Self = @This();
 
-    pub fn load(alloc: std.mem.Allocator, path: ?[:0]const u8) !Self {
-        const config_path = if (path) |p| p else getPath(alloc) catch {
+    pub fn load(alloc: std.mem.Allocator) !Self {
+        const config_path = getPath(alloc) catch {
             const keys = Keys{ .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
             const font = Font{
                 .family = alloc.dupeZ(u8, "Arial") catch @panic("OOM"),
@@ -41,7 +60,10 @@ pub const Config = struct {
 
         var lua = try Lua.init(alloc);
         defer lua.deinit();
-        try lua.doFile(config_path);
+        lua.doFile(config_path) catch {
+            std.debug.print("File {s} couldn't be executed by lua interpreter\n", .{config_path});
+            std.process.exit(1);
+        };
 
         var config = Config{ .alloc = alloc, .keys = try Keys.new(&lua, alloc), .grid = try Grid.new(&lua), .font = try Font.new(&lua, alloc) };
 
@@ -314,6 +336,10 @@ pub const Grid = struct {
         _ = lua.pushString("line_width");
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
+            if (!lua.isNumber(3)) {
+                std.debug.print("Line width should be a float\n", .{});
+                std.process.exit(1);
+            }
             grid.line_width = try lua.toNumber(3);
         }
         lua.pop(1);
@@ -321,6 +347,10 @@ pub const Grid = struct {
         _ = lua.pushString("selected_line_width");
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
+            if (!lua.isNumber(3)) {
+                std.debug.print("Selected line width should be a float\n", .{});
+                std.process.exit(1);
+            }
             grid.selected_line_width = try lua.toNumber(3);
         }
         lua.pop(1);
