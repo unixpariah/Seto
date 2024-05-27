@@ -125,6 +125,7 @@ pub const Seto = struct {
         }
 
         context.*.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
+        context.*.setLineWidth(grid.line_width);
         context.*.stroke();
 
         switch (self.mode) {
@@ -136,6 +137,7 @@ pub const Seto = struct {
                 context.*.lineTo(@floatFromInt(pos[0]), @floatFromInt(height));
 
                 context.*.setSourceRgba(grid.selected_color[0], grid.selected_color[1], grid.selected_color[2], grid.selected_color[3]);
+                context.*.setLineWidth(grid.selected_line_width);
                 context.*.stroke();
             },
             .Single => {},
@@ -295,7 +297,6 @@ pub fn main() !void {
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
-    var timer = try std.time.Timer.start();
     while (true) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         if (seto.seat.repeatKey()) handleKey(&seto);
@@ -304,7 +305,6 @@ pub fn main() !void {
             if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
             break;
         }
-        std.debug.print("{}\n", .{timer.lap() / std.time.ns_per_ms});
     }
 }
 

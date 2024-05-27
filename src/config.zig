@@ -216,6 +216,8 @@ pub const Grid = struct {
     selected_color: [4]f64 = .{ 1, 0, 0, 1 },
     size: [2]isize = .{ 80, 80 },
     offset: [2]isize = .{ 0, 0 },
+    line_width: f64 = 2,
+    selected_line_width: f64 = 2,
 
     const Self = @This();
 
@@ -306,6 +308,20 @@ pub const Grid = struct {
                 std.debug.print("Grid offset should be in a {{ x, y }} format\n", .{});
                 std.process.exit(1);
             }
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("line_width");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            grid.line_width = try lua.toNumber(3);
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("selected_line_width");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            grid.selected_line_width = try lua.toNumber(3);
         }
         lua.pop(1);
 
