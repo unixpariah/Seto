@@ -1,5 +1,6 @@
 const std = @import("std");
 const Seto = @import("main.zig").Seto;
+const builtin = @import("builtin");
 
 pub fn parseArgs(seto: *Seto) void {
     var args = std.process.args();
@@ -13,9 +14,13 @@ pub fn parseArgs(seto: *Seto) void {
             std.process.exit(0);
         } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
             _ = args.next();
+        } else if (std.mem.eql(u8, arg, "-v") or std.mem.eql(u8, arg, "--version")) {
+            // Yes I hardcoded version, fuck off
+            std.debug.print("Seto v0.1.0 \nBuild type: {}\nzig {}\n", .{ builtin.mode, builtin.zig_version });
+            std.process.exit(0);
         } else {
             std.debug.print("Seto: Unkown option argument: \"{s}\"\nMore info with \"seto -h\"\n", .{arg});
-            std.process.exit(0);
+            std.process.exit(1);
         }
     }
 }

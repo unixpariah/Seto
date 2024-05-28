@@ -101,6 +101,16 @@ pub const Seto = struct {
         while (i <= width) : (i += grid.size[0]) {
             var j = grid.offset[1];
             while (j <= height) : (j += grid.size[1]) {
+                switch (self.mode) {
+                    .Region => |position| {
+                        if (position) |pos| {
+                            if (pos[0] == i or pos[1] == j) {
+                                continue;
+                            }
+                        }
+                    },
+                    .Single => {},
+                }
                 intersections[index] = .{ i, j };
                 index += 1;
             }
@@ -210,7 +220,7 @@ pub const Seto = struct {
         const ctx = try cairo.Context.create(cairo_surface.asSurface());
         defer ctx.destroy();
 
-        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items, self.config.?.font.offset, self.mode);
+        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items);
         self.drawGrid(width, height, &ctx);
 
         const bg_color = self.config.?.background_color;
@@ -294,6 +304,7 @@ pub fn main() !void {
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
+    var timer = try std.time.Timer.start();
     while (true) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
         if (seto.seat.repeatKey()) handleKey(&seto);
@@ -302,6 +313,7 @@ pub fn main() !void {
             if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
             break;
         }
+        std.debug.print("{}ms\n", .{timer.lap() / std.time.ns_per_ms});
     }
 }
 

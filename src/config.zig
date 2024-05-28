@@ -4,6 +4,7 @@ const ziglua = @import("ziglua");
 const Lua = ziglua.Lua;
 const fs = std.fs;
 const assert = std.debug.assert;
+const pango = @import("pango");
 
 fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     var args = std.process.args();
@@ -101,9 +102,9 @@ pub const Font = struct {
     highlight_color: [4]f64 = .{ 1, 1, 0, 1 },
     size: f64 = 16,
     family: [:0]const u8,
-    slant: cairo.FontFace.FontSlant = .Normal,
-    weight: cairo.FontFace.FontWeight = .Normal,
-    offset: [2]isize = .{ 5, 15 },
+    slant: pango.Style = .Normal,
+    weight: pango.Weight = .normal,
+    offset: [2]isize = .{ 5, 5 },
 
     const Self = @This();
 
@@ -186,7 +187,7 @@ pub const Font = struct {
                 std.process.exit(1);
             }
             const font_slant = try lua.toString(3);
-            font.slant = std.meta.stringToEnum(cairo.FontFace.FontSlant, std.mem.span(font_slant)) orelse {
+            font.slant = std.meta.stringToEnum(pango.Style, std.mem.span(font_slant)) orelse {
                 std.debug.print("Font slant \"{s}\" not found\nAvailable options are:\n - Normal\n - Italic \n - Oblique\n", .{font_slant});
                 std.process.exit(1);
             };
@@ -201,8 +202,8 @@ pub const Font = struct {
                 std.process.exit(1);
             }
             const font_weight = try lua.toString(3);
-            font.weight = std.meta.stringToEnum(cairo.FontFace.FontWeight, std.mem.span(font_weight)) orelse {
-                std.debug.print("Font weight \"{s}\" not found\nAvailable options are:\n - Normal\n - Bold\n", .{font_weight});
+            font.weight = std.meta.stringToEnum(pango.Weight, std.mem.span(font_weight)) orelse {
+                std.debug.print("Font weight \"{s}\" not found\nAvailable options are:\n - thin\n - ultralight\n - light\n - semilight\n - book\n - normal\n - medium\n - semibold\n - bold\n - Ultrabold\n - heavy\n - ultraheavy\n", .{font_weight});
                 std.process.exit(1);
             };
         }

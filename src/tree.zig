@@ -1,25 +1,29 @@
 const std = @import("std");
 const cairo = @import("cairo");
 const Font = @import("config.zig").Font;
-const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
+const pango = @import("pango");
 
 pub const Result = struct {
     path: []const u8,
     pos: [2]usize,
 };
 
-fn cairoDraw(ctx: *cairo.Context, font: Font, position: [2]isize, path: []u8, matches: u8, text_offset: [2]isize) void {
-    ctx.moveTo(@floatFromInt(position[0] + text_offset[0]), @floatFromInt(position[1] + text_offset[1]));
-
-    for (0..matches) |i| {
+fn cairoDraw(ctx: *cairo.Context, position: [2]isize, path: []u8, matches: u8, font: Font, layout: *pango.Layout) void {
+    ctx.moveTo(@floatFromInt(position[0] + font.offset[0]), @floatFromInt(position[1] + font.offset[1]));
+    if (matches > 0) {
         ctx.setSourceRgba(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2], font.highlight_color[3]);
-        ctx.showText(&[2:0]u8{ path[i], 0 });
+        layout.setText(path[0..matches]);
+        ctx.showLayout(layout);
+
+        var logical_rect: pango.Rectangle = undefined;
+        layout.getExtents(undefined, &logical_rect);
+        ctx.relMoveTo(@as(f64, @floatFromInt(logical_rect.width)) / pango.SCALE, 0);
+        ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
     }
 
-    path[path.len - 1] = 0;
-    ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
-    ctx.showText(path[matches .. path.len - 1 :0]);
+    layout.setText(path[matches..path.len]);
+    ctx.showLayout(layout);
 }
 
 pub const Tree = struct {
@@ -46,10 +50,8 @@ pub const Tree = struct {
         return error.EndNotReached;
     }
 
-    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, text_offset: [2]isize, mode: Mode) void {
-        ctx.selectFontFace(font.family, font.slant, font.weight);
-        ctx.setFontSize(font.size);
-        var path = self.alloc.child_allocator.alloc(u8, self.depth + 1) catch @panic("OOM");
+    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8) void {
+        var path = self.alloc.child_allocator.alloc(u8, self.depth) catch @panic("OOM");
         defer self.alloc.child_allocator.free(path);
 
         var iterator = self.tree.iterator();
@@ -57,9 +59,22 @@ pub const Tree = struct {
             const key = node.key_ptr.*;
             path[0] = key;
             const matches: u8 = if (buffer.len > 0 and buffer[0][0] == key) 1 else 0;
+            const layout: *pango.Layout = ctx.createLayout() catch @panic("");
+            defer layout.destroy();
+            const font_description = pango.FontDescription.new() catch @panic("");
+            defer font_description.free();
+
+            font_description.setFamilyStatic(font.family);
+            font_description.setStyle(font.slant);
+            font_description.setWeight(font.weight);
+            font_description.setAbsoluteSize(font.size * pango.SCALE);
+
+            layout.setFontDescription(font_description);
+
+            ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
             switch (node.value_ptr.*) {
-                .position => |position| cairoDraw(ctx, font, position, path, matches, text_offset),
-                .node => node.value_ptr.traverseAndRender(self.keys, path, ctx, buffer, font, 1, matches, text_offset, mode),
+                .position => |position| cairoDraw(ctx, position, path, matches, font, layout),
+                .node => node.value_ptr.traverseAndRender(self.keys, path, ctx, buffer, 1, matches, font, layout),
             }
         }
     }
@@ -84,24 +99,18 @@ const Node = union(enum) {
         return error.EndNotReached;
     }
 
-    fn traverseAndRender(self: *const Self, keys: []const u8, path: []u8, ctx: *cairo.Context, buffer: [][64]u8, font: Font, index: u8, matches: u8, text_offset: [2]isize, mode: Mode) void {
+    fn traverseAndRender(self: *const Self, keys: []const u8, path: []u8, ctx: *cairo.Context, buffer: [][64]u8, index: u8, matches: u8, font: Font, layout: *pango.Layout) void {
         for (keys) |key| {
             switch (self.*) {
                 .node => |node| {
                     path[index] = key;
                     if (node.get(key)) |n| {
                         const match = if (matches == index and buffer.len > index and buffer[index][0] == key) matches + 1 else if (buffer.len > index) 0 else matches;
-                        n.traverseAndRender(keys, path, ctx, buffer, font, index + 1, match, text_offset, mode);
+                        n.traverseAndRender(keys, path, ctx, buffer, index + 1, match, font, layout);
                     }
                 },
                 .position => |position| {
-                    switch (mode) {
-                        .Region => |pos| if (pos) |p| {
-                            if (p[0] == position[0] or p[1] == position[1]) break;
-                        },
-                        .Single => {},
-                    }
-                    cairoDraw(ctx, font, position, path, matches, text_offset);
+                    cairoDraw(ctx, position, path, matches, font, layout);
                     break;
                 },
             }

@@ -6,6 +6,7 @@ pkgs.stdenv.mkDerivation {
   buildInputs = with pkgs; [
     zig
     cairo
+    pango
     wayland
     libxkbcommon
   ];

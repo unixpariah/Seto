@@ -26,6 +26,7 @@
       packages = with pkgs; [
         zls.packages.${system}.default
         zig
+        pango
         pkg-config
         cairo
         wayland

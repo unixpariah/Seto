@@ -20,13 +20,12 @@ pub fn build(b: *std.Build) void {
     scanner.generate("zxdg_output_manager_v1", 3);
 
     const cairo = b.dependency("giza", opts).module("cairo");
+    const pango = b.dependency("giza", opts).module("pango");
+    const pangocairo = b.dependency("giza", opts).module("pangocairo");
 
     const xkbcommon = b.dependency("zig-xkbcommon", .{}).module("xkbcommon");
 
-    const ziglua = b.dependency("ziglua", .{
-        .target = target,
-        .optimize = optimize,
-    });
+    const ziglua = b.dependency("ziglua", opts);
 
     const exe = b.addExecutable(.{
         .name = "seto",
@@ -37,10 +36,14 @@ pub fn build(b: *std.Build) void {
 
     exe.root_module.addImport("wayland", wayland);
     exe.root_module.addImport("cairo", cairo);
+    exe.root_module.addImport("pango", pango);
+    exe.root_module.addImport("pangocairo", pangocairo);
     exe.root_module.addImport("xkbcommon", xkbcommon);
     exe.root_module.addImport("ziglua", ziglua.module("ziglua"));
     exe.linkSystemLibrary("wayland-client");
     exe.linkSystemLibrary("cairo");
+    exe.linkSystemLibrary("pango");
+    exe.linkSystemLibrary("pangocairo");
     exe.linkSystemLibrary("xkbcommon");
 
     exe.linkLibC();
