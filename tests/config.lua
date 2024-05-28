@@ -5,8 +5,8 @@ return {
 		highlight_color = { 1, 0, 0, 1 },
 		size = 16,
 		family = "Arial",
-		slant = "Normal",
-		weight = "Normal",
+		style = "Normal",
+		weight = "normal",
         offset = { 5, 15 },
 	},
 	grid = {

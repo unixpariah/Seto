@@ -16,8 +16,9 @@ fn cairoDraw(ctx: *cairo.Context, position: [2]isize, path: []u8, matches: u8, f
         layout.setText(path[0..matches]);
         ctx.showLayout(layout);
 
+        var rect: pango.Rectangle = undefined;
         var logical_rect: pango.Rectangle = undefined;
-        layout.getExtents(undefined, &logical_rect);
+        layout.getExtents(&rect, &logical_rect);
         ctx.relMoveTo(@as(f64, @floatFromInt(logical_rect.width)) / pango.SCALE, 0);
         ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
     }
@@ -65,9 +66,12 @@ pub const Tree = struct {
             defer font_description.free();
 
             font_description.setFamilyStatic(font.family);
-            font_description.setStyle(font.slant);
+            font_description.setStyle(font.style);
             font_description.setWeight(font.weight);
             font_description.setAbsoluteSize(font.size * pango.SCALE);
+            font_description.setVariant(font.variant);
+            font_description.setStretch(font.stretch);
+            font_description.setGravity(font.gravity);
 
             layout.setFontDescription(font_description);
 

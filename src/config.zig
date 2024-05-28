@@ -100,11 +100,14 @@ pub const Config = struct {
 pub const Font = struct {
     color: [4]f64 = .{ 1, 1, 1, 1 },
     highlight_color: [4]f64 = .{ 1, 1, 0, 1 },
+    offset: [2]isize = .{ 5, 5 },
     size: f64 = 16,
     family: [:0]const u8,
-    slant: pango.Style = .Normal,
+    style: pango.Style = .Normal,
     weight: pango.Weight = .normal,
-    offset: [2]isize = .{ 5, 5 },
+    variant: pango.Variant = .Normal,
+    stretch: pango.Stretch = .Normal,
+    gravity: pango.Gravity = .Auto,
 
     const Self = @This();
 
@@ -179,35 +182,70 @@ pub const Font = struct {
         }
         lua.pop(1);
 
-        _ = lua.pushString("slant");
-        _ = lua.getTable(2);
-        if (!lua.isNil(3)) {
-            if (!lua.isString(3)) {
-                std.debug.print("Font slant should be a string\n", .{});
+        font.style = getStyle(pango.Style, "style", lua) catch |err| switch (err) {
+            error.TypeError => {
+                std.debug.print("Font style should be a string\n", .{});
                 std.process.exit(1);
-            }
-            const font_slant = try lua.toString(3);
-            font.slant = std.meta.stringToEnum(pango.Style, std.mem.span(font_slant)) orelse {
-                std.debug.print("Font slant \"{s}\" not found\nAvailable options are:\n - Normal\n - Italic \n - Oblique\n", .{font_slant});
+            },
+            error.NotFound => pango.Style.Normal,
+            error.OptNotFound => {
+                std.debug.print("Font slant not found\nAvailable options are:\n - Normal\n - Italic \n - Oblique\n", .{});
                 std.process.exit(1);
-            };
-        }
-        lua.pop(1);
+            },
+            error.Fail => pango.Style.Normal,
+        };
 
-        _ = lua.pushString("weight");
-        _ = lua.getTable(2);
-        if (!lua.isNil(3)) {
-            if (!lua.isString(3)) {
+        font.weight = getStyle(pango.Weight, "weight", lua) catch |err| switch (err) {
+            error.TypeError => {
                 std.debug.print("Font weight should be a string\n", .{});
                 std.process.exit(1);
-            }
-            const font_weight = try lua.toString(3);
-            font.weight = std.meta.stringToEnum(pango.Weight, std.mem.span(font_weight)) orelse {
-                std.debug.print("Font weight \"{s}\" not found\nAvailable options are:\n - thin\n - ultralight\n - light\n - semilight\n - book\n - normal\n - medium\n - semibold\n - bold\n - Ultrabold\n - heavy\n - ultraheavy\n", .{font_weight});
+            },
+            error.NotFound => pango.Weight.normal,
+            error.OptNotFound => {
+                std.debug.print("Font weight not found\nAvailable options are:\n - thin\n - ultralight\n - light\n - semilight\n - book\n - normal\n - medium\n - semibold\n - bold\n - Ultrabold\n - heavy\n - ultraheavy\n", .{});
                 std.process.exit(1);
-            };
-        }
-        lua.pop(1);
+            },
+            error.Fail => pango.Weight.normal,
+        };
+
+        font.variant = getStyle(pango.Variant, "variant", lua) catch |err| switch (err) {
+            error.TypeError => {
+                std.debug.print("Font variant should be a string\n", .{});
+                std.process.exit(1);
+            },
+            error.NotFound => pango.Variant.Normal,
+            error.OptNotFound => {
+                std.debug.print("Font variant not found\nAvailable options:\n - Normal\n - Unicase\n - SmallCaps\n - TitleCaps\n - PetiteCaps\n - AllSmallCaps\n - AllPetiteCaps\n", .{});
+                std.process.exit(1);
+            },
+            error.Fail => pango.Variant.Normal,
+        };
+
+        font.gravity = getStyle(pango.Gravity, "gravity", lua) catch |err| switch (err) {
+            error.TypeError => {
+                std.debug.print("Font gravity should be a string\n", .{});
+                std.process.exit(1);
+            },
+            error.NotFound => pango.Gravity.Auto,
+            error.OptNotFound => {
+                std.debug.print("Font gravity not found\nAvailable options:\n - Auto\n - East\n - West\n - South\n - North\n", .{});
+                std.process.exit(1);
+            },
+            error.Fail => pango.Gravity.Auto,
+        };
+
+        font.stretch = getStyle(pango.Stretch, "stretch", lua) catch |err| switch (err) {
+            error.TypeError => {
+                std.debug.print("Font stretch should be a string\n", .{});
+                std.process.exit(1);
+            },
+            error.NotFound => pango.Stretch.Normal,
+            error.OptNotFound => {
+                std.debug.print("Font stretch not found\nAvailable options:\n - Normal\n - Expanded\n - Condensed\n - SemiExpanded\n - SemiCondensed\n - ExtraExpanded\n - ExtraCondensed\n - UltraExpanded\n - UltraCondensed\n", .{});
+                std.process.exit(1);
+            },
+            error.Fail => pango.Stretch.Normal,
+        };
 
         _ = lua.pushString("offset");
         _ = lua.getTable(2);
@@ -233,6 +271,18 @@ pub const Font = struct {
         return font;
     }
 };
+
+fn getStyle(comptime T: type, name: [:0]const u8, lua: *Lua) !T {
+    _ = lua.pushString(name);
+    _ = lua.getTable(2);
+    defer lua.pop(1);
+    if (!lua.isNil(3)) {
+        if (!lua.isString(3)) return error.TypeError;
+        const font_stretch = try lua.toString(3);
+        return std.meta.stringToEnum(T, std.mem.span(font_stretch)) orelse return error.OptNotFound;
+    }
+    return error.NotFound;
+}
 
 pub const Grid = struct {
     color: [4]f64 = .{ 1, 1, 1, 1 },
