@@ -131,4 +131,7 @@ pub fn xdgOutputListener(
             }
         }
     }
+
+    seto.updateDimensions();
+    seto.sortOutputs();
 }

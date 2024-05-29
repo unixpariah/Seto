@@ -16,7 +16,7 @@ pub fn parseArgs(seto: *Seto) void {
             _ = args.next();
         } else if (std.mem.eql(u8, arg, "-v") or std.mem.eql(u8, arg, "--version")) {
             // Yes I hardcoded version, fuck off
-            std.debug.print("Seto v0.1.0 \nBuild type: {}\nzig {}\n", .{ builtin.mode, builtin.zig_version });
+            std.debug.print("Seto v0.1.0 \nBuild type: {}\nZig {}\n", .{ builtin.mode, builtin.zig_version });
             std.process.exit(0);
         } else {
             std.debug.print("Seto: Unkown option argument: \"{s}\"\nMore info with \"seto -h\"\n", .{arg});
@@ -37,29 +37,29 @@ const help_message =
     \\  -h, --help                      Display help information and quit
     \\  -v, --version                   Display version information and quit
     \\
-    \\General styling:
-    \\  --background-color <HEX>        Set background color
-    \\
-    \\Font styling:
-    \\  --font-color <HEX>              Set font color
-    \\  --highlight-color <HEX>         Set highlighted color
-    \\  --font-size <INT>               Set font size
-    \\  --font-family "<STRING>"        Set font family
-    \\  --font-weight <STRING>          Set font weight
-    \\  --font-style <STRING>           Set font style
-    \\  --font-variant <STRING>         Set font variant
-    \\  --font-gravity <STRING>         Set font gravity
-    \\  --font-stretch <STRING>         Set font stretch
-    \\  --font-offset <INT,INT>         Change position of text on grid
-    \\
-    \\Grid styling:
-    \\  --grid-color <HEX>              Set color of grid
-    \\  --line-width <FLOAT>            Set width of grid lines
-    \\  --grid-size <INT,INT>           Set size of each square
-    \\  --grid-offset <INT,INT>         Change default position of grid
-    \\  --grid-selected-color <HEX>     Change color of selected position in region mode
-    \\  --selected-line-width <INT>     Change line width of selected position in region mode
-    \\
-    \\Keybindings:
-    \\  --search-keys <STRING>          Set keys used to search
+    // \\General styling:
+    // \\  --background-color <HEX>        Set background color
+    // \\
+    // \\Font styling:
+    // \\  --font-color <HEX>              Set font color
+    // \\  --highlight-color <HEX>         Set highlighted color
+    // \\  --font-size <INT>               Set font size
+    // \\  --font-family "<STRING>"        Set font family
+    // \\  --font-weight <STRING>          Set font weight
+    // \\  --font-style <STRING>           Set font style
+    // \\  --font-variant <STRING>         Set font variant
+    // \\  --font-gravity <STRING>         Set font gravity
+    // \\  --font-stretch <STRING>         Set font stretch
+    // \\  --font-offset <INT,INT>         Change position of text on grid
+    // \\
+    // \\Grid styling:
+    // \\  --grid-color <HEX>              Set color of grid
+    // \\  --line-width <FLOAT>            Set width of grid lines
+    // \\  --grid-size <INT,INT>           Set size of each square
+    // \\  --grid-offset <INT,INT>         Change default position of grid
+    // \\  --grid-selected-color <HEX>     Change color of selected position in region mode
+    // \\  --selected-line-width <INT>     Change line width of selected position in region mode
+    // \\
+    // \\Keybindings:
+    // \\  --search-keys <STRING>          Set keys used to search
 ;

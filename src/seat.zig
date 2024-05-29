@@ -1,12 +1,11 @@
 const std = @import("std");
 const posix = std.posix;
-const Grid = @import("config.zig").Grid;
-const Mode = @import("main.zig").Mode;
 
 const xkb = @import("xkbcommon");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 
+const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 
 const Repeat = struct {

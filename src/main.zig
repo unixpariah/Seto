@@ -2,6 +2,12 @@ const std = @import("std");
 const mem = std.mem;
 const posix = std.posix;
 
+const cairo = @import("cairo");
+const wayland = @import("wayland");
+const wl = wayland.client.wl;
+const zwlr = wayland.client.zwlr;
+const zxdg = wayland.client.zxdg;
+
 const Tree = @import("tree.zig").Tree;
 const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
@@ -10,19 +16,10 @@ const Result = @import("tree.zig").Result;
 const Config = @import("config.zig").Config;
 
 const handleKey = @import("seat.zig").handleKey;
-
 const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
-
 const parseArgs = @import("cli.zig").parseArgs;
-
-const cairo = @import("cairo");
-
-const wayland = @import("wayland");
-const wl = wayland.client.wl;
-const zwlr = wayland.client.zwlr;
-const zxdg = wayland.client.zxdg;
 
 const EventInterfaces = enum {
     wl_shm,
@@ -34,7 +31,7 @@ const EventInterfaces = enum {
 };
 
 pub const Mode = union(enum) {
-    Region: ?[2]isize,
+    Region: ?[2]i32,
     Single,
 };
 
@@ -50,6 +47,8 @@ pub const Seto = struct {
     exit: bool = false,
     mode: Mode = .Single,
     alloc: mem.Allocator,
+    tree: ?Tree = null,
+    total_dimensions: [2]i32 = .{ 0, 0 },
 
     const Self = @This();
 
@@ -61,7 +60,7 @@ pub const Seto = struct {
         };
     }
 
-    fn getDimensions(self: *Self) [2]i32 {
+    pub fn updateDimensions(self: *Self) void {
         var x: [2]i32 = .{ 0, 0 };
         var y: [2]i32 = .{ 0, 0 };
         for (self.outputs.items) |output| {
@@ -74,16 +73,16 @@ pub const Seto = struct {
             if (info.y + info.height > y[1]) y[1] = info.y + info.height;
         }
 
-        return .{ x[1] - x[0], y[1] - y[0] };
+        self.total_dimensions = .{ x[1] - x[0], y[1] - y[0] };
     }
 
-    fn sortOutputs(self: *Self) void {
+    pub fn sortOutputs(self: *Self) void {
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], comptime Surface.cmp);
     }
 
     fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
         const grid = self.config.?.grid;
-        var i: isize = grid.offset[0];
+        var i: i32 = grid.offset[0];
         while (i <= width) : (i += grid.size[0]) {
             context.*.moveTo(@floatFromInt(i), 0);
             context.*.lineTo(@floatFromInt(i), @floatFromInt(height));
@@ -115,8 +114,8 @@ pub const Seto = struct {
         }
     }
 
-    fn printToStdout(self: *Self, tree: *Tree) void {
-        const coords = tree.find(self.seat.buffer.items) catch |err| {
+    fn printToStdout(self: *Self) void {
+        const coords = self.tree.?.find(self.seat.buffer.items) catch |err| {
             switch (err) {
                 error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
                 error.EndNotReached => {},
@@ -126,9 +125,9 @@ pub const Seto = struct {
         switch (self.mode) {
             .Region => |positions| {
                 if (positions) |pos| {
-                    const top_left: [2]isize = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
-                    const bottom_right: [2]isize = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
-                    const size: [2]isize = .{ bottom_right[0] - top_left[0], bottom_right[1] - top_left[1] };
+                    const top_left: [2]i32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
+                    const bottom_right: [2]i32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
+                    const size: [2]i32 = .{ bottom_right[0] - top_left[0], bottom_right[1] - top_left[1] };
                     const format = std.fmt.allocPrintZ(self.alloc, "{},{} {}x{}\n", .{ top_left[0], top_left[1], size[0], size[1] }) catch @panic("OOM");
                     defer self.alloc.free(format);
                     _ = std.io.getStdOut().write(format) catch @panic("Write error");
@@ -149,16 +148,13 @@ pub const Seto = struct {
 
     fn createSurfaces(self: *Self) !void {
         if (!self.shouldDraw()) return;
-        self.sortOutputs();
+        if (self.tree == null) {
+            self.tree = Tree.new(self.config.?.keys.search, self.alloc, self.total_dimensions, self.config.?.grid);
+        }
 
-        const dimensions = self.getDimensions();
-        const width: u32 = @intCast(dimensions[0]);
-        const height: u32 = @intCast(dimensions[1]);
+        self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid);
 
-        var tree = Tree.new(self.config.?.keys.search, self.alloc, dimensions, self.config.?.grid, self.mode);
-        defer tree.arena.deinit();
-
-        self.printToStdout(&tree);
+        self.printToStdout();
         if (self.exit) {
             const outputs = self.outputs.items;
             for (outputs) |*output| {
@@ -172,21 +168,23 @@ pub const Seto = struct {
             return;
         }
 
+        const width: u32 = @intCast(self.total_dimensions[0]);
+        const height: u32 = @intCast(self.total_dimensions[1]);
+
         const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
         defer cairo_surface.destroy();
         const ctx = try cairo.Context.create(cairo_surface.asSurface());
         defer ctx.destroy();
 
-        tree.drawText(ctx, self.config.?.font, self.seat.buffer.items);
-        self.drawGrid(width, height, &ctx);
-
         const bg_color = self.config.?.background_color;
         ctx.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
         ctx.paintWithAlpha(bg_color[3]);
 
+        self.drawGrid(width, height, &ctx);
+        self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items);
+
         var prev: ?OutputInfo = null;
         var pos: [2]i32 = .{ 0, 0 };
-
         const outputs = self.outputs.items;
         for (outputs) |*output| {
             if (!output.isConfigured()) continue;
@@ -228,6 +226,7 @@ pub const Seto = struct {
         self.seat.destroy();
         self.config.?.keys.bindings.deinit();
         self.config.?.destroy();
+        self.tree.?.arena.deinit();
     }
 };
 

@@ -82,6 +82,6 @@ return {
 
 ## TODO
 
-- Reuse tree between draws instead of reallocating everything
 - Sync redraws with monitors refresh rate
 - Finish cli
+- Hardware acceleration (mby ???)

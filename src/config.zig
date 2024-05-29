@@ -1,10 +1,10 @@
 const std = @import("std");
-const cairo = @import("cairo");
-const ziglua = @import("ziglua");
-const Lua = ziglua.Lua;
 const fs = std.fs;
-const assert = std.debug.assert;
+
+const Lua = @import("ziglua").Lua;
 const pango = @import("pango");
+
+const assert = std.debug.assert;
 
 fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     var args = std.process.args();
@@ -100,7 +100,7 @@ pub const Config = struct {
 pub const Font = struct {
     color: [4]f64 = .{ 1, 1, 1, 1 },
     highlight_color: [4]f64 = .{ 1, 1, 0, 1 },
-    offset: [2]isize = .{ 5, 5 },
+    offset: [2]i32 = .{ 5, 5 },
     size: f64 = 16,
     family: [:0]const u8,
     style: pango.Style = .Normal,
@@ -278,8 +278,8 @@ fn getStyle(comptime T: type, name: [:0]const u8, lua: *Lua) !T {
     defer lua.pop(1);
     if (!lua.isNil(3)) {
         if (!lua.isString(3)) return error.TypeError;
-        const font_stretch = try lua.toString(3);
-        return std.meta.stringToEnum(T, std.mem.span(font_stretch)) orelse return error.OptNotFound;
+        const result = try lua.toString(3);
+        return std.meta.stringToEnum(T, std.mem.span(result)) orelse return error.OptNotFound;
     }
     return error.NotFound;
 }
@@ -287,8 +287,8 @@ fn getStyle(comptime T: type, name: [:0]const u8, lua: *Lua) !T {
 pub const Grid = struct {
     color: [4]f64 = .{ 1, 1, 1, 1 },
     selected_color: [4]f64 = .{ 1, 0, 0, 1 },
-    size: [2]isize = .{ 80, 80 },
-    offset: [2]isize = .{ 0, 0 },
+    size: [2]i32 = .{ 80, 80 },
+    offset: [2]i32 = .{ 0, 0 },
     line_width: f64 = 2,
     selected_line_width: f64 = 2,
 

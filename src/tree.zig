@@ -11,7 +11,7 @@ pub const Result = struct {
     pos: [2]usize,
 };
 
-fn cairoDraw(ctx: *cairo.Context, position: [2]isize, path: []u8, matches: u8, font: Font, layout: *pango.Layout) void {
+fn cairoDraw(ctx: *cairo.Context, position: [2]i32, path: []u8, matches: u8, font: Font, layout: *pango.Layout) void {
     ctx.moveTo(@floatFromInt(position[0] + font.offset[0]), @floatFromInt(position[1] + font.offset[1]));
     if (matches > 0) {
         ctx.setSourceRgba(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2], font.highlight_color[3]);
@@ -38,41 +38,10 @@ pub const Tree = struct {
 
     const Self = @This();
 
-    pub fn new(keys: []const u8, alloc: std.mem.Allocator, dimensions: [2]i32, grid: Grid, mode: Mode) Self {
+    pub fn new(keys: []const u8, alloc: std.mem.Allocator, dimensions: [2]i32, grid: Grid) Self {
         var arena = std.heap.ArenaAllocator.init(alloc);
         const nodes = arena.allocator().alloc(Node, keys.len) catch @panic("OOM");
         for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
-
-        const intersections = intersections: {
-            const width: u32 = @intCast(dimensions[0]);
-            const height: u32 = @intCast(dimensions[1]);
-
-            const num_steps_i = @divTrunc((width - grid.offset[0]), grid.size[0]) + 1;
-            const num_steps_j = @divTrunc((height - grid.offset[1]), grid.size[1]) + 1;
-
-            const total_intersections = num_steps_i * num_steps_j;
-
-            var intersections = arena.allocator().alloc([2]isize, @intCast(total_intersections)) catch @panic("OOM");
-
-            var index: usize = 0;
-            var i = grid.offset[0];
-            while (i <= width) : (i += grid.size[0]) {
-                var j = grid.offset[1];
-                while (j <= height) : (j += grid.size[1]) {
-                    intersections[index] = .{ i, j };
-                    index += 1;
-                }
-            }
-
-            break :intersections intersections;
-        };
-
-        const max_depth: u8 = depth: {
-            const items_len: f64 = @floatFromInt(intersections.len);
-            const keys_len: f64 = @floatFromInt(keys.len);
-            const depth = std.math.log(f64, keys_len, items_len);
-            break :depth @intFromFloat(std.math.ceil(depth));
-        };
 
         var tree = Self{
             .children = nodes,
@@ -82,13 +51,15 @@ pub const Tree = struct {
             .arena = arena,
         };
 
-        for (1..max_depth) |_| {
-            tree.increaseDepth();
-        }
-
-        tree.putCoordinates(intersections, mode);
+        tree.updateCoordinates(dimensions, grid);
 
         return tree;
+    }
+
+    pub fn move(self: *Self, advance: [2]i32) void {
+        for (self.children) |*child| {
+            child.traverseAndMove(advance, self.dimensions);
+        }
     }
 
     pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8) void {
@@ -122,7 +93,7 @@ pub const Tree = struct {
         }
     }
 
-    pub fn find(self: *Self, buffer: [][64]u8) ![2]isize {
+    pub fn find(self: *Self, buffer: [][64]u8) ![2]i32 {
         if (buffer.len == 0) return error.EndNotReached;
         for (self.children) |*child| {
             if (child.key == buffer[0][0]) {
@@ -133,10 +104,46 @@ pub const Tree = struct {
         return error.KeyNotFound;
     }
 
-    fn putCoordinates(self: *Self, intersections: [][2]isize, mode: Mode) void {
+    pub fn updateCoordinates(self: *Self, dimensions: [2]i32, grid: Grid) void {
+        const intersections = intersections: {
+            const width = dimensions[0];
+            const height = dimensions[1];
+
+            const num_steps_i = @divTrunc((width - grid.offset[0]), grid.size[0]) + 1;
+            const num_steps_j = @divTrunc((height - grid.offset[1]), grid.size[1]) + 1;
+
+            const total_intersections = num_steps_i * num_steps_j;
+
+            var intersections = self.arena.allocator().alloc([2]i32, @intCast(total_intersections)) catch @panic("OOM");
+
+            var index: usize = 0;
+            var i = grid.offset[0];
+            while (i <= width) : (i += grid.size[0]) {
+                var j = grid.offset[1];
+                while (j <= height) : (j += grid.size[1]) {
+                    intersections[index] = .{ i, j };
+                    index += 1;
+                }
+            }
+
+            break :intersections intersections;
+        };
+        defer self.arena.allocator().free(intersections);
+
+        const depth: u8 = depth: {
+            const items_len: f64 = @floatFromInt(intersections.len);
+            const keys_len: f64 = @floatFromInt(self.keys.len);
+            const depth = std.math.log(f64, keys_len, items_len);
+            break :depth @intFromFloat(std.math.ceil(depth));
+        };
+
+        for (self.depth..depth) |_| {
+            self.increaseDepth();
+        }
+
         var index: usize = 0;
         for (self.children) |*child| {
-            child.traverseAndPutCoords(intersections, &index, mode);
+            child.traverseAndPutCoords(intersections, &index);
         }
     }
 
@@ -158,9 +165,25 @@ pub const Tree = struct {
 const Node = struct {
     key: u8,
     children: ?[]Node = null,
-    coordinates: ?[2]isize = null,
+    coordinates: ?[2]i32 = null,
 
     const Self = @This();
+
+    fn traverseAndMove(self: *Self, advance: [2]i32, dimensions: [2]i32) void {
+        if (self.children) |children| {
+            for (children) |*child| {
+                if (child.coordinates) |*coordinates| {
+                    coordinates[0] += advance[0];
+                    coordinates[1] += advance[1];
+                    if (coordinates[0] > dimensions[0] or coordinates[1] > dimensions[1] or coordinates[0] < 0 or coordinates[1] < 0) {
+                        child.coordinates = null;
+                    }
+                } else {
+                    child.traverseAndMove(advance, dimensions);
+                }
+            }
+        }
+    }
 
     fn traverseAndDraw(self: *Self, ctx: *cairo.Context, buffer: [][64]u8, font: Font, path: []u8, matches: u8, index: u8, layout: *pango.Layout) void {
         if (self.children) |children| {
@@ -178,7 +201,7 @@ const Node = struct {
         }
     }
 
-    fn traverseAndFind(self: *Self, buffer: [][64]u8, index: usize) ![2]isize {
+    fn traverseAndFind(self: *Self, buffer: [][64]u8, index: usize) ![2]i32 {
         if (self.coordinates) |coordinates| return coordinates;
         if (buffer.len <= index) return error.EndNotReached;
         if (self.children) |children| {
@@ -192,7 +215,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn traverseAndPutCoords(self: *Self, intersections: [][2]isize, index: *usize, mode: Mode) void {
+    fn traverseAndPutCoords(self: *Self, intersections: [][2]i32, index: *usize) void {
         if (self.children == null) {
             if (index.* < intersections.len) {
                 self.coordinates = intersections[index.*];
@@ -200,7 +223,7 @@ const Node = struct {
             }
         } else {
             for (self.children.?) |*child| {
-                child.traverseAndPutCoords(intersections, index, mode);
+                child.traverseAndPutCoords(intersections, index);
             }
         }
     }
@@ -222,6 +245,7 @@ const Node = struct {
     }
 
     fn createChildren(self: *Self, keys: []const u8, alloc: std.mem.Allocator) void {
+        self.coordinates = null;
         if (self.children == null) {
             const nodes = alloc.alloc(Node, keys.len) catch @panic("OOM");
             for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
