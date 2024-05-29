@@ -82,7 +82,6 @@ return {
 
 ## TODO
 
-- Better tree structure
 - Reuse tree between draws instead of reallocating everything
-- Implement asking compositor for new frames
+- Sync redraws with monitors refresh rate
 - Finish cli

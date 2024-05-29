@@ -29,22 +29,6 @@ fn cairoDraw(ctx: *cairo.Context, position: [2]isize, path: []u8, matches: u8, f
     ctx.showLayout(layout);
 }
 
-fn createNestedTree(alloc: std.mem.Allocator, keys: []const u8, depth: usize, intersections: [][2]isize, tree_index: *usize) std.AutoHashMap(u8, Node) {
-    var tree = std.AutoHashMap(u8, Node).init(alloc);
-    for (keys) |key| {
-        if (tree_index.* >= intersections.len) return tree;
-        if (depth <= 1) {
-            tree.put(key, .{ .position = intersections[tree_index.*] }) catch @panic("OOM");
-            tree_index.* += 1;
-            continue;
-        }
-        const new_tree = createNestedTree(alloc, keys, depth - 1, intersections, tree_index);
-        tree.put(key, .{ .node = new_tree }) catch @panic("OOM");
-    }
-
-    return tree;
-}
-
 pub const Tree = struct {
     children: []Node,
     keys: []const u8,

@@ -81,43 +81,6 @@ pub const Seto = struct {
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], comptime Surface.cmp);
     }
 
-    fn getIntersections(self: *Seto) [][2]isize {
-        const dimensions = self.getDimensions();
-        const width: u32 = @intCast(dimensions[0]);
-        const height: u32 = @intCast(dimensions[1]);
-
-        const grid = self.config.?.grid;
-
-        const num_steps_i = @divTrunc((width - grid.offset[0]), grid.size[0]) + 1;
-        const num_steps_j = @divTrunc((height - grid.offset[1]), grid.size[1]) + 1;
-
-        const total_intersections = num_steps_i * num_steps_j;
-
-        var intersections = self.alloc.alloc([2]isize, @intCast(total_intersections)) catch @panic("OOM");
-
-        var index: usize = 0;
-        var i = grid.offset[0];
-        while (i <= width) : (i += grid.size[0]) {
-            var j = grid.offset[1];
-            while (j <= height) : (j += grid.size[1]) {
-                switch (self.mode) {
-                    .Region => |position| {
-                        if (position) |pos| {
-                            if (pos[0] == i or pos[1] == j) {
-                                continue;
-                            }
-                        }
-                    },
-                    .Single => {},
-                }
-                intersections[index] = .{ i, j };
-                index += 1;
-            }
-        }
-
-        return intersections;
-    }
-
     fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
         const grid = self.config.?.grid;
         var i: isize = grid.offset[0];
@@ -191,9 +154,6 @@ pub const Seto = struct {
         const dimensions = self.getDimensions();
         const width: u32 = @intCast(dimensions[0]);
         const height: u32 = @intCast(dimensions[1]);
-
-        const intersections = self.getIntersections();
-        defer self.alloc.free(intersections);
 
         var tree = Tree.new(self.config.?.keys.search, self.alloc, dimensions, self.config.?.grid, self.mode);
         defer tree.arena.deinit();
