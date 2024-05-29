@@ -46,7 +46,10 @@ const help_message =
     \\  --font-size <INT>               Set font size
     \\  --font-family "<STRING>"        Set font family
     \\  --font-weight <STRING>          Set font weight
-    \\  --font-slant <STRING>           Set font slant
+    \\  --font-style <STRING>           Set font style
+    \\  --font-variant <STRING>         Set font variant
+    \\  --font-gravity <STRING>         Set font gravity
+    \\  --font-stretch <STRING>         Set font stretch
     \\  --font-offset <INT,INT>         Change position of text on grid
     \\
     \\Grid styling:
@@ -59,5 +62,4 @@ const help_message =
     \\
     \\Keybindings:
     \\  --search-keys <STRING>          Set keys used to search
-    \\  --bind-function <CHAR> <STRING> Bind function to specified key (see man seto for details)
 ;

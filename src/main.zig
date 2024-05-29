@@ -3,7 +3,6 @@ const mem = std.mem;
 const posix = std.posix;
 
 const Tree = @import("tree.zig").Tree;
-const Tree2 = @import("tree.zig").Tree2;
 const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
 const Seat = @import("seat.zig").Seat;
@@ -196,10 +195,8 @@ pub const Seto = struct {
         const intersections = self.getIntersections();
         defer self.alloc.free(intersections);
 
-        const depth = getDepth(intersections, self.config.?.keys.search);
-
-        var tree = Tree.new(self.alloc, self.config.?.keys.search, depth, intersections);
-        defer tree.alloc.deinit();
+        var tree = Tree.new(self.config.?.keys.search, self.alloc, dimensions, self.config.?.grid, self.mode);
+        defer tree.arena.deinit();
 
         self.printToStdout(&tree);
         if (self.exit) {
@@ -273,13 +270,6 @@ pub const Seto = struct {
         self.config.?.destroy();
     }
 };
-
-fn getDepth(intersections: [][2]isize, keys: []const u8) u8 {
-    const items_len: f64 = @floatFromInt(intersections.len);
-    const keys_len: f64 = @floatFromInt(keys.len);
-    const depth = std.math.log(f64, keys_len, items_len);
-    return @intFromFloat(std.math.ceil(depth));
-}
 
 pub fn main() !void {
     const display = try wl.Display.connect(null);

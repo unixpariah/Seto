@@ -8,6 +8,7 @@
 - wayland
 - libxkbcommon
 - cairo
+- pango
 
 2. Clone the repository:
 
@@ -42,10 +43,13 @@ return {
 		color = { 1, 1, 1, 1 },
 		highlight_color = { 1, 0, 0, 1 },
 		size = 16,
-		family = "Arial",
-		style = "Normal",
+		family = "JetBrainsMono Nerd Font",
+		slant = "Normal",
 		weight = "normal",
-        offset = { 5, 15 },
+		variant = "Normal",
+		gravity = "Auto",
+		stretch = "Normal",
+		offset = { 5, 5 },
 	},
 	grid = {
 		color = { 1, 1, 1, 1 },
@@ -81,3 +85,4 @@ return {
 - Better tree structure
 - Reuse tree between draws instead of reallocating everything
 - Implement asking compositor for new frames
+- Finish cli

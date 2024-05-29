@@ -189,7 +189,7 @@ pub const Font = struct {
             },
             error.NotFound => pango.Style.Normal,
             error.OptNotFound => {
-                std.debug.print("Font slant not found\nAvailable options are:\n - Normal\n - Italic \n - Oblique\n", .{});
+                std.debug.print("Font style not found\nAvailable options are:\n - Normal\n - Italic \n - Oblique\n", .{});
                 std.process.exit(1);
             },
             error.Fail => pango.Style.Normal,
