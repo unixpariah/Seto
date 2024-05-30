@@ -178,6 +178,10 @@ pub fn handleKey(self: *Seto) void {
                 .move_selection_y => |value| moveSelectionY(self, value),
                 .quit => self.exit = true,
             }
+
+            if (function == .move_x or function == .move_y or function == .resize_x or function == .resize_y) {
+                self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid);
+            }
         }
 
         if (buffer[0] == 'c' and ctrl_active) self.exit = true;

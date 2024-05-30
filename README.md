@@ -25,7 +25,7 @@ zig build -Doptimize=ReleaseFast -p /usr/local
 
 ## Configuration
 
-Configuration can be done using lua. By default, the configuration file will be located at
+Configuration can be done using lua. By default, seto will look for config at
 `$XDG_HOME_CONFIG/seto/config.lua`.
 
 You can also specify a custom path to your configuration file:

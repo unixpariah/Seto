@@ -80,7 +80,7 @@ pub const Seto = struct {
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], comptime Surface.cmp);
     }
 
-    fn drawGrid(self: *Self, width: u32, height: u32, context: *const *cairo.Context) void {
+    fn drawGrid(self: *Self, width: u32, height: u32, context: *cairo.Context) void {
         const grid = self.config.?.grid;
         var i: i32 = grid.offset[0];
         while (i <= width) : (i += grid.size[0]) {
@@ -152,8 +152,6 @@ pub const Seto = struct {
             self.tree = Tree.new(self.config.?.keys.search, self.alloc, self.total_dimensions, self.config.?.grid);
         }
 
-        self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid);
-
         self.printToStdout();
         if (self.exit) {
             const outputs = self.outputs.items;
@@ -177,10 +175,10 @@ pub const Seto = struct {
         defer ctx.destroy();
 
         const bg_color = self.config.?.background_color;
-        ctx.setSourceRgb(bg_color[0], bg_color[1], bg_color[2]);
-        ctx.paintWithAlpha(bg_color[3]);
+        ctx.setSourceRgba(bg_color[0], bg_color[1], bg_color[2], bg_color[3]);
+        ctx.paint();
 
-        self.drawGrid(width, height, &ctx);
+        self.drawGrid(width, height, ctx);
         self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items);
 
         var prev: ?OutputInfo = null;

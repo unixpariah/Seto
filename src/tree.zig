@@ -137,8 +137,10 @@ pub const Tree = struct {
             break :depth @intFromFloat(std.math.ceil(depth));
         };
 
-        for (self.depth..depth) |_| {
-            self.increaseDepth();
+        if (depth < self.depth) {
+            for (depth..self.depth) |_| self.decreaseDepth();
+        } else {
+            for (self.depth..depth) |_| self.increaseDepth();
         }
 
         var index: usize = 0;
@@ -157,7 +159,7 @@ pub const Tree = struct {
     fn decreaseDepth(self: *Self) void {
         self.depth -= 1;
         for (self.children) |*child| {
-            child.traverseAndFreeChildren(self.keys, self.arena.allocator());
+            child.traverseAndFreeChildren(self.arena.allocator());
         }
     }
 };
@@ -238,9 +240,15 @@ const Node = struct {
 
     fn traverseAndFreeChildren(self: *Self, alloc: std.mem.Allocator) void {
         if (self.children) |children| {
-            for (children) |child| child.traverseAndFreeChildren();
-        } else {
-            alloc.free(self);
+            for (children) |*child| {
+                if (child.children == null) {
+                    alloc.free(self.children.?);
+                    self.children = null;
+                    return;
+                } else {
+                    child.traverseAndFreeChildren(alloc);
+                }
+            }
         }
     }
 
