@@ -133,19 +133,17 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
     }
 }
 
-fn moveSelectionX(seto: *Seto, value: i32) void {
+fn moveSelection(seto: *Seto, value: [2]i32) void {
     switch (seto.mode) {
         .Region => |position| {
-            if (position) |_| seto.mode.Region.?[0] += value;
+            if (position) |_| seto.mode.Region.?[0] += value[0];
         },
         .Single => {},
     }
-}
 
-fn moveSelectionY(seto: *Seto, value: i32) void {
     switch (seto.mode) {
         .Region => |position| {
-            if (position) |_| seto.mode.Region.?[1] += value;
+            if (position) |_| seto.mode.Region.?[1] += value[1];
         },
         .Single => {},
     }
@@ -166,20 +164,17 @@ pub fn handleKey(self: *Seto) void {
         _ = keysym.toUTF8(&buffer, 64);
         if (self.config.?.keys.bindings.get(buffer[0])) |function| {
             switch (function) {
-                .move_x => |value| grid.moveX(value),
-                .move_y => |value| grid.moveY(value),
-                .resize_x => |value| grid.resizeX(value),
-                .resize_y => |value| grid.resizeY(value),
+                .move => |value| grid.move(value),
+                .resize => |value| grid.resize(value),
                 .remove => _ = self.seat.buffer.popOrNull(),
                 .cancel_selection => if (self.mode == Mode.Region) {
                     self.mode = Mode{ .Region = null };
                 },
-                .move_selection_x => |value| moveSelectionX(self, value),
-                .move_selection_y => |value| moveSelectionY(self, value),
+                .move_selection => |value| moveSelection(self, value),
                 .quit => self.exit = true,
             }
 
-            if (function == .move_x or function == .move_y or function == .resize_x or function == .resize_y) {
+            if (function == .move or function == .resize) {
                 self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid);
             }
         }

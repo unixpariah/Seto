@@ -60,21 +60,21 @@ return {
 	keys = {
 		search = "asdfghjkl",
 		bindings = {
-			z = { move_x = -5 },          -- Move to left by 5 px on 'z'
-			x = { move_y = 5 },           -- Move to bottom by 5px on 'x'
-			n = { move_y = -5 },          -- Move to top by 5px on 'n'
-			m = { move_x = 5 },           -- Move to right by 5px on 'm'
-			Z = { resize_x = -5 },        -- Decrease width by 5px on Shift + 'z'
-			X = { resize_y = 5 },         -- Increase height by 5px on Shift + 'x'
-			N = { resize_y = -5 },        -- Decrease height by 5px on Shift + 'n'
-			M = { resize_x = 5 },         -- Increase width by 5px on Shift + 'm'
-            w = { move_selection_x = -5 } -- Move selection to left by 5 px on 'z'
-            e = { move_selection_y = 5 }  -- Move selection to bottom by 5px on 'x'
-            o = { move_selection_y = -5 } -- Move selection to top by 5px on 'n'
-            p = { move_selection_x = 5 }  -- Move selection to right by 5px on 'm'
-			c = "cancel_selection",       -- Remove selected position
-			[8] = "remove",               -- Pop last typed character on xkb keycode 8 (Backspace)
-			q = "quit",                   -- Quit program on 'q'
+			z = { move = { -5, 0 } },           -- Move to left by 5 px on 'z'
+			x = { move = { 0, 5 } },            -- Move to bottom by 5px on 'x'
+			n = { move = { 0, -5 } },           -- Move to top by 5px on 'n'
+			m = { move = { 5, 0 } },            -- Move to right by 5px on 'm'
+			Z = { resize = { -5, 0 } },         -- Decrease width by 5px on Shift + 'z'
+			X = { resize = { 0, 5 } },          -- Increase height by 5px on Shift + 'x'
+			N = { resize = { 0, -5 } },         -- Decrease height by 5px on Shift + 'n'
+			M = { resize = { 5, 0 } },          -- Increase width by 5px on Shift + 'm'
+			H = { move_selection = { -5, 0 } }, -- Move selection to left by 5 px on 'z'
+			J = { move_selection = { 0, 5 } },  -- Move selection to bottom by 5px on 'x'
+			K = { move_selection = { 0, -5 } }, -- Move selection to top by 5px on 'n'
+			L = { move_selection = { 5, 0 } },  -- Move selection to right by 5px on 'm'
+			c = "cancel_selection",             -- Remove selected position
+			[8] = "remove",                     -- Pop last typed character on xkb keycode 8 (Backspace)
+			q = "quit",                         -- Quit program on 'q'
 		},
 	},
 }

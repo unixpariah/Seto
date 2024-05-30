@@ -37,6 +37,7 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
 }
 
 pub const Config = struct {
+    output_format: []const u8 = "%x,%y %wx%h\n",
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
     keys: Keys,
     font: Font,
@@ -410,67 +411,48 @@ pub const Grid = struct {
         return grid;
     }
 
-    pub fn moveX(self: *Self, value: i32) void {
-        if (self.offset[0] < -value) self.offset[0] = self.size[0];
-        self.offset[0] += value;
-        if (self.offset[0] >= self.size[0]) self.offset[0] -= self.size[0];
-    }
-
-    pub fn moveY(self: *Self, value: i32) void {
-        if (self.offset[1] < -value) self.offset[1] = self.size[1];
-        self.offset[1] += value;
-        if (self.offset[1] >= self.size[1]) self.offset[1] -= self.size[1];
-    }
-
-    pub fn resizeX(self: *Self, value: i32) void {
-        var new_size = self.size[0] + value;
-        if (new_size <= 0) {
-            new_size = 1;
+    pub fn move(self: *Self, value: [2]i32) void {
+        for (value, 0..) |val, i| {
+            if (self.offset[i] < -val) self.offset[i] = self.size[i];
+            self.offset[i] += val;
+            if (self.offset[i] >= self.size[i]) self.offset[i] -= self.size[i];
         }
-        self.size[0] = new_size;
     }
 
-    pub fn resizeY(self: *Self, value: i32) void {
-        var new_size = self.size[1] + value;
-        if (new_size <= 0) {
-            new_size = 1;
+    pub fn resize(self: *Self, value: [2]i32) void {
+        for (value, 0..) |val, i| {
+            var new_size = self.size[i] + val;
+            if (new_size <= 0) {
+                new_size = 1;
+            }
+            self.size[i] = new_size;
         }
-        self.size[1] = new_size;
     }
 };
 
 const Function = union(enum) {
-    resize_x: i32,
-    resize_y: i32,
-    move_x: i32,
-    move_y: i32,
-    move_selection_x: i32,
-    move_selection_y: i32,
+    resize: [2]i32,
+    move: [2]i32,
+    move_selection: [2]i32,
     cancel_selection,
     remove,
     quit,
 
     const Self = @This();
 
-    fn stringToFunction(string: []const u8, value: ?i32) !Self {
+    fn stringToFunction(string: []const u8, value: ?[2]i32) !Self {
         if (std.mem.eql(u8, string, "remove")) {
             return .remove;
         } else if (std.mem.eql(u8, string, "quit")) {
             return .quit;
         } else if (std.mem.eql(u8, string, "cancel_selection")) {
             return .cancel_selection;
-        } else if (std.mem.eql(u8, string, "move_x")) {
-            return .{ .move_x = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "move_y")) {
-            return .{ .move_y = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "resize_x")) {
-            return .{ .resize_x = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "resize_y")) {
-            return .{ .resize_y = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "move_selection_x")) {
-            return .{ .move_selection_x = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "move_selection_y")) {
-            return .{ .move_selection_y = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "move")) {
+            return .{ .move = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "resize")) {
+            return .{ .resize = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "move_selection")) {
+            return .{ .move_selection = value orelse return error.NullValue };
         }
 
         return error.UnkownFunction;
@@ -509,7 +491,7 @@ const Keys = struct {
                 else
                     (try lua.toString(4))[0];
 
-                const value: std.meta.Tuple(&.{ [*:0]const u8, ?i32 }) = x: {
+                const value: std.meta.Tuple(&.{ [*:0]const u8, ?[2]i32 }) = x: {
                     if (lua.isString(5)) {
                         break :x .{ try lua.toString(5), null };
                     } else {
@@ -519,7 +501,14 @@ const Keys = struct {
                         _ = lua.getTable(5);
                         _ = lua.pushNil();
                         if (lua.next(5)) {
-                            break :x .{ try lua.toString(7), @intFromFloat(try lua.toNumber(8)) };
+                            var move_value: [2]i32 = undefined;
+                            var index: u8 = 0;
+                            _ = lua.pushNil();
+                            while (lua.next(8)) : (index += 1) {
+                                move_value[index] = @intFromFloat(try lua.toNumber(10));
+                                lua.pop(1);
+                            }
+                            break :x .{ try lua.toString(7), move_value };
                         }
                     }
                 };
