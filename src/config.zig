@@ -40,6 +40,7 @@ pub const Config = struct {
     smooth_scrolling: bool = true,
     output_format: []const u8 = "%x,%y %wx%h\n",
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
+    filter_color: [4]f64 = .{ 0, 0, 0, 0 },
     keys: Keys,
     font: Font,
     grid: Grid = Grid{},
@@ -85,6 +86,26 @@ pub const Config = struct {
             }
             if (index < 4) {
                 std.debug.print("Background color should be in RGBA format\n", .{});
+                std.process.exit(1);
+            }
+        }
+        lua.pop(1);
+
+        _ = lua.pushString("filter");
+        _ = lua.getTable(1);
+        if (!lua.isNil(2)) {
+            var index: u8 = 0;
+            lua.pushNil();
+            while (lua.next(2)) : (index += 1) {
+                if (!lua.isNumber(4) or index > 3) {
+                    std.debug.print("Filter color should be in RGBA format\n", .{});
+                    std.process.exit(1);
+                }
+                config.filter_color[index] = try lua.toNumber(4);
+                lua.pop(1);
+            }
+            if (index < 4) {
+                std.debug.print("Filter color should be in RGBA format\n", .{});
                 std.process.exit(1);
             }
         }

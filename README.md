@@ -38,6 +38,7 @@ seto -c <PATH>
 
 ```lua
 return {
+	filter_color = { 0, 0, 0, 0 },
 	background_color = { 1, 1, 1, 0.4 },
 	font = {
 		color = { 1, 1, 1, 1 },

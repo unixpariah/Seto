@@ -36,7 +36,6 @@ fn printAndExit(comptime message: []const u8, arg: []const u8) noreturn {
 fn getNextArg(args: *std.process.ArgIterator, current_arg: []const u8) []const u8 {
     return args.next() orelse {
         printAndExit("Argument missing after: \"{s}\"\n", current_arg);
-        return null; // To satisfy the return type, although execution will not reach here
     };
 }
 
@@ -114,6 +113,8 @@ pub fn parseArgs(seto: *Seto) void {
             config.grid.color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-selected-color")) {
             config.grid.selected_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+        } else if (std.mem.eql(u8, arg, "--filter-color")) {
+            config.filter_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--format") or std.mem.eql(u8, arg, "-f")) {
             config.output_format = getNextArg(&args, arg);
         } else if (std.mem.eql(u8, arg, "--function") or std.mem.eql(u8, arg, "-F")) {
@@ -160,6 +161,7 @@ const help_message =
     \\
     \\General styling:
     \\  --background-color <HEX>                   Set background color
+    \\  --filter-color <HEX>                       Set color of filter
     \\
     \\Font styling:
     \\  --font-color <HEX>                         Set font color

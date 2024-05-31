@@ -157,7 +157,19 @@ pub const Seto = struct {
             const outputs = self.outputs.items;
             for (outputs) |*output| {
                 if (!output.isConfigured()) continue;
-                @memset(output.mmap.?, 0);
+
+                const filter = self.config.?.filter_color;
+                const filter_rgba: [4]u8 = .{
+                    @intFromFloat(filter[2] * 255),
+                    @intFromFloat(filter[1] * 255),
+                    @intFromFloat(filter[0] * 255),
+                    @intFromFloat(filter[3] * 255),
+                };
+
+                var index: usize = 0;
+                while (index < output.mmap.?.len) : (index += 4) {
+                    @memcpy(output.mmap.?[index .. index + 4], &filter_rgba);
+                }
             }
             return;
         }
