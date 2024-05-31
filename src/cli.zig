@@ -164,8 +164,8 @@ const help_message =
     \\  --filter-color <HEX>                       Set color of filter
     \\
     \\Font styling:
-    \\  --font-color <HEX>                         Set font color
     \\  --highlight-color <HEX>                    Set highlighted color
+    \\  --font-color <HEX>                         Set font color
     \\  --font-size <INT>                          Set font size
     \\  --font-family <STRING>                     Set font family
     \\  --font-weight <STRING>                     Set font weight
@@ -177,10 +177,10 @@ const help_message =
     \\
     \\Grid styling:
     \\  --grid-color <HEX>                         Set color of grid
-    \\  --line-width <FLOAT>                       Set width of grid lines
     \\  --grid-size <INT,INT>                      Set size of each square
     \\  --grid-offset <INT,INT>                    Change default position of grid
     \\  --grid-selected-color <HEX>                Change color of selected position in region mode
+    \\  --line-width <FLOAT>                       Set width of grid lines
     \\  --selected-line-width <INT>                Change line width of selected position in region mode
     \\
     \\Keybindings:

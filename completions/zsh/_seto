@@ -1,0 +1,31 @@
+#compdef seto
+
+_arguments -s \
+  '-h[Display help information and quit]' \
+  '--help[Display help information and quit]' \
+  '-v[Display version information and quit]' \
+  '--version[Display version information and quit]' \
+  '-r+[Select region of screen]' \
+  '-c+[Specifies config file]:config file:_files' \
+  '-f+[Specifies format of output]:format:_files' \
+  '--background-color+[Set background color]:color' \
+  '--filter-color+[Set color of filter]:color' \
+  '--highlight-color+[Set highlighted color]:color' \
+  '--font-color+[Set font color]:color' \
+  '--font-size+[Set font size]:size' \
+  '--font-family+[Set font family]:family' \
+  '--font-weight+[Set font weight]:weight' \
+  '--font-style+[Set font style]:style' \
+  '--font-variant+[Set font variant]:variant' \
+  '--font-gravity+[Set font gravity]:gravity' \
+  '--font-stretch+[Set font stretch]:stretch' \
+  '--font-offset+[Change position of text on grid]:offset' \
+  '--grid-color+[Set color of grid]:color' \
+  '--grid-size+[Set size of each square]:size' \
+  '--grid-offset+[Change default position of grid]:offset' \
+  '--grid-selected-color+[Change color of selected position in region mode]:color' \
+  '--line-width+[Set width of grid lines]:width' \
+  '--selected-line-width+[Change line width of selected position in region mode]:width' \
+  '-s+[Set keys used to search]:keys' \
+  '-F+[Bind function to a key]:function'
+}
