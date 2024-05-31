@@ -157,11 +157,7 @@ pub const Seto = struct {
             const outputs = self.outputs.items;
             for (outputs) |*output| {
                 if (!output.isConfigured()) continue;
-                const data = try self.alloc.alloc(u8, @intCast(output.output_info.width * output.output_info.height * 4));
-                defer self.alloc.free(data);
-                @memset(data, 0);
-
-                try output.draw(data.ptr);
+                @memset(output.mmap.?, 0);
             }
             return;
         }
@@ -201,7 +197,8 @@ pub const Seto = struct {
             output_ctx.paint();
 
             const data = try output_surface.getData();
-            try output.draw(data);
+
+            @memcpy(output.mmap.?, data);
             prev = info;
         }
     }
@@ -251,16 +248,16 @@ pub fn main() !void {
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
-    var timer = try std.time.Timer.start();
     while (true) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
-        if (seto.seat.repeatKey()) handleKey(&seto);
+        if (seto.seat.repeatKey()) {
+            handleKey(&seto);
+        }
         try seto.createSurfaces();
         if (seto.exit) {
             if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
             break;
         }
-        std.debug.print("{}ms\n", .{timer.lap() / std.time.ns_per_ms});
     }
 }
 

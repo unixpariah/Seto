@@ -13,7 +13,7 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
         if (index == 0) continue;
         if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
             const path = args.next() orelse {
-                std.debug.print("seto: Argument missing after: \"-c\"\nMore info with \"seto -h\"\n", .{});
+                std.debug.print("Argument missing after: \"-c\"\nMore info with \"seto -h\"\n", .{});
                 std.process.exit(1);
             };
 
@@ -37,6 +37,7 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
 }
 
 pub const Config = struct {
+    smooth_scrolling: bool = true,
     output_format: []const u8 = "%x,%y %wx%h\n",
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
     keys: Keys,
@@ -50,7 +51,7 @@ pub const Config = struct {
         const config_path = getPath(alloc) catch {
             const keys = Keys{ .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
             const font = Font{
-                .family = alloc.dupeZ(u8, "Arial") catch @panic("OOM"),
+                .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM"),
             };
             return Config{
                 .alloc = alloc,
@@ -113,7 +114,7 @@ pub const Font = struct {
     const Self = @This();
 
     fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
-        var font = Font{ .family = alloc.dupeZ(u8, "Arial") catch @panic("OOM") };
+        var font = Font{ .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM") };
 
         _ = lua.pushString("font");
         _ = lua.getTable(1);
@@ -184,68 +185,43 @@ pub const Font = struct {
         lua.pop(1);
 
         font.style = getStyle(pango.Style, "style", lua) catch |err| switch (err) {
-            error.TypeError => {
-                std.debug.print("Font style should be a string\n", .{});
-                std.process.exit(1);
-            },
-            error.NotFound => pango.Style.Normal,
             error.OptNotFound => {
                 std.debug.print("Font style not found\nAvailable options are:\n - Normal\n - Italic \n - Oblique\n", .{});
                 std.process.exit(1);
             },
-            error.Fail => pango.Style.Normal,
+            else => font.style,
         };
 
         font.weight = getStyle(pango.Weight, "weight", lua) catch |err| switch (err) {
-            error.TypeError => {
-                std.debug.print("Font weight should be a string\n", .{});
-                std.process.exit(1);
-            },
-            error.NotFound => pango.Weight.normal,
             error.OptNotFound => {
                 std.debug.print("Font weight not found\nAvailable options are:\n - thin\n - ultralight\n - light\n - semilight\n - book\n - normal\n - medium\n - semibold\n - bold\n - Ultrabold\n - heavy\n - ultraheavy\n", .{});
                 std.process.exit(1);
             },
-            error.Fail => pango.Weight.normal,
+            else => font.weight,
         };
 
         font.variant = getStyle(pango.Variant, "variant", lua) catch |err| switch (err) {
-            error.TypeError => {
-                std.debug.print("Font variant should be a string\n", .{});
-                std.process.exit(1);
-            },
-            error.NotFound => pango.Variant.Normal,
             error.OptNotFound => {
                 std.debug.print("Font variant not found\nAvailable options:\n - Normal\n - Unicase\n - SmallCaps\n - TitleCaps\n - PetiteCaps\n - AllSmallCaps\n - AllPetiteCaps\n", .{});
                 std.process.exit(1);
             },
-            error.Fail => pango.Variant.Normal,
+            else => font.variant,
         };
 
         font.gravity = getStyle(pango.Gravity, "gravity", lua) catch |err| switch (err) {
-            error.TypeError => {
-                std.debug.print("Font gravity should be a string\n", .{});
-                std.process.exit(1);
-            },
-            error.NotFound => pango.Gravity.Auto,
             error.OptNotFound => {
                 std.debug.print("Font gravity not found\nAvailable options:\n - Auto\n - East\n - West\n - South\n - North\n", .{});
                 std.process.exit(1);
             },
-            error.Fail => pango.Gravity.Auto,
+            else => font.gravity,
         };
 
         font.stretch = getStyle(pango.Stretch, "stretch", lua) catch |err| switch (err) {
-            error.TypeError => {
-                std.debug.print("Font stretch should be a string\n", .{});
-                std.process.exit(1);
-            },
-            error.NotFound => pango.Stretch.Normal,
             error.OptNotFound => {
                 std.debug.print("Font stretch not found\nAvailable options:\n - Normal\n - Expanded\n - Condensed\n - SemiExpanded\n - SemiCondensed\n - ExtraExpanded\n - ExtraCondensed\n - UltraExpanded\n - UltraCondensed\n", .{});
                 std.process.exit(1);
             },
-            error.Fail => pango.Stretch.Normal,
+            else => font.stretch,
         };
 
         _ = lua.pushString("offset");
@@ -278,7 +254,10 @@ fn getStyle(comptime T: type, name: [:0]const u8, lua: *Lua) !T {
     _ = lua.getTable(2);
     defer lua.pop(1);
     if (!lua.isNil(3)) {
-        if (!lua.isString(3)) return error.TypeError;
+        if (!lua.isString(3)) {
+            std.debug.print("Font {s} should be a string\n", .{name});
+            std.process.exit(1);
+        }
         const result = try lua.toString(3);
         return std.meta.stringToEnum(T, std.mem.span(result)) orelse return error.OptNotFound;
     }
@@ -430,7 +409,7 @@ pub const Grid = struct {
     }
 };
 
-const Function = union(enum) {
+pub const Function = union(enum) {
     resize: [2]i32,
     move: [2]i32,
     move_selection: [2]i32,
@@ -440,7 +419,7 @@ const Function = union(enum) {
 
     const Self = @This();
 
-    fn stringToFunction(string: []const u8, value: ?[2]i32) !Self {
+    pub fn stringToFunction(string: []const u8, value: ?[2]i32) !Self {
         if (std.mem.eql(u8, string, "remove")) {
             return .remove;
         } else if (std.mem.eql(u8, string, "quit")) {
@@ -469,7 +448,7 @@ const Keys = struct {
         var keys_s = Keys{ .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
 
         _ = lua.pushString("keys");
-        _ = lua.getTable(1); // TODO: Idk if I should care but this is the place where it errors if file is completely empty
+        _ = lua.getTable(1);
         if (lua.isNil(2)) return keys_s;
         _ = lua.pushString("search");
         _ = lua.getTable(2);
@@ -535,26 +514,26 @@ test "resize" {
         var grid = Grid{};
         var initial = grid.size;
         const index: i32 = @intCast(i);
-        grid.resizeX(index);
+        grid.resize(.{ index, 0 });
         assert(grid.size[0] == initial[0] + index);
 
-        grid.resizeY(index);
+        grid.resize(.{ 0, index });
         assert(grid.size[1] == initial[1] + index);
 
         initial = grid.size;
-        grid.resizeX(-index);
+        grid.resize(.{ -index, 0 });
         assert(grid.size[0] == initial[0] - index);
 
-        grid.resizeY(-index);
+        grid.resize(.{ 0, -index });
         assert(grid.size[1] == initial[1] - index);
 
         grid.size[0] = index;
         grid.size[1] = index;
         initial = grid.size;
-        grid.resizeX(-std.math.maxInt(i32));
+        grid.resize(.{ -std.math.maxInt(i32), 0 });
         assert(grid.size[0] == 1);
 
-        grid.resizeY(-std.math.maxInt(i32));
+        grid.resize(.{ 0, -std.math.maxInt(i32) });
         assert(grid.size[1] == 1);
     }
 }
@@ -564,27 +543,27 @@ test "move" {
         var grid = Grid{};
         var initial = grid.offset;
         const index: i32 = @intCast(i);
-        grid.moveX(index);
+        grid.move(.{ index, 0 });
         assert(grid.offset[0] == initial[0] + index);
 
-        grid.moveY(index);
+        grid.move(.{ 0, index });
         assert(grid.offset[1] == initial[1] + index);
 
         grid.offset[0] = 0;
         initial = grid.offset;
-        grid.moveX(-index);
+        grid.move(.{ -index, 0 });
         assert(grid.offset[0] == grid.size[0] - index);
 
         grid.offset[1] = 0;
         initial = grid.offset;
-        grid.moveY(-index);
+        grid.move(.{ 0, -index });
         assert(grid.offset[1] == grid.size[1] - index);
 
         initial = grid.offset;
-        grid.moveX(index * 2);
+        grid.move(.{ index * 2, 0 });
         assert(grid.offset[0] == index);
 
-        grid.moveY(index * 2);
+        grid.move(.{ 0, index * 2 });
         assert(grid.offset[1] == index);
     }
 }

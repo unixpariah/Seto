@@ -82,6 +82,4 @@ return {
 
 ## TODO
 
-- Sync redraws with monitors refresh rate
-- Finish cli
 - Hardware acceleration (mby ???)

@@ -222,6 +222,8 @@ const Node = struct {
             if (index.* < intersections.len) {
                 self.coordinates = intersections[index.*];
                 index.* += 1;
+            } else {
+                self.coordinates = null;
             }
         } else {
             for (self.children.?) |*child| {

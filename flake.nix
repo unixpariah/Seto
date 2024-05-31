@@ -27,8 +27,8 @@
         zls.packages.${system}.default
         zig
         pango
-        pkg-config
         cairo
+        pkg-config
         wayland
         wayland-scanner
         wayland-protocols

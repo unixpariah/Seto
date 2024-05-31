@@ -53,24 +53,17 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *Self, data: [*]u8) !void {
+    pub fn draw(self: *Self) !void {
         const width = self.output_info.width;
         const height = self.output_info.height;
-        const stride = width * 4;
-        const size: usize = @intCast(stride * height);
 
-        if (self.mmap == null) {
-            try posix.ftruncate(self.fd, @intCast(size));
-            self.pool.resize(@intCast(size));
-            self.mmap = try posix.mmap(null, size, posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, self.fd, 0);
-        }
-        @memcpy(self.mmap.?, data);
-
-        const buffer = try self.pool.createBuffer(0, width, height, stride, wl.Shm.Format.argb8888);
+        const buffer = try self.pool.createBuffer(0, width, height, self.output_info.width * 4, wl.Shm.Format.argb8888);
         defer buffer.destroy();
 
         self.surface.damage(0, 0, width, height);
         self.surface.attach(buffer, 0, 0);
+        const callback = try self.surface.frame();
+        callback.setListener(*Self, frameListener, self);
         self.surface.commit();
     }
 
@@ -90,6 +83,12 @@ pub const Surface = struct {
         std.posix.close(self.fd);
     }
 };
+
+pub fn frameListener(callback: *wl.Callback, event: wl.Callback.Event, surface: *Surface) void {
+    surface.draw() catch return;
+    callback.destroy();
+    _ = event;
+}
 
 pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, seto: *Seto) void {
     switch (event) {
@@ -126,6 +125,14 @@ pub fn xdgOutputListener(
                 .logical_size => |size| {
                     surface.output_info.height = size.height;
                     surface.output_info.width = size.width;
+
+                    const total_size = size.width * size.height * 4;
+
+                    posix.ftruncate(surface.fd, @intCast(total_size)) catch @panic("OOM");
+                    surface.pool.resize(total_size);
+                    surface.mmap = posix.mmap(null, @intCast(total_size), posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, surface.fd, 0) catch @panic("OOM");
+
+                    surface.draw() catch return;
                 },
                 .done => {},
             }
