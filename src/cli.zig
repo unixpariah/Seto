@@ -12,14 +12,14 @@ fn hexToRgba(hex: ?[]const u8) ![4]f64 {
 
     const start: u8 = if (hex.?[0] == '#') 1 else 0;
 
-    if (hex.?.len < 6) {
+    if (hex.?.len < 6 + start) {
         return error.InvalidColor;
     }
 
     const r: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[0 + start .. 2 + start], 16));
     const g: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[2 + start .. 4 + start], 16));
     const b: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[4 + start .. 6 + start], 16));
-    const a: f64 = if (hex.?.len + start > 6) @floatFromInt(try std.fmt.parseInt(u8, hex.?[6 + start .. 8 + start], 16)) else 255;
+    const a: f64 = if (hex.?.len > 6 + start) @floatFromInt(try std.fmt.parseInt(u8, hex.?[6 + start .. 8 + start], 16)) else 255;
 
     return .{
         r / 255,

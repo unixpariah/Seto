@@ -282,11 +282,11 @@ plain string.
 
 ```
 return {
-	background_color = { 1, 1, 1, 0.4 },
-	filter_color = { 1, 1, 1, 0.5 },
+	background_color = "#FFFFFF66",
+	filter_color = "#00000000",
 	font = {
-		color = { 1, 1, 1, 1 },
-		highlight_color = { 1, 1, 0, 1 },
+		color = "#FFFFFF",
+		highlight_color = "#FFFF00FF",
 		size = 16,
 		family = "JetBrainsMono Nerd Font",
 		style = "Normal",
@@ -297,11 +297,11 @@ return {
 		offset = { 5, 5 },
 	},
 	grid = {
-		color = { 1, 1, 1, 1 },
+		color = "#FFFFFFFF",
 		line_width = 2,
 		size = { 80, 80 },
 		offset = { 0, 0 },
-		selected_color = { 1, 0, 0, 1 },
+		selected_color = "#FF0000FF",
 		selected_line_width = 2,
 	},
 	keys = {

@@ -38,6 +38,26 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     return config_path;
 }
 
+fn hexToRgba(hex: []const u8) ![4]f64 {
+    const start: u8 = if (hex[0] == '#') 1 else 0;
+
+    if (hex.len < 6 + start) {
+        return error.InvalidColor;
+    }
+
+    const r: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex[0 + start .. 2 + start], 16));
+    const g: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex[2 + start .. 4 + start], 16));
+    const b: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex[4 + start .. 6 + start], 16));
+    const a: f64 = if (hex.len > 6 + start) @floatFromInt(try std.fmt.parseInt(u8, hex[6 + start .. 8 + start], 16)) else 255;
+
+    return .{
+        r / 255,
+        g / 255,
+        b / 255,
+        a / 255,
+    };
+}
+
 pub const Config = struct {
     smooth_scrolling: bool = true,
     output_format: []const u8 = "%x,%y %wx%h\n",
@@ -75,42 +95,26 @@ pub const Config = struct {
 
         _ = lua.pushString("background_color");
         _ = lua.getTable(1);
-        if (!lua.isNil(2)) {
-            var index: u8 = 0;
-            lua.pushNil();
-            while (lua.next(2)) : (index += 1) {
-                if (!lua.isNumber(4) or index > 3) {
-                    std.debug.print("Background color should be in RGBA format\n", .{});
-                    std.process.exit(1);
-                }
-                config.background_color[index] = try lua.toNumber(4);
-                lua.pop(1);
-            }
-            if (index < 4) {
-                std.debug.print("Background color should be in RGBA format\n", .{});
-                std.process.exit(1);
-            }
+        if (!lua.isString(2)) {
+            std.debug.print("Background color expected hex value\n", .{});
+            std.process.exit(1);
         }
+        config.background_color = hexToRgba(std.mem.span(try lua.toString(2))) catch {
+            std.debug.print("Failed to parse background color\n", .{});
+            std.process.exit(1);
+        };
         lua.pop(1);
 
-        _ = lua.pushString("filter");
+        _ = lua.pushString("filter_color");
         _ = lua.getTable(1);
-        if (!lua.isNil(2)) {
-            var index: u8 = 0;
-            lua.pushNil();
-            while (lua.next(2)) : (index += 1) {
-                if (!lua.isNumber(4) or index > 3) {
-                    std.debug.print("Filter color should be in RGBA format\n", .{});
-                    std.process.exit(1);
-                }
-                config.filter_color[index] = try lua.toNumber(4);
-                lua.pop(1);
-            }
-            if (index < 4) {
-                std.debug.print("Filter color should be in RGBA format\n", .{});
-                std.process.exit(1);
-            }
+        if (!lua.isString(2)) {
+            std.debug.print("Filter color expected hex value\n", .{});
+            std.process.exit(1);
         }
+        config.filter_color = hexToRgba(std.mem.span(try lua.toString(2))) catch {
+            std.debug.print("Failed to parse filter color\n", .{});
+            std.process.exit(1);
+        };
         lua.pop(1);
 
         return config;
@@ -145,42 +149,26 @@ pub const Font = struct {
 
         _ = lua.pushString("color");
         _ = lua.getTable(2);
-        if (!lua.isNil(3)) {
-            lua.pushNil();
-            var index: u8 = 0;
-            while (lua.next(3)) : (index += 1) {
-                if (!lua.isNumber(5) or index > 3) {
-                    std.debug.print("Font color should be in a RGBA format\n", .{});
-                    std.process.exit(1);
-                }
-                font.color[index] = try lua.toNumber(5);
-                lua.pop(1);
-            }
-            if (index < 4) {
-                std.debug.print("Font color should be in a RGBA format\n", .{});
-                std.process.exit(1);
-            }
+        if (!lua.isString(3)) {
+            std.debug.print("Font color expected hex value\n", .{});
+            std.process.exit(1);
         }
+        font.color = hexToRgba(std.mem.span(try lua.toString(3))) catch {
+            std.debug.print("Failed to parse font color\n", .{});
+            std.process.exit(1);
+        };
         lua.pop(1);
 
         _ = lua.pushString("highlight_color");
         _ = lua.getTable(2);
-        if (!lua.isNil(3)) {
-            lua.pushNil();
-            var index: u8 = 0;
-            while (lua.next(3)) : (index += 1) {
-                if (!lua.isNumber(5) or index > 3) {
-                    std.debug.print("Font highlight color should be in a RGBA format\n", .{});
-                    std.process.exit(1);
-                }
-                font.highlight_color[index] = try lua.toNumber(5);
-                lua.pop(1);
-            }
-            if (index < 4) {
-                std.debug.print("Font highlight color should be in a RGBA format\n", .{});
-                std.process.exit(1);
-            }
+        if (!lua.isString(3)) {
+            std.debug.print("Font highlight color expected hex value\n", .{});
+            std.process.exit(1);
         }
+        font.highlight_color = hexToRgba(std.mem.span(try lua.toString(3))) catch {
+            std.debug.print("Failed to parse highlight color\n", .{});
+            std.process.exit(1);
+        };
         lua.pop(1);
 
         _ = lua.pushString("size");
@@ -312,42 +300,26 @@ pub const Grid = struct {
 
         _ = lua.pushString("color");
         _ = lua.getTable(2);
-        if (!lua.isNil(3)) {
-            lua.pushNil();
-            var index: u8 = 0;
-            while (lua.next(3)) : (index += 1) {
-                if (!lua.isNumber(5) or index > 3) {
-                    std.debug.print("Grid color should be in a RGBA format\n", .{});
-                    std.process.exit(1);
-                }
-                grid.color[index] = try lua.toNumber(5);
-                lua.pop(1);
-            }
-            if (index < 4) {
-                std.debug.print("Grid color should be in a RGBA format\n", .{});
-                std.process.exit(1);
-            }
+        if (!lua.isString(3)) {
+            std.debug.print("Grid color expected hex value\n", .{});
+            std.process.exit(1);
         }
+        grid.color = hexToRgba(std.mem.span(try lua.toString(3))) catch {
+            std.debug.print("Failed to parse grid color\n", .{});
+            std.process.exit(1);
+        };
         lua.pop(1);
 
         _ = lua.pushString("selected_color");
         _ = lua.getTable(2);
-        if (!lua.isNil(3)) {
-            lua.pushNil();
-            var index: u8 = 0;
-            while (lua.next(3)) : (index += 1) {
-                if (!lua.isNumber(5) or index > 3) {
-                    std.debug.print("Grid selected color should be in a RGBA format\n", .{});
-                    std.process.exit(1);
-                }
-                grid.selected_color[index] = try lua.toNumber(5);
-                lua.pop(1);
-            }
-            if (index < 4) {
-                std.debug.print("Grid selected color should be in a RGBA format\n", .{});
-                std.process.exit(1);
-            }
+        if (!lua.isString(3)) {
+            std.debug.print("Grid selected color expected hex value\n", .{});
+            std.process.exit(1);
         }
+        grid.selected_color = hexToRgba(std.mem.span(try lua.toString(3))) catch {
+            std.debug.print("Failed to parse selected grid color\n", .{});
+            std.process.exit(1);
+        };
         lua.pop(1);
 
         _ = lua.pushString("size");

@@ -35,6 +35,8 @@ You can also specify a custom path to your configuration file:
 seto -c <PATH>
 ```
 
+Run `man 5 seto` for information on the configuration
+
 ## TODO
 
 - Hardware acceleration (mby ???)
