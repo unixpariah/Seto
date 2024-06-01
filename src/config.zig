@@ -17,8 +17,10 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
                 std.process.exit(1);
             };
 
+            if (std.mem.eql(u8, path, "null")) return error.Null;
+
             std.fs.accessAbsolute(path, .{}) catch {
-                std.debug.print("Config file at path \"{s}\" not found\n", .{path});
+                std.debug.print("File \"{s}\" not found\n", .{path});
                 std.process.exit(1);
             };
 

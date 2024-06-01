@@ -174,7 +174,7 @@ const help_message =
     \\  --font-color <HEX>                         Set font color
     \\  --font-size <INT>                          Set font size
     \\  --font-family <STRING>                     Set font family
-    \\  --font-weight <STRING>                     Set font weight
+    \\  --font-weight <INT>                        Set font weight
     \\  --font-style <STRING>                      Set font style
     \\  --font-variant <STRING>                    Set font variant
     \\  --font-gravity <STRING>                    Set font gravity

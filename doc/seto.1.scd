@@ -14,6 +14,9 @@ Seto is a command-line utility for selecting a screen using keyboard for wayland
 compositors implementing layer-shell protocol.
 
 # OPTIONS
+
+*Generic Program Information*
+
 *-h, --help*
 	Display help information and quit.
 
@@ -24,7 +27,8 @@ compositors implementing layer-shell protocol.
 	Select region of screen.
 
 *-c, --config* _path_
-	Specifies path to config file.
+	Specifies path to config file. Pass *null* as argument to use default
+	config.
 
 *-f, --format* _format_
 	Set format. See *FORMAT* for more details.
@@ -34,8 +38,9 @@ compositors implementing layer-shell protocol.
 
 *--filter-color* _color_
 	Set filter color. Changes color of screen to specified color on exit,
-	useful with screenshoting tools.
+	useful when paired with screenshoting tools.
 
+*Font Settings*
 *--highlight-color* _color_
 	Set color of pressed keys.
 
@@ -66,6 +71,7 @@ compositors implementing layer-shell protocol.
 *--font-offset* _x_,_y_
 	Relatively move text on grid.
 
+*Grid Styling*
 *--grid-color* _color_
 	Set color of grid.
 
@@ -84,12 +90,19 @@ compositors implementing layer-shell protocol.
 *--selected-line-width* _width_
 	Set width of selected grid line when using *--region* option.
 
+*Keybindings*
+
 *-s, --search-keys* _keys_
 	Bind keys used to select screen. No separator between keys required.
 	Needs at least two characters.
 
 *-F, --function* _key_ _function_ [_x_,_y_]
 	Bind function to key. See *FUNCTIONS* for more details.
+
+# CONFIGURATION
+
+Configuration is done in lua, by default seto looks for config file at
+$XDG_CONFIG_HOME/.config/seto/config.lua
 
 # COLORS
 

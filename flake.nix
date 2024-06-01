@@ -26,7 +26,6 @@
       packages = with pkgs; [
         zls.packages.${system}.default
         zig
-        scdoc
         pango
         cairo
         pkg-config
@@ -34,6 +33,7 @@
         wayland-scanner
         wayland-protocols
         libxkbcommon
+        scdoc
       ];
     };
   };

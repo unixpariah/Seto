@@ -30,6 +30,12 @@ pkgs.stdenv.mkDerivation {
   '';
 
   postInstall = ''
+    for f in doc/*.scd; do
+      local page="doc/$(basename "$f" .scd)"
+      scdoc < "$f" > "$page"
+      installManPage "$page"
+    done
+
     installShellCompletion --cmd sww \
       --bash completions/seto.bash \
       --fish completions/seto.fish \
