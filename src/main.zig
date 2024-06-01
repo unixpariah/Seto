@@ -153,26 +153,7 @@ pub const Seto = struct {
         }
 
         self.printToStdout();
-        if (self.exit) {
-            const outputs = self.outputs.items;
-            for (outputs) |*output| {
-                if (!output.isConfigured()) continue;
-
-                const filter = self.config.?.filter_color;
-                const filter_rgba: [4]u8 = .{
-                    @intFromFloat(filter[2] * 255),
-                    @intFromFloat(filter[1] * 255),
-                    @intFromFloat(filter[0] * 255),
-                    @intFromFloat(filter[3] * 255),
-                };
-
-                var index: usize = 0;
-                while (index < output.mmap.?.len) : (index += 4) {
-                    @memcpy(output.mmap.?[index .. index + 4], &filter_rgba);
-                }
-            }
-            return;
-        }
+        if (self.exit) return;
 
         const width: u32 = @intCast(self.total_dimensions[0]);
         const height: u32 = @intCast(self.total_dimensions[1]);
@@ -262,15 +243,30 @@ pub fn main() !void {
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
     while (true) {
         if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
-        if (seto.seat.repeatKey()) {
-            handleKey(&seto);
-        }
+        if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
-        if (seto.exit) {
-            if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
-            break;
+        if (seto.exit) break;
+    }
+
+    const outputs = seto.outputs.items;
+    for (outputs) |*output| {
+        if (!output.isConfigured()) continue;
+
+        const filter = seto.config.?.filter_color;
+        const filter_rgba: [4]u8 = .{
+            @intFromFloat(filter[2] * 255),
+            @intFromFloat(filter[1] * 255),
+            @intFromFloat(filter[0] * 255),
+            @intFromFloat(filter[3] * 255),
+        };
+
+        var index: usize = 0;
+        while (index < output.mmap.?.len) : (index += 4) {
+            @memcpy(output.mmap.?[index .. index + 4], &filter_rgba);
         }
     }
+
+    if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 }
 
 fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Seto) void {

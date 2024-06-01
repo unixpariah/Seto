@@ -11,9 +11,10 @@
     pkgs = nixpkgs.legacyPackages.${system};
   in {
     devShells.${system}.default = pkgs.mkShell {
-      packages = with pkgs; [
-        ydotool
-        grim
+      packages = [
+        (import ./move-mouse.nix {inherit pkgs;})
+        (import ./screenshot.nix {inherit pkgs;})
+        pkgs.ydotool
       ];
     };
   };

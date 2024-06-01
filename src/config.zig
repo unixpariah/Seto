@@ -213,13 +213,16 @@ pub const Font = struct {
             else => font.style,
         };
 
-        font.weight = getStyle(pango.Weight, "weight", lua) catch |err| switch (err) {
-            error.OptNotFound => {
-                std.debug.print("Font weight not found\nAvailable options are:\n - thin\n - ultralight\n - light\n - semilight\n - book\n - normal\n - medium\n - semibold\n - bold\n - Ultrabold\n - heavy\n - ultraheavy\n", .{});
+        _ = lua.pushString("weight");
+        _ = lua.getTable(2);
+        if (!lua.isNil(3)) {
+            const result = lua.toNumber(3) catch {
+                std.debug.print("Font weight should be a number\n", .{});
                 std.process.exit(1);
-            },
-            else => font.weight,
-        };
+            };
+            font.weight = std.meta.intToEnum(pango.Weight, @as(u32, @intFromFloat(result))) catch |err| @panic(@errorName(err));
+        }
+        lua.pop(1);
 
         font.variant = getStyle(pango.Variant, "variant", lua) catch |err| switch (err) {
             error.OptNotFound => {

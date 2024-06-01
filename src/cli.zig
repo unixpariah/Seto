@@ -10,14 +10,16 @@ fn hexToRgba(hex: ?[]const u8) ![4]f64 {
         return error.ArgumentMissing;
     }
 
+    const start: u8 = if (hex.?[0] == '#') 1 else 0;
+
     if (hex.?.len < 6) {
         return error.InvalidColor;
     }
 
-    const r: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[0..2], 16));
-    const g: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[2..4], 16));
-    const b: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[4..6], 16));
-    const a: f64 = if (hex.?.len > 6) @floatFromInt(try std.fmt.parseInt(u8, hex.?[6..8], 16)) else 255;
+    const r: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[0 + start .. 2 + start], 16));
+    const g: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[2 + start .. 4 + start], 16));
+    const b: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[4 + start .. 6 + start], 16));
+    const a: f64 = if (hex.?.len + start > 6) @floatFromInt(try std.fmt.parseInt(u8, hex.?[6 + start .. 8 + start], 16)) else 255;
 
     return .{
         r / 255,
@@ -81,7 +83,11 @@ pub fn parseArgs(seto: *Seto) void {
             seto.alloc.free(config.font.family);
             config.font.family = seto.alloc.dupeZ(u8, getNextArg(&args, arg)) catch @panic("OOM");
         } else if (std.mem.eql(u8, arg, "--font-weight")) {
-            config.font.weight = getStyle(pango.Weight, getNextArg(&args, arg));
+            const font_weight = std.fmt.parseInt(u32, getNextArg(&args, arg), 10) catch {
+                std.debug.print("Font weight should be a number\n", .{});
+                std.process.exit(1);
+            };
+            config.font.weight = std.meta.intToEnum(pango.Weight, font_weight) catch |err| @panic(@errorName(err));
         } else if (std.mem.eql(u8, arg, "--font-style")) {
             config.font.style = getStyle(pango.Style, getNextArg(&args, arg));
         } else if (std.mem.eql(u8, arg, "--font-variant")) {
@@ -181,7 +187,7 @@ const help_message =
     \\  --grid-offset <INT,INT>                    Change default position of grid
     \\  --grid-selected-color <HEX>                Change color of selected position in region mode
     \\  --line-width <FLOAT>                       Set width of grid lines
-    \\  --selected-line-width <INT>                Change line width of selected position in region mode
+    \\  --selected-line-width <FLOAT>                Change line width of selected position in region mode
     \\
     \\Keybindings:
     \\  -s, --search-keys <STRING>                 Set keys used to search

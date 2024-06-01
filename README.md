@@ -9,6 +9,7 @@
 - libxkbcommon
 - cairo
 - pango
+- scdoc (optional: man pages)
 
 2. Clone the repository:
 
@@ -46,7 +47,7 @@ return {
 		size = 16,
 		family = "JetBrainsMono Nerd Font",
 		slant = "Normal",
-		weight = "normal",
+		weight = 500,
 		variant = "Normal",
 		gravity = "Auto",
 		stretch = "Normal",
