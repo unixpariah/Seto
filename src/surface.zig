@@ -37,6 +37,7 @@ pub const Surface = struct {
     mmap: ?[]align(mem.page_size) u8 = null,
     fd: std.posix.fd_t,
     pool: *wl.ShmPool,
+    buffer: ?*wl.Buffer = null,
 
     const Self = @This();
 
@@ -58,11 +59,8 @@ pub const Surface = struct {
         const width = self.output_info.width;
         const height = self.output_info.height;
 
-        const buffer = try self.pool.createBuffer(0, width, height, width * 4, wl.Shm.Format.argb8888);
-        defer buffer.destroy();
-
         self.surface.damage(0, 0, width, height);
-        self.surface.attach(buffer, 0, 0);
+        self.surface.attach(self.buffer, 0, 0);
         const callback = try self.surface.frame();
         callback.setListener(*Self, frameListener, self);
         self.surface.commit();
@@ -114,10 +112,10 @@ pub fn xdgOutputListener(
         if (surface.xdg_output == output) {
             switch (event) {
                 .name => |e| {
-                    surface.output_info.name = seto.alloc.dupe(u8, mem.span(e.name)) catch return;
+                    surface.output_info.name = seto.alloc.dupe(u8, mem.span(e.name)) catch @panic("OOM");
                 },
                 .description => |e| {
-                    surface.output_info.description = seto.alloc.dupe(u8, mem.span(e.description)) catch return;
+                    surface.output_info.description = seto.alloc.dupe(u8, mem.span(e.description)) catch @panic("OOM");
                 },
                 .logical_position => |pos| {
                     surface.output_info.x = pos.x;
@@ -135,6 +133,8 @@ pub fn xdgOutputListener(
 
                     seto.updateDimensions();
                     seto.sortOutputs();
+
+                    surface.buffer = surface.pool.createBuffer(0, size.width, size.height, size.width * 4, wl.Shm.Format.argb8888) catch unreachable;
 
                     surface.draw() catch return;
                 },

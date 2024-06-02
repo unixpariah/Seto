@@ -85,31 +85,31 @@ pub const Seto = struct {
         const grid = self.config.?.grid;
         var i: i32 = grid.offset[0];
         while (i <= width) : (i += grid.size[0]) {
-            context.*.moveTo(@floatFromInt(i), 0);
-            context.*.lineTo(@floatFromInt(i), @floatFromInt(height));
+            context.moveTo(@floatFromInt(i), 0);
+            context.lineTo(@floatFromInt(i), @floatFromInt(height));
         }
 
         i = grid.offset[1];
         while (i <= height) : (i += grid.size[1]) {
-            context.*.moveTo(0, @floatFromInt(i));
-            context.*.lineTo(@floatFromInt(width), @floatFromInt(i));
+            context.moveTo(0, @floatFromInt(i));
+            context.lineTo(@floatFromInt(width), @floatFromInt(i));
         }
 
-        context.*.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
-        context.*.setLineWidth(grid.line_width);
-        context.*.stroke();
+        context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
+        context.setLineWidth(grid.line_width);
+        context.stroke();
 
         switch (self.mode) {
             .Region => |position| if (position) |pos| {
-                context.*.moveTo(0, @floatFromInt(pos[1]));
-                context.*.lineTo(@floatFromInt(width), @floatFromInt(pos[1]));
+                context.moveTo(0, @floatFromInt(pos[1]));
+                context.lineTo(@floatFromInt(width), @floatFromInt(pos[1]));
 
-                context.*.moveTo(@floatFromInt(pos[0]), 0);
-                context.*.lineTo(@floatFromInt(pos[0]), @floatFromInt(height));
+                context.moveTo(@floatFromInt(pos[0]), 0);
+                context.lineTo(@floatFromInt(pos[0]), @floatFromInt(height));
 
-                context.*.setSourceRgba(grid.selected_color[0], grid.selected_color[1], grid.selected_color[2], grid.selected_color[3]);
-                context.*.setLineWidth(grid.selected_line_width);
-                context.*.stroke();
+                context.setSourceRgba(grid.selected_color[0], grid.selected_color[1], grid.selected_color[2], grid.selected_color[3]);
+                context.setLineWidth(grid.selected_line_width);
+                context.stroke();
             },
             .Single => {},
         }
@@ -205,7 +205,6 @@ pub const Seto = struct {
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
         self.shm.?.destroy();
-
         for (self.outputs.items) |*output| {
             output.destroy();
         }
