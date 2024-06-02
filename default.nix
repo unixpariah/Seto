@@ -21,7 +21,7 @@ pkgs.stdenv.mkDerivation {
   ];
 
   buildPhase = ''
-    zig build -Doptimize=ReleaseFast
+    XDG_CACHE_HOME="xdg_cache" zig build -Doptimize=ReleaseFast
   '';
 
   installPhase = ''

@@ -6,6 +6,7 @@ const wayland = @import("wayland");
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
+const cairo = @import("cairo");
 
 const Seto = @import("main.zig").Seto;
 
@@ -57,7 +58,7 @@ pub const Surface = struct {
         const width = self.output_info.width;
         const height = self.output_info.height;
 
-        const buffer = try self.pool.createBuffer(0, width, height, self.output_info.width * 4, wl.Shm.Format.argb8888);
+        const buffer = try self.pool.createBuffer(0, width, height, width * 4, wl.Shm.Format.argb8888);
         defer buffer.destroy();
 
         self.surface.damage(0, 0, width, height);
@@ -132,13 +133,13 @@ pub fn xdgOutputListener(
                     surface.pool.resize(total_size);
                     surface.mmap = posix.mmap(null, @intCast(total_size), posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, surface.fd, 0) catch @panic("OOM");
 
+                    seto.updateDimensions();
+                    seto.sortOutputs();
+
                     surface.draw() catch return;
                 },
                 .done => {},
             }
         }
     }
-
-    seto.updateDimensions();
-    seto.sortOutputs();
 }

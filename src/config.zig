@@ -70,7 +70,7 @@ pub const Config = struct {
 
     const Self = @This();
 
-    pub fn load(alloc: std.mem.Allocator) !Self {
+    pub fn load(alloc: std.mem.Allocator) Self {
         const config_path = getPath(alloc) catch {
             const keys = Keys{ .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
             const font = Font{
@@ -84,22 +84,22 @@ pub const Config = struct {
         };
         defer alloc.free(config_path);
 
-        var lua = try Lua.init(alloc);
+        var lua = Lua.init(alloc) catch @panic("OOM");
         defer lua.deinit();
         lua.doFile(config_path) catch {
             std.debug.print("File {s} couldn't be executed by lua interpreter\n", .{config_path});
             std.process.exit(1);
         };
 
-        var config = Config{ .alloc = alloc, .keys = try Keys.new(&lua, alloc), .grid = try Grid.new(&lua), .font = try Font.new(&lua, alloc) };
+        var config = Config{ .alloc = alloc, .keys = Keys.new(&lua, alloc), .grid = Grid.new(&lua), .font = Font.new(&lua, alloc) };
 
         _ = lua.pushString("background_color");
         _ = lua.getTable(1);
-        if (!lua.isString(2)) {
+        const background_color = lua.toString(2) catch {
             std.debug.print("Background color expected hex value\n", .{});
             std.process.exit(1);
-        }
-        config.background_color = hexToRgba(std.mem.span(try lua.toString(2))) catch {
+        };
+        config.background_color = hexToRgba(std.mem.span(background_color)) catch {
             std.debug.print("Failed to parse background color\n", .{});
             std.process.exit(1);
         };
@@ -107,11 +107,11 @@ pub const Config = struct {
 
         _ = lua.pushString("filter_color");
         _ = lua.getTable(1);
-        if (!lua.isString(2)) {
+        const filter_color = lua.toString(2) catch {
             std.debug.print("Filter color expected hex value\n", .{});
             std.process.exit(1);
-        }
-        config.filter_color = hexToRgba(std.mem.span(try lua.toString(2))) catch {
+        };
+        config.filter_color = hexToRgba(std.mem.span(filter_color)) catch {
             std.debug.print("Failed to parse filter color\n", .{});
             std.process.exit(1);
         };
@@ -140,7 +140,7 @@ pub const Font = struct {
 
     const Self = @This();
 
-    fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
+    fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         var font = Font{ .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM") };
 
         _ = lua.pushString("font");
@@ -153,7 +153,7 @@ pub const Font = struct {
             std.debug.print("Font color expected hex value\n", .{});
             std.process.exit(1);
         }
-        font.color = hexToRgba(std.mem.span(try lua.toString(3))) catch {
+        font.color = hexToRgba(std.mem.span(lua.toString(3) catch unreachable)) catch {
             std.debug.print("Failed to parse font color\n", .{});
             std.process.exit(1);
         };
@@ -165,7 +165,7 @@ pub const Font = struct {
             std.debug.print("Font highlight color expected hex value\n", .{});
             std.process.exit(1);
         }
-        font.highlight_color = hexToRgba(std.mem.span(try lua.toString(3))) catch {
+        font.highlight_color = hexToRgba(std.mem.span(lua.toString(3) catch unreachable)) catch {
             std.debug.print("Failed to parse highlight color\n", .{});
             std.process.exit(1);
         };
@@ -174,11 +174,10 @@ pub const Font = struct {
         _ = lua.pushString("size");
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
-            if (!lua.isNumber(3)) {
+            font.size = lua.toNumber(3) catch {
                 std.debug.print("Font size should be a number\n", .{});
                 std.process.exit(1);
-            }
-            font.size = try lua.toNumber(3);
+            };
         }
         lua.pop(1);
 
@@ -186,18 +185,17 @@ pub const Font = struct {
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
             alloc.free(font.family);
-            if (!lua.isString(3)) {
+            const font_family = lua.toString(3) catch {
                 std.debug.print("Font family should be a string\n", .{});
                 std.process.exit(1);
-            }
-            const font_family = try lua.toString(3);
+            };
             font.family = alloc.dupeZ(u8, std.mem.span(font_family)) catch @panic("OOM");
         }
         lua.pop(1);
 
         font.style = getStyle(pango.Style, "style", lua) catch |err| switch (err) {
             error.OptNotFound => {
-                std.debug.print("Font style not found\nAvailable options are:\n - Normal\n - Italic \n - Oblique\n", .{});
+                std.debug.print("Font style not found\nSee man 5 seto for more details\n", .{});
                 std.process.exit(1);
             },
             else => font.style,
@@ -216,7 +214,7 @@ pub const Font = struct {
 
         font.variant = getStyle(pango.Variant, "variant", lua) catch |err| switch (err) {
             error.OptNotFound => {
-                std.debug.print("Font variant not found\nAvailable options:\n - Normal\n - Unicase\n - SmallCaps\n - TitleCaps\n - PetiteCaps\n - AllSmallCaps\n - AllPetiteCaps\n", .{});
+                std.debug.print("Font variant not found\nSee man 5 seto for more details\n", .{});
                 std.process.exit(1);
             },
             else => font.variant,
@@ -224,7 +222,7 @@ pub const Font = struct {
 
         font.gravity = getStyle(pango.Gravity, "gravity", lua) catch |err| switch (err) {
             error.OptNotFound => {
-                std.debug.print("Font gravity not found\nAvailable options:\n - Auto\n - East\n - West\n - South\n - North\n", .{});
+                std.debug.print("Font gravity not found\nSee man 5 seto for more details\n", .{});
                 std.process.exit(1);
             },
             else => font.gravity,
@@ -232,7 +230,7 @@ pub const Font = struct {
 
         font.stretch = getStyle(pango.Stretch, "stretch", lua) catch |err| switch (err) {
             error.OptNotFound => {
-                std.debug.print("Font stretch not found\nAvailable options:\n - Normal\n - Expanded\n - Condensed\n - SemiExpanded\n - SemiCondensed\n - ExtraExpanded\n - ExtraCondensed\n - UltraExpanded\n - UltraCondensed\n", .{});
+                std.debug.print("Font stretch not found\nSee man 5 seto for more details\n", .{});
                 std.process.exit(1);
             },
             else => font.stretch,
@@ -248,7 +246,7 @@ pub const Font = struct {
                     std.debug.print("Text offset should be in a {{ x, y }} format\n", .{});
                     std.process.exit(1);
                 }
-                font.offset[index] = @intFromFloat(try lua.toNumber(5));
+                font.offset[index] = @intFromFloat(lua.toNumber(5) catch unreachable);
                 lua.pop(1);
             }
             if (index < 2) {
@@ -288,7 +286,7 @@ pub const Grid = struct {
 
     const Self = @This();
 
-    fn new(lua: *Lua) !Self {
+    fn new(lua: *Lua) Self {
         var grid = Grid{};
 
         _ = lua.pushString("grid");
@@ -300,11 +298,11 @@ pub const Grid = struct {
 
         _ = lua.pushString("color");
         _ = lua.getTable(2);
-        if (!lua.isString(3)) {
+        const grid_color = lua.toString(3) catch {
             std.debug.print("Grid color expected hex value\n", .{});
             std.process.exit(1);
-        }
-        grid.color = hexToRgba(std.mem.span(try lua.toString(3))) catch {
+        };
+        grid.color = hexToRgba(std.mem.span(grid_color)) catch {
             std.debug.print("Failed to parse grid color\n", .{});
             std.process.exit(1);
         };
@@ -312,11 +310,11 @@ pub const Grid = struct {
 
         _ = lua.pushString("selected_color");
         _ = lua.getTable(2);
-        if (!lua.isString(3)) {
+        const grid_selected_color = lua.toString(3) catch {
             std.debug.print("Grid selected color expected hex value\n", .{});
             std.process.exit(1);
-        }
-        grid.selected_color = hexToRgba(std.mem.span(try lua.toString(3))) catch {
+        };
+        grid.selected_color = hexToRgba(std.mem.span(grid_selected_color)) catch {
             std.debug.print("Failed to parse selected grid color\n", .{});
             std.process.exit(1);
         };
@@ -332,7 +330,7 @@ pub const Grid = struct {
                     std.debug.print("Grid size should be in a {{ width, height }} format\n", .{});
                     std.process.exit(1);
                 }
-                grid.size[index] = @intFromFloat(try lua.toNumber(5));
+                grid.size[index] = @intFromFloat(lua.toNumber(5) catch unreachable);
                 lua.pop(1);
             }
             if (index < 2) {
@@ -352,7 +350,7 @@ pub const Grid = struct {
                     std.debug.print("Grid offset should be in a {{ x, y }} format\n", .{});
                     std.process.exit(1);
                 }
-                grid.offset[index] = @intFromFloat(try lua.toNumber(5));
+                grid.offset[index] = @intFromFloat(lua.toNumber(5) catch unreachable);
                 lua.pop(1);
             }
             if (index < 2) {
@@ -365,22 +363,20 @@ pub const Grid = struct {
         _ = lua.pushString("line_width");
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
-            if (!lua.isNumber(3)) {
+            grid.line_width = lua.toNumber(3) catch {
                 std.debug.print("Line width should be a float\n", .{});
                 std.process.exit(1);
-            }
-            grid.line_width = try lua.toNumber(3);
+            };
         }
         lua.pop(1);
 
         _ = lua.pushString("selected_line_width");
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
-            if (!lua.isNumber(3)) {
+            grid.selected_line_width = lua.toNumber(3) catch {
                 std.debug.print("Selected line width should be a float\n", .{});
                 std.process.exit(1);
-            }
-            grid.selected_line_width = try lua.toNumber(3);
+            };
         }
         lua.pop(1);
 
@@ -442,7 +438,7 @@ const Keys = struct {
 
     const Self = @This();
 
-    fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
+    fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         var keys_s = Keys{ .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
 
         _ = lua.pushString("keys");
@@ -452,7 +448,7 @@ const Keys = struct {
         _ = lua.getTable(2);
         if (lua.isString(3)) {
             alloc.free(keys_s.search);
-            const keys = try lua.toString(3);
+            const keys = lua.toString(3) catch unreachable;
             keys_s.search = alloc.dupe(u8, std.mem.span(keys)) catch @panic("OOM");
         }
         lua.pop(1);
@@ -464,13 +460,13 @@ const Keys = struct {
             lua.pushNil();
             while (lua.next(3)) {
                 const key: u8 = if (lua.isNumber(4))
-                    @intFromFloat(try lua.toNumber(4))
+                    @intFromFloat(lua.toNumber(4) catch unreachable)
                 else
-                    (try lua.toString(4))[0];
+                    (lua.toString(4) catch unreachable)[0];
 
                 const value: std.meta.Tuple(&.{ [*:0]const u8, ?[2]i32 }) = x: {
                     if (lua.isString(5)) {
-                        break :x .{ try lua.toString(5), null };
+                        break :x .{ lua.toString(5) catch unreachable, null };
                     } else {
                         defer lua.pop(3);
                         const inner_key: [2]u8 = .{ key, 0 };
@@ -481,11 +477,15 @@ const Keys = struct {
                             var move_value: [2]i32 = undefined;
                             var index: u8 = 0;
                             _ = lua.pushNil();
+                            const function = lua.toString(7) catch unreachable;
                             while (lua.next(8)) : (index += 1) {
-                                move_value[index] = @intFromFloat(try lua.toNumber(10));
+                                move_value[index] = @intFromFloat(lua.toNumber(10) catch {
+                                    std.debug.print("{s} expected number\n", .{function});
+                                    std.process.exit(1);
+                                });
                                 lua.pop(1);
                             }
-                            break :x .{ try lua.toString(7), move_value };
+                            break :x .{ function, move_value };
                         }
                     }
                 };
@@ -498,7 +498,7 @@ const Keys = struct {
                     }
                     std.process.exit(1);
                 };
-                try keys_s.bindings.put(key, func);
+                keys_s.bindings.put(key, func) catch @panic("OOM");
                 lua.pop(1);
             }
         }

@@ -37,6 +37,4 @@ seto -c <PATH>
 
 Run `man 5 seto` for information on the configuration
 
-## TODO
-
-- Hardware acceleration (mby ???)
+Took a lot of inspirations from [slurp](https://github.com/emersion/slurp) :)

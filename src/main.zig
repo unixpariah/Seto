@@ -3,6 +3,7 @@ const mem = std.mem;
 const posix = std.posix;
 
 const cairo = @import("cairo");
+const pango = @import("pango");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
@@ -170,10 +171,9 @@ pub const Seto = struct {
         self.drawGrid(width, height, ctx);
         self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items);
 
-        var prev: ?OutputInfo = null;
         var pos: [2]i32 = .{ 0, 0 };
         const outputs = self.outputs.items;
-        for (outputs) |*output| {
+        for (outputs, 0..) |*output, i| {
             if (!output.isConfigured()) continue;
             const info = output.output_info;
             const output_surface = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
@@ -181,8 +181,8 @@ pub const Seto = struct {
             const output_ctx = try cairo.Context.create(output_surface.asSurface());
             defer output_ctx.destroy();
 
-            if (prev) |p| {
-                if (info.x <= p.x) pos = .{ 0, p.height };
+            if (i > 0) {
+                if (info.x <= outputs[i - 1].output_info.x) pos = .{ 0, outputs[i - 1].output_info.height };
             }
 
             output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-pos[0]), @floatFromInt(-pos[1]));
@@ -192,7 +192,6 @@ pub const Seto = struct {
             const data = try output_surface.getData();
 
             @memcpy(output.mmap.?, data);
-            prev = info;
         }
     }
 
@@ -234,18 +233,16 @@ pub fn main() !void {
     var seto = Seto.new(alloc);
     defer seto.destroy();
 
-    const config = Config.load(alloc) catch @panic("");
+    const config = Config.load(alloc);
     seto.config = config;
 
     parseArgs(&seto);
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
-    while (true) {
-        if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
+    while (display.dispatch() == .SUCCESS and !seto.exit) {
         if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
-        if (seto.exit) break;
     }
 
     const outputs = seto.outputs.items;
