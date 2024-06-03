@@ -23,6 +23,8 @@ compositors implementing layer-shell protocol.
 *-v, --version*
 	Display version information and quit.
 
+*General Settings*
+
 *-r, --region*
 	Select region of screen.
 
@@ -35,10 +37,6 @@ compositors implementing layer-shell protocol.
 
 *--background-color* _color_
 	Set background color.
-
-*--filter-color* _color_
-	Set filter color. Changes color of screen to specified color on exit,
-	useful when paired with screenshoting tools.
 
 *Font Settings*
 *--highlight-color* _color_

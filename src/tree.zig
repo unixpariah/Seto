@@ -56,7 +56,7 @@ pub const Tree = struct {
         return tree;
     }
 
-    pub fn move(self: *Self, advance: [2]i32) void {
+    fn move(self: *Self, advance: [2]i32) void {
         for (self.children) |*child| {
             child.traverseAndMove(advance, self.dimensions);
         }
@@ -139,7 +139,7 @@ pub const Tree = struct {
 
         if (depth < self.depth) {
             for (depth..self.depth) |_| self.decreaseDepth();
-        } else {
+        } else if (depth > self.depth) {
             for (self.depth..depth) |_| self.increaseDepth();
         }
 

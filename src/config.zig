@@ -62,7 +62,6 @@ pub const Config = struct {
     smooth_scrolling: bool = true,
     output_format: []const u8 = "%x,%y %wx%h\n",
     background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
-    filter_color: [4]f64 = .{ 0, 0, 0, 0 },
     keys: Keys,
     font: Font,
     grid: Grid = Grid{},
@@ -105,24 +104,13 @@ pub const Config = struct {
         };
         lua.pop(1);
 
-        _ = lua.pushString("filter_color");
-        _ = lua.getTable(1);
-        const filter_color = lua.toString(2) catch {
-            std.debug.print("Filter color expected hex value\n", .{});
-            std.process.exit(1);
-        };
-        config.filter_color = hexToRgba(std.mem.span(filter_color)) catch {
-            std.debug.print("Failed to parse filter color\n", .{});
-            std.process.exit(1);
-        };
-        lua.pop(1);
-
         return config;
     }
 
     pub fn destroy(self: *Self) void {
         self.alloc.free(self.keys.search);
         self.alloc.free(self.font.family);
+        self.keys.bindings.deinit();
     }
 };
 

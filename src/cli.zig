@@ -119,8 +119,6 @@ pub fn parseArgs(seto: *Seto) void {
             config.grid.color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-selected-color")) {
             config.grid.selected_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
-        } else if (std.mem.eql(u8, arg, "--filter-color")) {
-            config.filter_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--format") or std.mem.eql(u8, arg, "-f")) {
             config.output_format = getNextArg(&args, arg);
         } else if (std.mem.eql(u8, arg, "--function") or std.mem.eql(u8, arg, "-F")) {
@@ -167,7 +165,6 @@ const help_message =
     \\
     \\General styling:
     \\  --background-color <HEX>                   Set background color
-    \\  --filter-color <HEX>                       Set color of filter
     \\
     \\Font styling:
     \\  --highlight-color <HEX>                    Set highlighted color

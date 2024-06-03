@@ -21,17 +21,6 @@ following sections describe the configurable options.
 
 	_Example:_ #FF000066 \
 
-*filter_color*
-	Color of filter. Changes the color of screen on exit, useful when paired with screenshoting tools. \
-
-	_Type:_ String \
-
-	_Default:_ #00000000 \
-
-	_Example:_ #00FF0066 \
-
-	_Default:_ #00000000
-
 *Font Settings* \
 
 *font.color*
@@ -283,7 +272,6 @@ plain string.
 ```
 return {
 	background_color = "#FFFFFF66",
-	filter_color = "#00000000",
 	font = {
 		color = "#FFFFFF",
 		highlight_color = "#FFFF00FF",

@@ -178,6 +178,7 @@ pub fn handleKey(self: *Seto) void {
 
             if (function == .move or function == .resize) {
                 self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid);
+                return;
             }
         }
 

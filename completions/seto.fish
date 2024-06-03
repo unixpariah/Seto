@@ -8,7 +8,6 @@ complete -c seto -s c -l config --description "Specifies config file" -r
 complete -c seto -s f -l format --description "Specifies format of output" -r
 
 complete -c seto -l background-color --description "Set background color" -r
-complete -c seto -l filter-color --description "Set color of filter" -r
 
 complete -c seto -l highlight-color --description "Set highlighted color" -r
 complete -c seto -l font-color --description "Set font color" -r

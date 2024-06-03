@@ -9,7 +9,6 @@ _arguments -s \
   '-c+[Specifies config file]:config file:_files' \
   '-f+[Specifies format of output]:format:_files' \
   '--background-color+[Set background color]:color' \
-  '--filter-color+[Set color of filter]:color' \
   '--highlight-color+[Set highlighted color]:color' \
   '--font-color+[Set font color]:color' \
   '--font-size+[Set font size]:size' \

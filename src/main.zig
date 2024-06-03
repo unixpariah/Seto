@@ -115,14 +115,8 @@ pub const Seto = struct {
         }
     }
 
-    fn printToStdout(self: *Self) void {
-        const coords = self.tree.?.find(self.seat.buffer.items) catch |err| {
-            switch (err) {
-                error.KeyNotFound => _ = self.seat.buffer.popOrNull(),
-                error.EndNotReached => {},
-            }
-            return;
-        };
+    fn printToStdout(self: *Self) !void {
+        const coords = try self.tree.?.find(self.seat.buffer.items);
         switch (self.mode) {
             .Region => |positions| {
                 if (positions) |pos| {
@@ -153,7 +147,15 @@ pub const Seto = struct {
             self.tree = Tree.new(self.config.?.keys.search, self.alloc, self.total_dimensions, self.config.?.grid);
         }
 
-        self.printToStdout();
+        self.printToStdout() catch |err| {
+            switch (err) {
+                error.KeyNotFound => {
+                    _ = self.seat.buffer.popOrNull();
+                    return;
+                },
+                else => {},
+            }
+        };
         if (self.exit) return;
 
         const width: u32 = @intCast(self.total_dimensions[0]);
@@ -210,7 +212,6 @@ pub const Seto = struct {
         }
         self.outputs.deinit();
         self.seat.destroy();
-        self.config.?.keys.bindings.deinit();
         self.config.?.destroy();
         self.tree.?.arena.deinit();
     }
@@ -232,13 +233,14 @@ pub fn main() !void {
     var seto = Seto.new(alloc);
     defer seto.destroy();
 
+    registry.setListener(*Seto, registryListener, &seto);
+    if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
+
     const config = Config.load(alloc);
     seto.config = config;
 
     parseArgs(&seto);
 
-    registry.setListener(*Seto, registryListener, &seto);
-    if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
     while (display.dispatch() == .SUCCESS and !seto.exit) {
         if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
@@ -247,19 +249,7 @@ pub fn main() !void {
     const outputs = seto.outputs.items;
     for (outputs) |*output| {
         if (!output.isConfigured()) continue;
-
-        const filter = seto.config.?.filter_color;
-        const filter_rgba: [4]u8 = .{
-            @intFromFloat(filter[2] * 255),
-            @intFromFloat(filter[1] * 255),
-            @intFromFloat(filter[0] * 255),
-            @intFromFloat(filter[3] * 255),
-        };
-
-        var index: usize = 0;
-        while (index < output.mmap.?.len) : (index += 4) {
-            @memcpy(output.mmap.?[index .. index + 4], &filter_rgba);
-        }
+        for (0..output.mmap.?.len) |index| output.mmap.?[index] = 0;
     }
 
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
@@ -304,7 +294,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
 
                     const output_info = OutputInfo{ .wl_output = global_output };
-                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info, seto.shm.?);
+                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info);
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 
