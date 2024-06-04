@@ -217,9 +217,21 @@ const Node = struct {
         }
     }
 
+    fn checkIfOnScreen(self: *Self) !void {
+        if (self.children) |children| {
+            for (children) |*child| {
+                if (child.children == null and child.coordinates == null) return error.KeyNotFound;
+                return child.checkIfOnScreen();
+            }
+        }
+    }
+
     fn traverseAndFind(self: *Self, buffer: [][64]u8, index: usize) ![2]i32 {
         if (self.coordinates) |coordinates| return coordinates;
-        if (buffer.len <= index) return error.EndNotReached;
+        if (buffer.len <= index) {
+            try self.checkIfOnScreen();
+            return error.EndNotReached;
+        }
         if (self.children) |children| {
             for (children) |*child| {
                 if (child.key == buffer[index][0]) {

@@ -251,6 +251,9 @@ Colors may be specified in #RRGGBB or #RRGGBBAA format. The # is optional.
 
 Available functions are:
 
+border_selection		Outline all outputs and clear grid in the middle to
+make selecting entire screen easier
+
 move _x,y_				Move grid by specified amount.
 
 resize _x,y_			Resize grid by specified amount.

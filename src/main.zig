@@ -44,13 +44,14 @@ pub const Seto = struct {
     seat: Seat,
     outputs: std.ArrayList(Surface),
     config: ?Config = null,
+    alloc: mem.Allocator,
+    tree: ?Tree = null,
+    total_dimensions: [2]i32 = .{ 0, 0 },
+
     first_draw: bool = true,
     exit: bool = false,
     mode: Mode = .Single,
     border_mode: bool = false,
-    alloc: mem.Allocator,
-    tree: ?Tree = null,
-    total_dimensions: [2]i32 = .{ 0, 0 },
 
     const Self = @This();
 

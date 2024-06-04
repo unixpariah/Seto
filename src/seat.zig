@@ -177,7 +177,7 @@ pub fn handleKey(self: *Seto) void {
                 .quit => self.exit = true,
             }
 
-            if (function == .move or function == .resize or function == .border_select) {
+            if ((function == .move or function == .resize) and !self.border_mode or function == .border_select) {
                 self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid, self.border_mode);
                 return;
             }
