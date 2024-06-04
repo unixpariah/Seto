@@ -173,11 +173,12 @@ pub fn handleKey(self: *Seto) void {
                     self.mode = Mode{ .Region = null };
                 },
                 .move_selection => |value| moveSelection(self, value),
+                .border_select => self.border_mode = !self.border_mode,
                 .quit => self.exit = true,
             }
 
-            if (function == .move or function == .resize) {
-                self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid);
+            if (function == .move or function == .resize or function == .border_select) {
+                self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid, self.border_mode);
                 return;
             }
         }

@@ -47,6 +47,7 @@ pub const Seto = struct {
     first_draw: bool = true,
     exit: bool = false,
     mode: Mode = .Single,
+    border_mode: bool = false,
     alloc: mem.Allocator,
     tree: ?Tree = null,
     total_dimensions: [2]i32 = .{ 0, 0 },
@@ -78,11 +79,54 @@ pub const Seto = struct {
     }
 
     pub fn sortOutputs(self: *Self) void {
-        std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], comptime Surface.cmp);
+        std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
     }
 
     fn drawGrid(self: *Self, width: u32, height: u32, context: *cairo.Context) void {
         const grid = self.config.?.grid;
+
+        defer switch (self.mode) {
+            .Region => |position| if (position) |pos| {
+                context.moveTo(0, @floatFromInt(pos[1]));
+                context.lineTo(@floatFromInt(width), @floatFromInt(pos[1]));
+
+                context.moveTo(@floatFromInt(pos[0]), 0);
+                context.lineTo(@floatFromInt(pos[0]), @floatFromInt(height));
+
+                context.setSourceRgba(grid.selected_color[0], grid.selected_color[1], grid.selected_color[2], grid.selected_color[3]);
+                context.setLineWidth(grid.selected_line_width);
+                context.stroke();
+            },
+            .Single => {},
+        };
+
+        if (self.border_mode) {
+            var pos: [2]i32 = .{ 0, 0 };
+            const outputs = self.outputs.items;
+            for (outputs, 0..) |*output, i| {
+                if (!output.isConfigured()) continue;
+                const info = output.output_info;
+
+                context.moveTo(@floatFromInt(pos[0]), @floatFromInt(pos[1]));
+                context.relLineTo(0, @floatFromInt(info.height));
+                context.relLineTo(@floatFromInt(info.width), 0);
+                context.relLineTo(0, @floatFromInt(-info.height));
+                context.relLineTo(@floatFromInt(-info.width), 0);
+
+                if (i > 0) {
+                    if (info.x <= outputs[i - 1].output_info.x) pos = .{ 0, outputs[i - 1].output_info.height };
+                }
+
+                pos[0] += info.width;
+            }
+
+            context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
+            context.setLineWidth(grid.line_width * 2);
+            context.stroke();
+
+            return;
+        }
+
         var i: i32 = grid.offset[0];
         while (i <= width) : (i += grid.size[0]) {
             context.moveTo(@floatFromInt(i), 0);
@@ -98,21 +142,6 @@ pub const Seto = struct {
         context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
         context.setLineWidth(grid.line_width);
         context.stroke();
-
-        switch (self.mode) {
-            .Region => |position| if (position) |pos| {
-                context.moveTo(0, @floatFromInt(pos[1]));
-                context.lineTo(@floatFromInt(width), @floatFromInt(pos[1]));
-
-                context.moveTo(@floatFromInt(pos[0]), 0);
-                context.lineTo(@floatFromInt(pos[0]), @floatFromInt(height));
-
-                context.setSourceRgba(grid.selected_color[0], grid.selected_color[1], grid.selected_color[2], grid.selected_color[3]);
-                context.setLineWidth(grid.selected_line_width);
-                context.stroke();
-            },
-            .Single => {},
-        }
     }
 
     fn printToStdout(self: *Self) !void {

@@ -4,8 +4,6 @@ const fs = std.fs;
 const Lua = @import("ziglua").Lua;
 const pango = @import("pango");
 
-const assert = std.debug.assert;
-
 fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     var args = std.process.args();
     var index: u8 = 0;
@@ -392,6 +390,7 @@ pub const Grid = struct {
 };
 
 pub const Function = union(enum) {
+    border_select,
     resize: [2]i32,
     move: [2]i32,
     move_selection: [2]i32,
@@ -414,6 +413,8 @@ pub const Function = union(enum) {
             return .{ .resize = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "move_selection")) {
             return .{ .move_selection = value orelse return error.NullValue };
+        } else if (std.mem.eql(u8, string, "border_select")) {
+            return .border_select;
         }
 
         return error.UnkownFunction;
@@ -495,6 +496,8 @@ const Keys = struct {
     }
 };
 
+const assert = std.debug.assert;
+
 test "resize" {
     for (1..10) |i| {
         var grid = Grid{};
@@ -551,5 +554,22 @@ test "move" {
 
         grid.move(.{ 0, index * 2 });
         assert(grid.offset[1] == index);
+    }
+}
+
+test "hex_to_rgba" {
+    var rgba = try hexToRgba("#FFFFFFFF");
+    for (rgba) |color| {
+        assert(color == 1);
+    }
+
+    rgba = try hexToRgba("FFFFFFFF");
+    for (rgba) |color| {
+        assert(color == 1);
+    }
+
+    rgba = try hexToRgba("FFFFFF");
+    for (rgba) |color| {
+        assert(color == 1);
     }
 }
