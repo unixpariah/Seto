@@ -137,7 +137,7 @@ Interpreted sequences are:
 %o	The name of the output containing the top left corner, or "<unknown>" if
 	not known
 
-The default format is "%x,%y %wx%h\\n".
+The default format is "%x,%y %wx%h\n".
 
 # FONT STYLING
 

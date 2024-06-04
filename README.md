@@ -35,6 +35,32 @@ You can also specify a custom path to your configuration file:
 seto -c <PATH>
 ```
 
-Run `man 5 seto` for information on the configuration
+Run `man 5 seto` for more information
+
+## Examples
+
+Select single point and print it to stdout:
+
+```bash
+seto
+```
+
+Select region instead of single point:
+
+```bash
+seto -r
+```
+
+Take screenshot with [grim](https://wayland.emersion.fr/grim/)
+
+```bash
+grim -g $(./zig-out/bin/seto -r) - | wl-copy -t image/png
+```
+
+Output just x and y positions and move mouse using [ydotool](https://github.com/ReimuNotMoe/ydotool) (specific syntax for escaping newline works in bash and zsh but may not in other shells):
+
+```bash
+ydotool mousemove -a $(seto -f $'%x %y')
+```
 
 Took a lot of inspirations from [slurp](https://github.com/emersion/slurp) :)

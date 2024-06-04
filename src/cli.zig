@@ -120,7 +120,8 @@ pub fn parseArgs(seto: *Seto) void {
         } else if (std.mem.eql(u8, arg, "--grid-selected-color")) {
             config.grid.selected_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--format") or std.mem.eql(u8, arg, "-f")) {
-            config.output_format = getNextArg(&args, arg);
+            const format = getNextArg(&args, arg);
+            config.output_format = format;
         } else if (std.mem.eql(u8, arg, "--function") or std.mem.eql(u8, arg, "-F")) {
             const key = getNextArg(&args, arg);
             const function = getNextArg(&args, arg);

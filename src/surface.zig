@@ -83,10 +83,9 @@ pub const Surface = struct {
     }
 };
 
-pub fn frameListener(callback: *wl.Callback, event: wl.Callback.Event, surface: *Surface) void {
+pub fn frameListener(callback: *wl.Callback, _: wl.Callback.Event, surface: *Surface) void {
     surface.draw() catch return;
     callback.destroy();
-    _ = event;
 }
 
 pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, seto: *Seto) void {

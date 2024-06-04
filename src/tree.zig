@@ -2,6 +2,7 @@ const std = @import("std");
 const cairo = @import("cairo");
 const Font = @import("config.zig").Font;
 const Seto = @import("main.zig").Seto;
+const Surface = @import("surface.zig").Surface;
 const Grid = @import("config.zig").Grid;
 const Mode = @import("main.zig").Mode;
 const pango = @import("pango");
@@ -38,7 +39,7 @@ pub const Tree = struct {
 
     const Self = @This();
 
-    pub fn new(keys: []const u8, alloc: std.mem.Allocator, dimensions: [2]i32, grid: Grid) Self {
+    pub fn new(keys: []const u8, alloc: std.mem.Allocator, dimensions: [2]i32, grid: Grid, outputs: []Surface) Self {
         var arena = std.heap.ArenaAllocator.init(alloc);
         const nodes = arena.allocator().alloc(Node, keys.len) catch @panic("OOM");
         for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -51,7 +52,7 @@ pub const Tree = struct {
             .arena = arena,
         };
 
-        tree.updateCoordinates(dimensions, grid, false);
+        tree.updateCoordinates(dimensions, grid, false, outputs);
 
         return tree;
     }
@@ -100,7 +101,7 @@ pub const Tree = struct {
         return error.KeyNotFound;
     }
 
-    pub fn updateCoordinates(self: *Self, dimensions: [2]i32, grid: Grid, border_mode: bool) void {
+    pub fn updateCoordinates(self: *Self, dimensions: [2]i32, grid: Grid, border_mode: bool, outputs: []Surface) void {
         const intersections = intersections: {
             if (!border_mode) {
                 const width = dimensions[0];
@@ -125,15 +126,28 @@ pub const Tree = struct {
 
                 break :intersections intersections;
             } else {
-                const width = dimensions[0];
-                const height = dimensions[1];
+                var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
 
-                var intersections = self.arena.allocator().alloc([2]i32, @intCast(4)) catch @panic("OOM");
-                intersections[0] = .{ 0, 0 };
-                intersections[1] = .{ width, 0 };
-                intersections[2] = .{ 0, height };
-                intersections[3] = .{ width, height };
-                break :intersections intersections;
+                var pos: [2]i32 = .{ 0, 0 };
+
+                var index: u8 = 0;
+                while (index < outputs.len) : (index += 1) {
+                    if (!outputs[index].isConfigured()) continue;
+                    const info = outputs[index].output_info;
+
+                    if (index > 0) {
+                        if (info.x <= outputs[index - 1].output_info.x) pos = .{ 0, outputs[index - 1].output_info.height };
+                    }
+
+                    intersections.append(pos) catch unreachable;
+                    intersections.append(.{ pos[0], pos[1] + info.height }) catch unreachable;
+                    intersections.append(.{ pos[0] + info.width, pos[1] }) catch unreachable;
+                    intersections.append(.{ pos[0] + info.width, pos[1] + info.height }) catch unreachable;
+
+                    pos[0] += info.width;
+                }
+
+                break :intersections intersections.toOwnedSlice() catch @panic("OOM");
             }
         };
         defer self.arena.allocator().free(intersections);

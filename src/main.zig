@@ -145,6 +145,13 @@ pub const Seto = struct {
         context.stroke();
     }
 
+    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
+        inPlaceReplace(arena.allocator(), &self.config.?.output_format, "%x", top_left[0]);
+        inPlaceReplace(arena.allocator(), &self.config.?.output_format, "%y", top_left[1]);
+        inPlaceReplace(arena.allocator(), &self.config.?.output_format, "%w", size[0]);
+        inPlaceReplace(arena.allocator(), &self.config.?.output_format, "%h", size[1]);
+    }
+
     fn printToStdout(self: *Self) !void {
         const coords = try self.tree.?.find(self.seat.buffer.items);
         switch (self.mode) {
@@ -153,9 +160,12 @@ pub const Seto = struct {
                     const top_left: [2]i32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
                     const bottom_right: [2]i32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
                     const size: [2]i32 = .{ bottom_right[0] - top_left[0], bottom_right[1] - top_left[1] };
-                    const format = std.fmt.allocPrintZ(self.alloc, "{},{} {}x{}\n", .{ top_left[0], top_left[1], size[0], size[1] }) catch @panic("OOM");
-                    defer self.alloc.free(format);
-                    _ = std.io.getStdOut().write(format) catch @panic("Write error");
+
+                    var arena = std.heap.ArenaAllocator.init(self.alloc);
+                    defer arena.deinit();
+                    self.formatOutput(&arena, coords, size);
+
+                    _ = std.io.getStdOut().write(self.config.?.output_format) catch @panic("Write error");
                     self.exit = true;
                 } else {
                     self.mode = .{ .Region = coords };
@@ -163,9 +173,11 @@ pub const Seto = struct {
                 }
             },
             .Single => {
-                const positions = std.fmt.allocPrintZ(self.alloc, "{},{}\n", .{ coords[0], coords[1] }) catch @panic("OOM");
-                defer self.alloc.free(positions);
-                _ = std.io.getStdOut().write(positions) catch @panic("Write error");
+                var arena = std.heap.ArenaAllocator.init(self.alloc);
+                defer arena.deinit();
+                _ = self.formatOutput(&arena, coords, .{ 1, 1 });
+
+                _ = std.io.getStdOut().write(self.config.?.output_format) catch @panic("Write error");
                 self.exit = true;
             },
         }
@@ -174,7 +186,7 @@ pub const Seto = struct {
     fn createSurfaces(self: *Self) !void {
         if (!self.shouldDraw()) return;
         if (self.tree == null) {
-            self.tree = Tree.new(self.config.?.keys.search, self.alloc, self.total_dimensions, self.config.?.grid);
+            self.tree = Tree.new(self.config.?.keys.search, self.alloc, self.total_dimensions, self.config.?.grid, self.outputs.items);
         }
 
         self.printToStdout() catch |err| {
@@ -344,6 +356,15 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                 },
             }
         },
-        .global_remove => {}, // TODO: Implement remove output (not very important tho)
+        .global_remove => {},
     }
+}
+
+fn inPlaceReplace(alloc: std.mem.Allocator, input: *[]const u8, needle: []const u8, replacement: i32) void {
+    const count = std.mem.count(u8, input.*, needle);
+    if (count == 0) return;
+    const str = std.fmt.allocPrint(alloc, "{}", .{replacement}) catch @panic("OOM");
+    const buffer = alloc.alloc(u8, count * str.len + (input.*.len - needle.len * count)) catch @panic("OOM");
+    _ = std.mem.replace(u8, input.*, needle, str, buffer);
+    input.* = buffer;
 }
