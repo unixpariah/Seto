@@ -56,12 +56,6 @@ pub const Tree = struct {
         return tree;
     }
 
-    fn move(self: *Self, advance: [2]i32) void {
-        for (self.children) |*child| {
-            child.traverseAndMove(advance, self.dimensions);
-        }
-    }
-
     pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8) void {
         const layout: *pango.Layout = ctx.createLayout() catch @panic("OOM");
         defer layout.destroy();
@@ -184,22 +178,6 @@ const Node = struct {
     coordinates: ?[2]i32 = null,
 
     const Self = @This();
-
-    fn traverseAndMove(self: *Self, advance: [2]i32, dimensions: [2]i32) void {
-        if (self.children) |children| {
-            for (children) |*child| {
-                if (child.coordinates) |*coordinates| {
-                    coordinates[0] += advance[0];
-                    coordinates[1] += advance[1];
-                    if (coordinates[0] > dimensions[0] or coordinates[1] > dimensions[1] or coordinates[0] < 0 or coordinates[1] < 0) {
-                        child.coordinates = null;
-                    }
-                } else {
-                    child.traverseAndMove(advance, dimensions);
-                }
-            }
-        }
-    }
 
     fn traverseAndDraw(self: *Self, ctx: *cairo.Context, buffer: [][64]u8, font: Font, path: []u8, matches: u8, index: u8, layout: *pango.Layout) void {
         if (self.children) |children| {
