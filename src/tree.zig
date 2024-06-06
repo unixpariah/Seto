@@ -58,22 +58,7 @@ pub const Tree = struct {
         return tree;
     }
 
-    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8) void {
-        const layout: *pango.Layout = ctx.createLayout() catch @panic("OOM");
-        defer layout.destroy();
-        const font_description = pango.FontDescription.new() catch @panic("OOM");
-        defer font_description.free();
-
-        font_description.setFamilyStatic(font.family);
-        font_description.setStyle(font.style);
-        font_description.setWeight(font.weight);
-        font_description.setAbsoluteSize(font.size * pango.SCALE);
-        font_description.setVariant(font.variant);
-        font_description.setStretch(font.stretch);
-        font_description.setGravity(font.gravity);
-
-        layout.setFontDescription(font_description);
-
+    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, layout: *pango.Layout) void {
         ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
 
         const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");

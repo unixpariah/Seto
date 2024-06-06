@@ -12,6 +12,7 @@ const zxdg = wayland.client.zxdg;
 const Tree = @import("tree.zig").Tree;
 const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
+const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 const Seat = @import("seat.zig").Seat;
 const Result = @import("tree.zig").Result;
 const Config = @import("config.zig").Config;
@@ -102,27 +103,20 @@ pub const Seto = struct {
         };
 
         if (self.border_mode) {
-            var pos: [2]i32 = .{ 0, 0 };
-            const outputs = self.outputs.items;
-            for (outputs, 0..) |*output, i| {
-                if (!output.isConfigured()) continue;
-                const info = output.output_info;
+            var surf_iter = SurfaceIterator.new(self.outputs.items);
+            while (surf_iter.next()) |res| {
+                const surface: Surface, const pos: [2]i32 = res;
+                const info = surface.output_info;
 
                 context.moveTo(@floatFromInt(pos[0]), @floatFromInt(pos[1]));
                 context.relLineTo(0, @floatFromInt(info.height));
                 context.relLineTo(@floatFromInt(info.width), 0);
                 context.relLineTo(0, @floatFromInt(-info.height));
                 context.relLineTo(@floatFromInt(-info.width), 0);
-
-                if (i > 0) {
-                    if (info.x <= outputs[i - 1].output_info.x) pos = .{ 0, outputs[i - 1].output_info.height };
-                }
-
-                pos[0] += info.width;
             }
 
             context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
-            context.setLineWidth(grid.line_width * 2);
+            context.setLineWidth(grid.line_width);
             context.stroke();
 
             return;
@@ -207,6 +201,25 @@ pub const Seto = struct {
         }
     }
 
+    fn createLayout(self: *Self, context: *cairo.Context) *pango.Layout {
+        const font = self.config.?.font;
+        const layout: *pango.Layout = context.createLayout() catch @panic("OOM");
+        const font_description = pango.FontDescription.new() catch @panic("OOM");
+        defer font_description.free();
+
+        font_description.setFamilyStatic(font.family);
+        font_description.setStyle(font.style);
+        font_description.setWeight(font.weight);
+        font_description.setAbsoluteSize(font.size * pango.SCALE);
+        font_description.setVariant(font.variant);
+        font_description.setStretch(font.stretch);
+        font_description.setGravity(font.gravity);
+
+        layout.setFontDescription(font_description);
+
+        return layout;
+    }
+
     fn createSurfaces(self: *Self) !void {
         if (!self.shouldDraw()) return;
         if (self.tree == null) {
@@ -237,29 +250,27 @@ pub const Seto = struct {
         ctx.paint();
 
         self.drawGrid(width, height, ctx);
-        self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items);
+        const layout = self.createLayout(ctx);
+        defer layout.destroy();
+        if (self.border_mode) {} else {
+            self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items, layout);
+        }
 
-        var pos: [2]i32 = .{ 0, 0 };
-        const outputs = self.outputs.items;
-        for (outputs, 0..) |*output, i| {
-            if (!output.isConfigured()) continue;
-            const info = output.output_info;
+        var surf_iter = SurfaceIterator.new(self.outputs.items);
+        while (surf_iter.next()) |res| {
+            const surface: Surface, const pos: [2]i32 = res;
+            const info = surface.output_info;
+
             const output_surface = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
             defer output_surface.destroy();
             const output_ctx = try cairo.Context.create(output_surface.asSurface());
             defer output_ctx.destroy();
 
-            if (i > 0) {
-                if (info.x <= outputs[i - 1].output_info.x) pos = .{ 0, outputs[i - 1].output_info.height };
-            }
-
             output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-pos[0]), @floatFromInt(-pos[1]));
-            pos[0] += info.width;
             output_ctx.paint();
 
             const data = try output_surface.getData();
-
-            @memcpy(output.mmap.?, data);
+            @memcpy(surface.mmap.?, data);
         }
     }
 

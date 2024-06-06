@@ -88,6 +88,34 @@ pub const Surface = struct {
     }
 };
 
+pub const SurfaceIterator = struct {
+    position: [2]i32 = .{ 0, 0 },
+    outputs: []Surface,
+    index: u8 = 0,
+
+    const Self = @This();
+
+    pub fn new(outputs: []Surface) Self {
+        return Self{ .outputs = outputs };
+    }
+
+    pub fn next(self: *Self) ?std.meta.Tuple(&.{ Surface, [2]i32 }) {
+        if (self.index >= self.outputs.len) return null;
+        const output = self.outputs[self.index];
+        const info = output.output_info;
+        if (!output.isConfigured()) return self.next();
+
+        if (self.index > 0) {
+            if (info.x <= self.outputs[self.index - 1].output_info.x) self.position = .{ 0, self.outputs[self.index - 1].output_info.height };
+        }
+
+        defer self.index += 1;
+        defer self.position[0] += info.width;
+
+        return .{ output, self.position };
+    }
+};
+
 pub fn frameListener(callback: *wl.Callback, _: wl.Callback.Event, surface: *Surface) void {
     surface.draw() catch return;
     callback.destroy();
@@ -131,9 +159,6 @@ pub fn xdgOutputListener(
 
                     const total_size = size.width * size.height * 4;
 
-                    seto.updateDimensions();
-                    seto.sortOutputs();
-
                     const fd = posix.memfd_create("seto", 0) catch |err| @panic(@errorName(err));
                     defer std.posix.close(fd);
                     posix.ftruncate(fd, @intCast(total_size)) catch @panic("OOM");
@@ -147,6 +172,9 @@ pub fn xdgOutputListener(
                     surface.buffer = pool.createBuffer(0, size.width, size.height, size.width * 4, wl.Shm.Format.argb8888) catch unreachable;
 
                     surface.draw() catch return;
+
+                    seto.updateDimensions();
+                    seto.sortOutputs();
                 },
                 .done => {},
             }
