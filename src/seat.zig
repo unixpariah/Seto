@@ -178,7 +178,7 @@ pub fn handleKey(self: *Seto) void {
             }
 
             if ((function == .move or function == .resize) and !self.border_mode or function == .border_select or function == .move_selection) {
-                self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid, self.border_mode, self.outputs.items);
+                self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid, self.border_mode, self.outputs.items, &self.seat.buffer);
                 return;
             }
         }

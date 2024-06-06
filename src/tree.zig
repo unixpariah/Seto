@@ -52,7 +52,8 @@ pub const Tree = struct {
             .arena = arena,
         };
 
-        tree.updateCoordinates(dimensions, grid, false, outputs);
+        var tmp = std.ArrayList([64]u8).init(alloc);
+        tree.updateCoordinates(dimensions, grid, false, outputs, &tmp);
 
         return tree;
     }
@@ -101,7 +102,7 @@ pub const Tree = struct {
         return error.KeyNotFound;
     }
 
-    pub fn updateCoordinates(self: *Self, dimensions: [2]i32, grid: Grid, border_mode: bool, outputs: []Surface) void {
+    pub fn updateCoordinates(self: *Self, dimensions: [2]i32, grid: Grid, border_mode: bool, outputs: []Surface, buffer: *std.ArrayList([64]u8)) void {
         const intersections = intersections: {
             if (!border_mode) {
                 const width = dimensions[0];
@@ -116,9 +117,9 @@ pub const Tree = struct {
 
                 var index: usize = 0;
                 var i = grid.offset[0];
-                while (i <= width) : (i += grid.size[0]) {
+                while (i <= width - 1) : (i += grid.size[0]) {
                     var j = grid.offset[1];
-                    while (j <= height) : (j += grid.size[1]) {
+                    while (j <= height - 1) : (j += grid.size[1]) {
                         intersections[index] = .{ i, j };
                         index += 1;
                     }
@@ -140,9 +141,9 @@ pub const Tree = struct {
                     }
 
                     intersections.append(pos) catch unreachable;
-                    intersections.append(.{ pos[0], pos[1] + info.height }) catch unreachable;
-                    intersections.append(.{ pos[0] + info.width, pos[1] }) catch unreachable;
-                    intersections.append(.{ pos[0] + info.width, pos[1] + info.height }) catch unreachable;
+                    intersections.append(.{ pos[0], pos[1] + info.height - 1 }) catch unreachable;
+                    intersections.append(.{ pos[0] + info.width - 1, pos[1] }) catch unreachable;
+                    intersections.append(.{ pos[0] + info.width - 1, pos[1] + info.height - 1 }) catch unreachable;
 
                     pos[0] += info.width;
                 }
@@ -160,9 +161,15 @@ pub const Tree = struct {
         };
 
         if (depth < self.depth) {
-            for (depth..self.depth) |_| self.decreaseDepth();
+            for (depth..self.depth) |_| {
+                self.decreaseDepth();
+                buffer.clearAndFree();
+            }
         } else if (depth > self.depth) {
-            for (self.depth..depth) |_| self.increaseDepth();
+            for (self.depth..depth) |_| {
+                self.increaseDepth();
+                buffer.clearAndFree();
+            }
         }
 
         var index: usize = 0;

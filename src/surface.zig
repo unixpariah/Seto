@@ -49,6 +49,11 @@ pub const Surface = struct {
         };
     }
 
+    pub fn posInSurface(self: Self, coordinates: [2]i32) bool {
+        const info = self.output_info;
+        return coordinates[0] < info.x + info.width and coordinates[0] >= info.x and coordinates[1] < info.y + info.height and coordinates[1] >= info.y;
+    }
+
     pub fn cmp(self: Self, a: Self, b: Self) bool {
         _ = self;
         if (a.output_info.x != b.output_info.x)

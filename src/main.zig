@@ -145,11 +145,35 @@ pub const Seto = struct {
         context.stroke();
     }
 
-    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
-        inPlaceReplace(arena.allocator(), &self.config.?.output_format, "%x", top_left[0]);
-        inPlaceReplace(arena.allocator(), &self.config.?.output_format, "%y", top_left[1]);
-        inPlaceReplace(arena.allocator(), &self.config.?.output_format, "%w", size[0]);
-        inPlaceReplace(arena.allocator(), &self.config.?.output_format, "%h", size[1]);
+    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32, outputs: []Surface) void {
+        var pos: [2]i32 = .{ 0, 0 };
+        var output_name: []const u8 = "<unkown>";
+        for (outputs, 0..) |*output, i| {
+            if (!output.isConfigured()) continue;
+            const info = output.output_info;
+
+            if (i > 0) {
+                if (info.x <= outputs[i - 1].output_info.x) pos = .{ 0, outputs[i - 1].output_info.height };
+            }
+
+            if (output.posInSurface(top_left)) {
+                const relative_pos = .{ top_left[0] - info.x, top_left[1] - info.y };
+                const relative_size = .{ @abs(top_left[0] - @min((info.x + info.width), top_left[0] + size[0])), @abs(top_left[1] - @min((info.y + info.height), top_left[1] + size[1])) };
+                output_name = if (info.name) |name| name else "<unkown>";
+                inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%X", relative_pos[0]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%Y", relative_pos[1]);
+                inPlaceReplace(u32, arena.allocator(), &self.config.?.output_format, "%W", relative_size[0]);
+                inPlaceReplace(u32, arena.allocator(), &self.config.?.output_format, "%H", relative_size[1]);
+            }
+
+            pos[0] += info.width;
+        }
+
+        inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%x", top_left[0]);
+        inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%y", top_left[1]);
+        inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%w", size[0]);
+        inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%h", size[1]);
+        inPlaceReplace([]const u8, arena.allocator(), &self.config.?.output_format, "%o", output_name);
     }
 
     fn printToStdout(self: *Self) !void {
@@ -163,7 +187,7 @@ pub const Seto = struct {
 
                     var arena = std.heap.ArenaAllocator.init(self.alloc);
                     defer arena.deinit();
-                    self.formatOutput(&arena, coords, size);
+                    self.formatOutput(&arena, top_left, size, self.outputs.items);
 
                     _ = std.io.getStdOut().write(self.config.?.output_format) catch @panic("Write error");
                     self.exit = true;
@@ -175,7 +199,7 @@ pub const Seto = struct {
             .Single => {
                 var arena = std.heap.ArenaAllocator.init(self.alloc);
                 defer arena.deinit();
-                _ = self.formatOutput(&arena, coords, .{ 1, 1 });
+                _ = self.formatOutput(&arena, coords, .{ 1, 1 }, self.outputs.items);
 
                 _ = std.io.getStdOut().write(self.config.?.output_format) catch @panic("Write error");
                 self.exit = true;
@@ -360,10 +384,14 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
     }
 }
 
-fn inPlaceReplace(alloc: std.mem.Allocator, input: *[]const u8, needle: []const u8, replacement: i32) void {
+fn inPlaceReplace(comptime T: type, alloc: std.mem.Allocator, input: *[]const u8, needle: []const u8, replacement: T) void {
     const count = std.mem.count(u8, input.*, needle);
     if (count == 0) return;
-    const str = std.fmt.allocPrint(alloc, "{}", .{replacement}) catch @panic("OOM");
+    const str = if (T == []const u8)
+        std.fmt.allocPrint(alloc, "{s}", .{replacement}) catch @panic("OOM")
+    else
+        std.fmt.allocPrint(alloc, "{}", .{replacement}) catch @panic("OOM");
+
     const buffer = alloc.alloc(u8, count * str.len + (input.*.len - needle.len * count)) catch @panic("OOM");
     _ = std.mem.replace(u8, input.*, needle, str, buffer);
     input.* = buffer;
