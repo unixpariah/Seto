@@ -15,13 +15,12 @@ pub const Result = struct {
 fn cairoDraw(ctx: *cairo.Context, position: [2]i32, path: []u8, matches: u8, font: Font, layout: *pango.Layout) void {
     ctx.moveTo(@floatFromInt(position[0] + font.offset[0]), @floatFromInt(position[1] + font.offset[1]));
     if (matches > 0) {
-        ctx.setSourceRgba(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2], font.highlight_color[3]);
         layout.setText(path[0..matches]);
-        ctx.showLayout(layout);
-
-        var rect: pango.Rectangle = undefined;
         var logical_rect: pango.Rectangle = undefined;
-        layout.getExtents(&rect, &logical_rect);
+        layout.getExtents(null, &logical_rect);
+
+        ctx.setSourceRgba(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2], font.highlight_color[3]);
+        ctx.showLayout(layout);
         ctx.relMoveTo(@as(f64, @floatFromInt(logical_rect.width)) / pango.SCALE, 0);
         ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
     }
@@ -59,8 +58,6 @@ pub const Tree = struct {
     }
 
     pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, layout: *pango.Layout) void {
-        ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
-
         const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");
 
         for (self.children) |*child| {

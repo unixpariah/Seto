@@ -82,6 +82,7 @@ pub const Surface = struct {
         self.surface.destroy();
         self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
+        self.buffer.?.destroy();
         if (self.mmap) |mmap| {
             posix.munmap(mmap);
         }
@@ -116,8 +117,8 @@ pub const SurfaceIterator = struct {
     }
 };
 
-pub fn frameListener(callback: *wl.Callback, _: wl.Callback.Event, surface: *Surface) void {
-    surface.draw() catch return;
+pub fn frameListener(callback: *wl.Callback, event: wl.Callback.Event, surface: *Surface) void {
+    if (event == .done) surface.draw() catch return;
     callback.destroy();
 }
 
@@ -128,6 +129,21 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
                 if (surface.layer_surface == lsurf) {
                     surface.layer_surface.setSize(configure.width, configure.height);
                     surface.layer_surface.ackConfigure(configure.serial);
+
+                    const total_size = configure.width * configure.height * 4;
+
+                    const fd = posix.memfd_create("seto", 0) catch |err| @panic(@errorName(err));
+                    defer std.posix.close(fd);
+                    posix.ftruncate(fd, @intCast(total_size)) catch @panic("OOM");
+
+                    const pool = seto.shm.?.createPool(fd, @intCast(total_size)) catch |err| @panic(@errorName(err));
+                    defer pool.destroy();
+
+                    surface.mmap = posix.mmap(null, total_size, posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, fd, 0) catch @panic("OOM");
+
+                    surface.buffer = pool.createBuffer(0, @intCast(configure.width), @intCast(configure.height), @intCast(configure.width * 4), wl.Shm.Format.argb8888) catch unreachable;
+
+                    surface.draw() catch return;
                 }
             }
         },
@@ -156,22 +172,6 @@ pub fn xdgOutputListener(
                 .logical_size => |size| {
                     surface.output_info.height = size.height;
                     surface.output_info.width = size.width;
-
-                    const total_size = size.width * size.height * 4;
-
-                    const fd = posix.memfd_create("seto", 0) catch |err| @panic(@errorName(err));
-                    defer std.posix.close(fd);
-                    posix.ftruncate(fd, @intCast(total_size)) catch @panic("OOM");
-
-                    const pool = seto.shm.?.createPool(fd, 1) catch |err| @panic(@errorName(err));
-                    defer pool.destroy();
-                    pool.resize(total_size);
-
-                    surface.mmap = posix.mmap(null, @intCast(total_size), posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, fd, 0) catch @panic("OOM");
-
-                    surface.buffer = pool.createBuffer(0, size.width, size.height, size.width * 4, wl.Shm.Format.argb8888) catch unreachable;
-
-                    surface.draw() catch return;
 
                     seto.updateDimensions();
                     seto.sortOutputs();

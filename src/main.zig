@@ -108,11 +108,7 @@ pub const Seto = struct {
                 const surface: Surface, const pos: [2]i32 = res;
                 const info = surface.output_info;
 
-                context.moveTo(@floatFromInt(pos[0]), @floatFromInt(pos[1]));
-                context.relLineTo(0, @floatFromInt(info.height));
-                context.relLineTo(@floatFromInt(info.width), 0);
-                context.relLineTo(0, @floatFromInt(-info.height));
-                context.relLineTo(@floatFromInt(-info.width), 0);
+                context.rectangle(.{ .x = @floatFromInt(pos[0]), .y = @floatFromInt(pos[1]), .width = @floatFromInt(info.width), .height = @floatFromInt(info.height) });
             }
 
             context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
@@ -201,9 +197,9 @@ pub const Seto = struct {
         }
     }
 
-    fn createLayout(self: *Self, context: *cairo.Context) *pango.Layout {
+    fn createLayout(self: *Self, ctx: *cairo.Context) *pango.Layout {
         const font = self.config.?.font;
-        const layout: *pango.Layout = context.createLayout() catch @panic("OOM");
+        const layout: *pango.Layout = ctx.createLayout() catch @panic("OOM");
         const font_description = pango.FontDescription.new() catch @panic("OOM");
         defer font_description.free();
 
@@ -216,6 +212,8 @@ pub const Seto = struct {
         font_description.setGravity(font.gravity);
 
         layout.setFontDescription(font_description);
+
+        ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
 
         return layout;
     }
@@ -252,7 +250,33 @@ pub const Seto = struct {
         self.drawGrid(width, height, ctx);
         const layout = self.createLayout(ctx);
         defer layout.destroy();
-        if (self.border_mode) {} else {
+        const font = self.config.?.font;
+        _ = font;
+
+        if (self.border_mode) {
+            var surf_iter = SurfaceIterator.new(self.outputs.items);
+            while (surf_iter.next()) |res| {
+                const surface: Surface, const pos: [2]i32 = res;
+                const info = surface.output_info;
+                _ = info;
+
+                ctx.moveTo(@floatFromInt(pos[0]), @floatFromInt(pos[1]));
+                layout.setText("a");
+                ctx.showLayout(layout);
+
+                // ctx.moveTo(@floatFromInt(pos[0]), @floatFromInt(pos[1] + info.height));
+                // layout.setText("a");
+                // ctx.showLayout(layout);
+
+                // ctx.moveTo(@floatFromInt(pos[0] + info.width), @floatFromInt(pos[1]));
+                // layout.setText("a");
+                // ctx.showLayout(layout);
+
+                // ctx.moveTo(@floatFromInt(pos[0] + info.width), @floatFromInt(pos[1] + info.height));
+                // layout.setText("a");
+                // ctx.showLayout(layout);
+            }
+        } else {
             self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items, layout);
         }
 
@@ -323,8 +347,7 @@ pub fn main() !void {
         try seto.createSurfaces();
     }
 
-    const outputs = seto.outputs.items;
-    for (outputs) |*output| {
+    for (seto.outputs.items) |*output| {
         if (!output.isConfigured()) continue;
         for (0..output.mmap.?.len) |index| output.mmap.?[index] = 0;
     }
@@ -338,7 +361,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
             const event_str = std.meta.stringToEnum(EventInterfaces, mem.span(global.interface)) orelse return;
             switch (event_str) {
                 .wl_shm => {
-                    seto.shm = registry.bind(global.name, wl.Shm, wl.Shm.generated_version) catch |err| @panic(@errorName(err));
+                    seto.shm = registry.bind(global.name, wl.Shm, 1) catch |err| @panic(@errorName(err));
                 },
                 .wl_compositor => {
                     seto.compositor = registry.bind(global.name, wl.Compositor, wl.Compositor.generated_version) catch |err| @panic(@errorName(err));
@@ -353,8 +376,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         wl.Output.generated_version,
                     ) catch |err| @panic(@errorName(err));
 
-                    const compositor = seto.compositor orelse @panic("Compositor not bound");
-                    const surface = compositor.createSurface() catch |err| @panic(@errorName(err));
+                    const surface = seto.compositor.?.createSurface() catch |err| @panic(@errorName(err));
 
                     const layer_surface = seto.layer_shell.?.getLayerSurface(surface, global_output, .overlay, "seto") catch |err| @panic(@errorName(err));
                     layer_surface.setListener(*Seto, layerSurfaceListener, seto);
