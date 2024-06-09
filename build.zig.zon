@@ -4,8 +4,8 @@
     .paths = .{""},
     .dependencies = .{
         .giza = .{
-            .url = "https://github.com/unixpariah/giza/archive/refs/heads/master.tar.gz",
-            .hash = "12205343b298a246d9476941a716f376d4cb06074af5799a3373c41875e98a448f26",
+            .url = "https://github.com/unixpariah/giza/archive/zig-0.12.0.tar.gz",
+            .hash = "1220f40881b248c7d1a74e679cdb6c6c13c493a350deddbfeeb7aef92c03321ae5a6",
         },
         .ziglua = .{
             .url = "https://github.com/natecraddock/ziglua/archive/41a110981cf016465f72208c3f1732fd4c92a694.tar.gz",

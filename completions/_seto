@@ -27,4 +27,3 @@ _arguments -s \
   '--selected-line-width+[Change line width of selected position in region mode]:width' \
   '-s+[Set keys used to search]:keys' \
   '-F+[Bind function to a key]:function'
-}

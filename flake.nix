@@ -1,40 +1,98 @@
 {
+  description = "Seto - keyboard based screen selection tool";
+
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    zig-overlay = {
-      url = "github:mitchellh/zig-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    zls = {
-      url = "github:zigtools/zls";
-      inputs.zig-overlay.follows = "zig-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    zig2nix.url = "github:Cloudef/zig2nix";
+    zls.url = "github:zigtools/zls";
   };
 
   outputs = {
-    self,
-    nixpkgs,
-    zig-overlay,
+    zig2nix,
     zls,
+    ...
   }: let
-    system = "x86_64-linux";
-    pkgs = nixpkgs.legacyPackages.${system};
-  in {
-    packages.${system}.default = import ./default.nix {inherit pkgs;};
-    devShells.${system}.default = pkgs.mkShell {
-      packages = with pkgs; [
-        zls.packages.${system}.default
-        zig
-        pango
-        cairo
-        pkg-config
-        wayland
-        wayland-scanner
-        wayland-protocols
-        libxkbcommon
-        scdoc
-      ];
-    };
-  };
+    flake-utils = zig2nix.inputs.flake-utils;
+  in (flake-utils.lib.eachDefaultSystem (system: let
+    env = zig2nix.outputs.zig-env.${system} {zig = zig2nix.outputs.packages.${system}.zig."0.12.0".bin;};
+    system-triple = env.lib.zigTripleFromString system;
+  in
+    with builtins;
+    with env.lib;
+    with env.pkgs.lib; rec {
+      packages.target = genAttrs allTargetTriples (target:
+        env.packageForTarget target ({
+            src = cleanSource ./.;
+
+            nativeBuildInputs = with env.pkgs; [
+              pango
+              cairo
+              wayland
+              wayland-protocols
+              libxkbcommon
+            ];
+
+            buildInputs = with env.pkgsForTarget target; [
+              pkg-config
+              scdoc
+            ];
+
+            zigPreferMusl = true;
+
+            zigDisableWrap = true;
+
+            installPhase = ''
+              mkdir -p $out/bin
+              cp zig-out/bin/seto $out/bin
+            '';
+
+            postInstall = ''
+              for f in doc/*.scd; do
+                local page="doc/$(basename "$f" .scd)"
+                scdoc < "$f" > "$page"
+                installManPage "$page"
+              done
+
+              installShellCompletion --cmd sww \
+                --bash completions/seto.bash \
+                --fish completions/seto.fish \
+                --zsh completions/_seto
+            '';
+          }
+          // optionalAttrs (!pathExists ./build.zig.zon) {
+            pname = "seto";
+            version = "0.1.0";
+          }));
+
+      # nix build .
+      packages.default = packages.target.${system-triple}.override {
+        zigPreferMusl = false;
+        zigDisableWrap = false;
+      };
+
+      apps.bundle.target = genAttrs allTargetTriples (target: let
+        pkg = packages.target.${target};
+      in {
+        type = "app";
+        program = "${pkg}/bin/default";
+      });
+
+      # default bundle
+      apps.bundle.default = apps.bundle.target.${system-triple};
+
+      # nix run .#zon2json-lock
+      apps.zon2json-lock = env.app [env.zon2json-lock] "zon2json-lock \"$@\"";
+
+      # nix develop
+      devShells.default = env.mkShell {
+        packages = with env.pkgs; [
+          pango
+          cairo
+          pkg-config
+          wayland
+          wayland-protocols
+          libxkbcommon
+          zls.packages.${system}.default
+        ];
+      };
+    }));
 }
