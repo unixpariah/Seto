@@ -34,29 +34,12 @@
             buildInputs = with env.pkgsForTarget target; [
               pkg-config
               scdoc
+              installShellFiles
             ];
 
             zigPreferMusl = true;
 
             zigDisableWrap = true;
-
-            installPhase = ''
-              mkdir -p $out/bin
-              cp zig-out/bin/seto $out/bin
-            '';
-
-            postInstall = ''
-              for f in doc/*.scd; do
-                local page="doc/$(basename "$f" .scd)"
-                scdoc < "$f" > "$page"
-                installManPage "$page"
-              done
-
-              installShellCompletion --cmd sww \
-                --bash completions/seto.bash \
-                --fish completions/seto.fish \
-                --zsh completions/_seto
-            '';
           }
           // optionalAttrs (!pathExists ./build.zig.zon) {
             pname = "seto";
@@ -67,6 +50,19 @@
       packages.default = packages.target.${system-triple}.override {
         zigPreferMusl = false;
         zigDisableWrap = false;
+
+        postInstall = ''
+          for f in doc/*.scd; do
+            local page="doc/$(basename "$f" .scd)"
+            scdoc < "$f" > "$page"
+            installManPage "$page"
+          done
+
+          installShellCompletion --cmd sww \
+            --bash completions/seto.bash \
+            --fish completions/seto.fish \
+            --zsh completions/_seto
+        '';
       };
 
       apps.bundle.target = genAttrs allTargetTriples (target: let
