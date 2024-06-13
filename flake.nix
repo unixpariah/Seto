@@ -13,7 +13,7 @@
   }: let
     flake-utils = zig2nix.inputs.flake-utils;
   in (flake-utils.lib.eachDefaultSystem (system: let
-    env = zig2nix.outputs.zig-env.${system} {zig = zig2nix.outputs.packages.${system}.zig."0.12.0".bin;};
+    env = zig2nix.outputs.zig-env.${system} {zig = zig2nix.outputs.packages.${system}.zig."0.13.0".bin;};
     system-triple = env.lib.zigTripleFromString system;
   in
     with builtins;
@@ -86,6 +86,7 @@
           pkg-config
           wayland
           wayland-protocols
+          wayland-scanner
           libxkbcommon
           zls.packages.${system}.default
         ];

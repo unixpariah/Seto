@@ -4,20 +4,20 @@
     .paths = .{""},
     .dependencies = .{
         .giza = .{
-            .url = "https://github.com/unixpariah/giza/archive/zig-0.12.0.tar.gz",
-            .hash = "1220f40881b248c7d1a74e679cdb6c6c13c493a350deddbfeeb7aef92c03321ae5a6",
+            .url = "https://github.com/unixpariah/giza/archive/zig-0.13.0.tar.gz",
+            .hash = "1220cfe58a81834cafa00a5ea0735535c07269d4c427b80d8e9c8f7bf3b0d30c3086",
         },
         .ziglua = .{
-            .url = "https://github.com/natecraddock/ziglua/archive/41a110981cf016465f72208c3f1732fd4c92a694.tar.gz",
-            .hash = "122079a0dd43f5b26a584f2cde6c2580de775ed5e1b48d80e9946eef3edc4a510a04",
+            .url = "https://github.com/natecraddock/ziglua/archive/main.tar.gz",
+            .hash = "1220affeb3fe37ef09411b5a213b5fdf9bb6568e9913bade204694648983a8b2776d",
         },
         .@"zig-wayland" = .{
-            .url = "https://codeberg.org/ifreund/zig-wayland/archive/v0.1.0.tar.gz",
-            .hash = "1220b0f8f822c1625af7aae4cb3ab2c4ec1a4c0e99ef32867b2a8d88bb070b3e7f6d",
+            .url = "https://codeberg.org/ifreund/zig-wayland/archive/master.tar.gz",
+            .hash = "1220ab835f090bde18b74191e88c4ab3bd49364d310bd9912eccebd3c47bad7957a3",
         },
         .@"zig-xkbcommon" = .{
-            .url = "https://codeberg.org/ifreund/zig-xkbcommon/archive/v0.1.0.tar.gz",
-            .hash = "1220840390382c88caf9b0887f6cebbba3a7d05960b8b2ee6d80567b2950b71e5017",
+            .url = "https://codeberg.org/ifreund/zig-xkbcommon/archive/master.tar.gz",
+            .hash = "12200989a0e5c5d8186dd16752e3d83d914d4f54ecca7b3e147443f13a9580ede671",
         },
     },
 }

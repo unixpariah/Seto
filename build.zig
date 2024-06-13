@@ -29,7 +29,7 @@ pub fn build(b: *std.Build) void {
 
     const exe = b.addExecutable(.{
         .name = "seto",
-        .root_source_file = .{ .path = "src/main.zig" },
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -54,9 +54,9 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     const unit_tests_step = b.step("test", "Run all tests");
-    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = .{ .path = "src/config.zig" } })).step);
-    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = .{ .path = "src/tree.zig" } })).step);
-    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = .{ .path = "tests/integration.zig" } })).step);
+    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = b.path("src/config.zig") })).step);
+    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = b.path("src/tree.zig") })).step);
+    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = b.path("tests/integration.zig") })).step);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

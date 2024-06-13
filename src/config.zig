@@ -81,14 +81,14 @@ pub const Config = struct {
         };
         defer alloc.free(config_path);
 
-        var lua = Lua.init(alloc) catch @panic("OOM");
+        var lua = Lua.init(&alloc) catch @panic("OOM");
         defer lua.deinit();
         lua.doFile(config_path) catch {
             std.debug.print("File {s} couldn't be executed by lua interpreter\n", .{config_path});
             std.process.exit(1);
         };
 
-        var config = Config{ .alloc = alloc, .keys = Keys.new(&lua, alloc), .grid = Grid.new(&lua), .font = Font.new(&lua, alloc) };
+        var config = Config{ .alloc = alloc, .keys = Keys.new(lua, alloc), .grid = Grid.new(lua), .font = Font.new(lua, alloc) };
 
         _ = lua.pushString("background_color");
         _ = lua.getTable(1);
@@ -96,7 +96,7 @@ pub const Config = struct {
             std.debug.print("Background color expected hex value\n", .{});
             std.process.exit(1);
         };
-        config.background_color = hexToRgba(std.mem.span(background_color)) catch {
+        config.background_color = hexToRgba(background_color) catch {
             std.debug.print("Failed to parse background color\n", .{});
             std.process.exit(1);
         };
@@ -139,7 +139,7 @@ pub const Font = struct {
             std.debug.print("Font color expected hex value\n", .{});
             std.process.exit(1);
         }
-        font.color = hexToRgba(std.mem.span(lua.toString(3) catch unreachable)) catch {
+        font.color = hexToRgba(lua.toString(3) catch unreachable) catch {
             std.debug.print("Failed to parse font color\n", .{});
             std.process.exit(1);
         };
@@ -151,7 +151,7 @@ pub const Font = struct {
             std.debug.print("Font highlight color expected hex value\n", .{});
             std.process.exit(1);
         }
-        font.highlight_color = hexToRgba(std.mem.span(lua.toString(3) catch unreachable)) catch {
+        font.highlight_color = hexToRgba(lua.toString(3) catch unreachable) catch {
             std.debug.print("Failed to parse highlight color\n", .{});
             std.process.exit(1);
         };
@@ -175,7 +175,7 @@ pub const Font = struct {
                 std.debug.print("Font family should be a string\n", .{});
                 std.process.exit(1);
             };
-            font.family = alloc.dupeZ(u8, std.mem.span(font_family)) catch @panic("OOM");
+            font.family = alloc.dupeZ(u8, font_family) catch @panic("OOM");
         }
         lua.pop(1);
 
@@ -257,7 +257,7 @@ fn getStyle(comptime T: type, name: [:0]const u8, lua: *Lua) !T {
             std.process.exit(1);
         }
         const result = try lua.toString(3);
-        return std.meta.stringToEnum(T, std.mem.span(result)) orelse return error.OptNotFound;
+        return std.meta.stringToEnum(T, result) orelse return error.OptNotFound;
     }
     return error.NotFound;
 }
@@ -288,7 +288,7 @@ pub const Grid = struct {
             std.debug.print("Grid color expected hex value\n", .{});
             std.process.exit(1);
         };
-        grid.color = hexToRgba(std.mem.span(grid_color)) catch {
+        grid.color = hexToRgba(grid_color) catch {
             std.debug.print("Failed to parse grid color\n", .{});
             std.process.exit(1);
         };
@@ -300,7 +300,7 @@ pub const Grid = struct {
             std.debug.print("Grid selected color expected hex value\n", .{});
             std.process.exit(1);
         };
-        grid.selected_color = hexToRgba(std.mem.span(grid_selected_color)) catch {
+        grid.selected_color = hexToRgba(grid_selected_color) catch {
             std.debug.print("Failed to parse selected grid color\n", .{});
             std.process.exit(1);
         };
@@ -438,7 +438,7 @@ const Keys = struct {
         if (lua.isString(3)) {
             alloc.free(keys_s.search);
             const keys = lua.toString(3) catch unreachable;
-            keys_s.search = alloc.dupe(u8, std.mem.span(keys)) catch @panic("OOM");
+            keys_s.search = alloc.dupe(u8, keys) catch @panic("OOM");
         }
         lua.pop(1);
 
