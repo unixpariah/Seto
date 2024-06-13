@@ -132,7 +132,7 @@ Interpreted sequences are:
 %H	The height of the selection cropped to the output containing the top left
 	corner.
 
-%l	Label included with region from stdin
+%l	Label included with region from stdin (This is a TODO)
 
 %o	The name of the output containing the top left corner, or "<unknown>" if
 	not known

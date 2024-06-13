@@ -12,16 +12,55 @@ pub const Result = struct {
     pos: [2]usize,
 };
 
-fn cairoDraw(ctx: *cairo.Context, position: [2]i32, path: []u8, matches: u8, font: Font, layout: *pango.Layout) void {
-    ctx.moveTo(@floatFromInt(position[0] + font.offset[0]), @floatFromInt(position[1] + font.offset[1]));
+fn cairoDraw(ctx: *cairo.Context, position: [2]i32, path: []u8, matches: u8, font: Font, layout: *pango.Layout, border_mode: bool, outputs: []Surface) void {
+    layout.setText(path);
+    var rectangle: pango.Rectangle = undefined;
+    layout.getExtents(null, &rectangle);
+    rectangle = .{
+        .height = @divTrunc(rectangle.height, pango.SCALE),
+        .width = @divTrunc(rectangle.width, pango.SCALE),
+        .x = @divTrunc(rectangle.x, pango.SCALE),
+        .y = @divTrunc(rectangle.y, pango.SCALE),
+    };
+
+    ctx.moveTo(@floatFromInt(position[0] - rectangle.x), @floatFromInt(position[1] - rectangle.y));
+
+    if (border_mode) {
+        const offset: [2]i32 = .{ @intCast(@abs(font.offset[0])), @intCast(@abs(font.offset[1])) };
+
+        for (outputs) |output| {
+            const info = output.output_info;
+            if (position[0] == info.x) {
+                const x = position[0] - rectangle.x;
+                if (position[1] == info.y) {
+                    const y = position[1] - rectangle.y;
+                    ctx.moveTo(@floatFromInt(x + offset[0]), @floatFromInt(y + offset[1]));
+                } else if (position[1] == info.y + info.height - 1) {
+                    const y = info.height - rectangle.height - rectangle.y;
+                    ctx.moveTo(@floatFromInt(x + offset[0]), @floatFromInt(y - offset[1]));
+                }
+            } else if (position[0] == info.x + info.width - 1) {
+                const x = info.x + info.width - rectangle.width - rectangle.x;
+                if (position[1] == info.y) {
+                    const y = position[1];
+                    ctx.moveTo(@floatFromInt(x - offset[0]), @floatFromInt(y + offset[1]));
+                } else if (position[1] == info.y + info.height - 1) {
+                    const y = info.height - rectangle.height - rectangle.y;
+                    ctx.moveTo(@floatFromInt(x - offset[0]), @floatFromInt(y - offset[1]));
+                }
+            }
+        }
+    } else {
+        ctx.relMoveTo(@floatFromInt(font.offset[0]), @floatFromInt(font.offset[1]));
+    }
+
     if (matches > 0) {
         layout.setText(path[0..matches]);
-        var logical_rect: pango.Rectangle = undefined;
-        layout.getExtents(null, &logical_rect);
+        layout.getExtents(null, &rectangle);
 
         ctx.setSourceRgba(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2], font.highlight_color[3]);
         ctx.showLayout(layout);
-        ctx.relMoveTo(@as(f64, @floatFromInt(logical_rect.width)) / pango.SCALE, 0);
+        ctx.relMoveTo(@as(f64, @floatFromInt(rectangle.width)) / pango.SCALE, 0);
         ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
     }
 
@@ -57,17 +96,17 @@ pub const Tree = struct {
         return tree;
     }
 
-    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, layout: *pango.Layout) void {
+    pub fn drawText(self: *Self, ctx: *cairo.Context, font: Font, buffer: [][64]u8, layout: *pango.Layout, border_mode: bool, outputs: []Surface) void {
         const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");
 
         for (self.children) |*child| {
             path[0] = child.key;
             const matches: u8 = if (buffer.len > 0 and buffer[0][0] == child.key) 1 else 0;
             if (child.children) |_| {
-                child.traverseAndDraw(ctx, buffer, font, path, matches, 1, layout);
+                child.traverseAndDraw(ctx, buffer, font, path, matches, 1, layout, border_mode, outputs);
             } else {
                 if (child.coordinates) |coordinates| {
-                    cairoDraw(ctx, coordinates, path, matches, font, layout);
+                    cairoDraw(ctx, coordinates, path, matches, font, layout, border_mode, outputs);
                 }
             }
         }
@@ -182,7 +221,7 @@ const Node = struct {
 
     const Self = @This();
 
-    fn traverseAndDraw(self: *Self, ctx: *cairo.Context, buffer: [][64]u8, font: Font, path: []u8, matches: u8, index: u8, layout: *pango.Layout) void {
+    fn traverseAndDraw(self: *Self, ctx: *cairo.Context, buffer: [][64]u8, font: Font, path: []u8, matches: u8, index: u8, layout: *pango.Layout, border_mode: bool, outputs: []Surface) void {
         if (self.children) |children| {
             for (children) |*child| {
                 const match = if (matches == index and buffer.len > index and buffer[index][0] == child.key) matches + 1 else if (buffer.len > index) 0 else matches;
@@ -190,9 +229,9 @@ const Node = struct {
                 path[index] = child.key;
 
                 if (child.coordinates) |coordinates| {
-                    cairoDraw(ctx, coordinates, path, match, font, layout);
+                    cairoDraw(ctx, coordinates, path, match, font, layout, border_mode, outputs);
                 } else {
-                    child.traverseAndDraw(ctx, buffer, font, path, match, index + 1, layout);
+                    child.traverseAndDraw(ctx, buffer, font, path, match, index + 1, layout, border_mode, outputs);
                 }
             }
         }

@@ -22,6 +22,7 @@ const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
+const frameListener = @import("surface.zig").frameListener;
 
 const EventInterfaces = enum {
     wl_shm,
@@ -250,35 +251,8 @@ pub const Seto = struct {
         self.drawGrid(width, height, ctx);
         const layout = self.createLayout(ctx);
         defer layout.destroy();
-        const font = self.config.?.font;
-        _ = font;
 
-        if (self.border_mode) {
-            var surf_iter = SurfaceIterator.new(self.outputs.items);
-            while (surf_iter.next()) |res| {
-                const surface: Surface, const pos: [2]i32 = res;
-                const info = surface.output_info;
-                _ = info;
-
-                ctx.moveTo(@floatFromInt(pos[0]), @floatFromInt(pos[1]));
-                layout.setText("a");
-                ctx.showLayout(layout);
-
-                // ctx.moveTo(@floatFromInt(pos[0]), @floatFromInt(pos[1] + info.height));
-                // layout.setText("a");
-                // ctx.showLayout(layout);
-
-                // ctx.moveTo(@floatFromInt(pos[0] + info.width), @floatFromInt(pos[1]));
-                // layout.setText("a");
-                // ctx.showLayout(layout);
-
-                // ctx.moveTo(@floatFromInt(pos[0] + info.width), @floatFromInt(pos[1] + info.height));
-                // layout.setText("a");
-                // ctx.showLayout(layout);
-            }
-        } else {
-            self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items, layout);
-        }
+        self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items, layout, self.border_mode, self.outputs.items);
 
         var surf_iter = SurfaceIterator.new(self.outputs.items);
         while (surf_iter.next()) |res| {

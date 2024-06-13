@@ -67,9 +67,9 @@ pub const Surface = struct {
         const height = self.output_info.height;
 
         self.surface.damage(0, 0, width, height);
-        self.surface.attach(self.buffer, 0, 0);
         const callback = try self.surface.frame();
         callback.setListener(*Self, frameListener, self);
+        self.surface.attach(self.buffer, 0, 0);
         self.surface.commit();
     }
 
@@ -139,11 +139,13 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
                     const pool = seto.shm.?.createPool(fd, @intCast(total_size)) catch |err| @panic(@errorName(err));
                     defer pool.destroy();
 
+                    if (surface.mmap) |mmap| posix.munmap(mmap);
                     surface.mmap = posix.mmap(null, total_size, posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, fd, 0) catch @panic("OOM");
 
+                    if (surface.buffer) |buffer| buffer.destroy();
                     surface.buffer = pool.createBuffer(0, @intCast(configure.width), @intCast(configure.height), @intCast(configure.width * 4), wl.Shm.Format.argb8888) catch unreachable;
 
-                    surface.draw() catch return;
+                    if (!surface.isConfigured()) surface.draw() catch return;
                 }
             }
         },
