@@ -41,9 +41,9 @@ pub const Seat = struct {
     }
 
     pub fn destroy(self: *Self) void {
-        if (self.wl_seat) |wl_seat| wl_seat.release();
-        if (self.wl_keyboard) |wl_keyboard| wl_keyboard.destroy();
-        if (self.xkb_state) |xkb_state| xkb_state.unref();
+        self.wl_seat.?.destroy();
+        self.wl_keyboard.?.destroy();
+        self.xkb_state.?.unref();
         self.buffer.deinit();
         self.xkb_context.unref();
     }
@@ -109,24 +109,24 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                 .released => {
                     seto.seat.repeat.timer = null;
                     seto.seat.repeat.key = null;
-                    return;
                 },
-                .pressed => {},
-                else => return,
+                .pressed => {
+                    seto.seat.repeat.timer = std.time.Timer.start() catch return;
+
+                    const xkb_state = seto.seat.xkb_state orelse return;
+
+                    // The wayland protocol gives us an input event code. To convert this to an xkb
+                    // keycode we must add 8.
+                    const keycode = ev.key + 8;
+
+                    const keysym = xkb_state.keyGetOneSym(keycode);
+                    if (keysym == .NoSymbol) return;
+
+                    seto.seat.repeat.key = @intFromEnum(keysym);
+                    handleKey(seto);
+                },
+                _ => {},
             }
-            seto.seat.repeat.timer = std.time.Timer.start() catch return;
-
-            const xkb_state = seto.seat.xkb_state orelse return;
-
-            // The wayland protocol gives us an input event code. To convert this to an xkb
-            // keycode we must add 8.
-            const keycode = ev.key + 8;
-
-            const keysym = xkb_state.keyGetOneSym(keycode);
-            if (keysym == .NoSymbol) return;
-
-            seto.seat.repeat.key = @intFromEnum(keysym);
-            handleKey(seto);
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.delay = repeat_key.delay;
@@ -153,7 +153,7 @@ fn moveSelection(seto: *Seto, value: [2]i32) void {
 
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
-    const grid = &self.config.?.grid;
+    const grid = &self.config.grid;
 
     const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
         xkb.names.mod.ctrl,
@@ -164,7 +164,7 @@ pub fn handleKey(self: *Seto) void {
         var buffer: [64]u8 = undefined;
         const keysym: xkb.Keysym = @enumFromInt(key);
         _ = keysym.toUTF8(&buffer, 64);
-        if (self.config.?.keys.bindings.get(buffer[0])) |function| {
+        if (self.config.keys.bindings.get(buffer[0])) |function| {
             switch (function) {
                 .move => |value| grid.move(value),
                 .resize => |value| grid.resize(value),
@@ -178,7 +178,13 @@ pub fn handleKey(self: *Seto) void {
             }
 
             if ((function == .move or function == .resize) and !self.border_mode or function == .border_select or function == .move_selection) {
-                self.tree.?.updateCoordinates(self.total_dimensions, self.config.?.grid, self.border_mode, self.outputs.items, &self.seat.buffer);
+                self.tree.?.updateCoordinates(
+                    self.total_dimensions,
+                    self.config.grid,
+                    self.border_mode,
+                    self.outputs.items,
+                    &self.seat.buffer,
+                );
                 return;
             }
         }

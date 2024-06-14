@@ -28,6 +28,8 @@
               cairo
               wayland
               wayland-protocols
+              egl-wayland
+              libGl
               libxkbcommon
             ];
 
@@ -72,13 +74,11 @@
         program = "${pkg}/bin/default";
       });
 
-      # default bundle
       apps.bundle.default = apps.bundle.target.${system-triple};
 
       # nix run .#zon2json-lock
       apps.zon2json-lock = env.app [env.zon2json-lock] "zon2json-lock \"$@\"";
 
-      # nix develop
       devShells.default = env.mkShell {
         packages = with env.pkgs; [
           pango
@@ -88,6 +88,8 @@
           wayland-protocols
           wayland-scanner
           libxkbcommon
+          egl-wayland
+          libGL
           zls.packages.${system}.default
         ];
       };

@@ -57,10 +57,11 @@ fn cairoDraw(ctx: *cairo.Context, position: [2]i32, path: []u8, matches: u8, fon
     if (matches > 0) {
         layout.setText(path[0..matches]);
         layout.getExtents(null, &rectangle);
+        rectangle.width = @divTrunc(rectangle.width, pango.SCALE);
 
         ctx.setSourceRgba(font.highlight_color[0], font.highlight_color[1], font.highlight_color[2], font.highlight_color[3]);
         ctx.showLayout(layout);
-        ctx.relMoveTo(@as(f64, @floatFromInt(rectangle.width)) / pango.SCALE, 0);
+        ctx.relMoveTo(@floatFromInt(rectangle.width), 0);
         ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
     }
 

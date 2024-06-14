@@ -57,7 +57,6 @@ fn parseIntArray(arg: ?[]const u8, separator: []const u8) ![2]i32 {
 }
 
 pub fn parseArgs(seto: *Seto) void {
-    const config = &seto.config.?;
     var args = std.process.args();
     var index: u8 = 0;
 
@@ -75,53 +74,53 @@ pub fn parseArgs(seto: *Seto) void {
             std.debug.print("Seto v0.1.0 \nBuild type: {}\nZig {}\n", .{ builtin.mode, builtin.zig_version });
             std.process.exit(0);
         } else if (std.mem.eql(u8, arg, "--background-color")) {
-            config.background_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.background_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--font-size")) {
             const font_size = getNextArg(&args, arg);
-            config.font.size = std.fmt.parseFloat(f64, font_size) catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
+            seto.config.font.size = std.fmt.parseFloat(f64, font_size) catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
         } else if (std.mem.eql(u8, arg, "--font-family")) {
-            seto.alloc.free(config.font.family);
-            config.font.family = seto.alloc.dupeZ(u8, getNextArg(&args, arg)) catch @panic("OOM");
+            seto.alloc.free(seto.config.font.family);
+            seto.config.font.family = seto.alloc.dupeZ(u8, getNextArg(&args, arg)) catch @panic("OOM");
         } else if (std.mem.eql(u8, arg, "--font-weight")) {
             const font_weight = std.fmt.parseInt(u32, getNextArg(&args, arg), 10) catch {
                 std.debug.print("Font weight should be a number\n", .{});
                 std.process.exit(1);
             };
-            config.font.weight = std.meta.intToEnum(pango.Weight, font_weight) catch |err| @panic(@errorName(err));
+            seto.config.font.weight = std.meta.intToEnum(pango.Weight, font_weight) catch |err| @panic(@errorName(err));
         } else if (std.mem.eql(u8, arg, "--font-style")) {
-            config.font.style = getStyle(pango.Style, getNextArg(&args, arg));
+            seto.config.font.style = getStyle(pango.Style, getNextArg(&args, arg));
         } else if (std.mem.eql(u8, arg, "--font-variant")) {
-            config.font.variant = getStyle(pango.Variant, getNextArg(&args, arg));
+            seto.config.font.variant = getStyle(pango.Variant, getNextArg(&args, arg));
         } else if (std.mem.eql(u8, arg, "--font-gravity")) {
-            config.font.gravity = getStyle(pango.Gravity, getNextArg(&args, arg));
+            seto.config.font.gravity = getStyle(pango.Gravity, getNextArg(&args, arg));
         } else if (std.mem.eql(u8, arg, "--font-stretch")) {
-            config.font.stretch = getStyle(pango.Stretch, getNextArg(&args, arg));
+            seto.config.font.stretch = getStyle(pango.Stretch, getNextArg(&args, arg));
         } else if (std.mem.eql(u8, arg, "--font-offset")) {
-            config.font.offset = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
+            seto.config.font.offset = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-size")) {
-            config.grid.size = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
+            seto.config.grid.size = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-offset")) {
-            config.grid.offset = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
+            seto.config.grid.offset = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
         } else if (std.mem.eql(u8, arg, "--line-width")) {
             const line_width = getNextArg(&args, arg);
-            config.grid.line_width = std.fmt.parseFloat(f64, line_width) catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
+            seto.config.grid.line_width = std.fmt.parseFloat(f64, line_width) catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
         } else if (std.mem.eql(u8, arg, "--selected-line-width")) {
             const line_width = getNextArg(&args, arg);
-            config.grid.selected_line_width = std.fmt.parseFloat(f64, line_width) catch printAndExit("Incorrect argument for --line-width {s}\n", line_width);
+            seto.config.grid.selected_line_width = std.fmt.parseFloat(f64, line_width) catch printAndExit("Incorrect argument for --line-width {s}\n", line_width);
         } else if (std.mem.eql(u8, arg, "--search-keys") or std.mem.eql(u8, arg, "-s")) {
-            seto.alloc.free(config.keys.search);
-            config.keys.search = seto.alloc.dupe(u8, getNextArg(&args, arg)) catch @panic("OOM");
+            seto.alloc.free(seto.config.keys.search);
+            seto.config.keys.search = seto.alloc.dupe(u8, getNextArg(&args, arg)) catch @panic("OOM");
         } else if (std.mem.eql(u8, arg, "--font-color")) {
-            config.font.color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.font.color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--highlight-color")) {
-            config.font.highlight_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.font.highlight_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-color")) {
-            config.grid.color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.grid.color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-selected-color")) {
-            config.grid.selected_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.grid.selected_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--format") or std.mem.eql(u8, arg, "-f")) {
             const format = getNextArg(&args, arg);
-            config.output_format = format;
+            seto.config.output_format = format;
         } else if (std.mem.eql(u8, arg, "--function") or std.mem.eql(u8, arg, "-F")) {
             const key = getNextArg(&args, arg);
             const function = getNextArg(&args, arg);
@@ -131,7 +130,7 @@ pub fn parseArgs(seto: *Seto) void {
             else
                 Function.stringToFunction(function, null) catch printAndExit("Failed to parse function {s}\n", function);
 
-            config.keys.bindings.put(key[0], func) catch printAndExit("Failed to store function binding: \"{s}\"\n", key);
+            seto.config.keys.bindings.put(key[0], func) catch printAndExit("Failed to store function binding: \"{s}\"\n", key);
         } else {
             printAndExit("Unknown option argument \"{s}\"\n", arg);
         }

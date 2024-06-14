@@ -25,7 +25,7 @@ pub fn build(b: *std.Build) void {
 
     const xkbcommon = b.dependency("zig-xkbcommon", .{}).module("xkbcommon");
 
-    const ziglua = b.dependency("ziglua", opts);
+    const ziglua = b.dependency("ziglua", opts).module("ziglua");
 
     const exe = b.addExecutable(.{
         .name = "seto",
@@ -34,19 +34,22 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    exe.linkLibC();
+
     exe.root_module.addImport("wayland", wayland);
     exe.root_module.addImport("cairo", cairo);
     exe.root_module.addImport("pango", pango);
     exe.root_module.addImport("pangocairo", pangocairo);
     exe.root_module.addImport("xkbcommon", xkbcommon);
-    exe.root_module.addImport("ziglua", ziglua.module("ziglua"));
+    exe.root_module.addImport("ziglua", ziglua);
     exe.linkSystemLibrary("wayland-client");
     exe.linkSystemLibrary("cairo");
     exe.linkSystemLibrary("pango");
     exe.linkSystemLibrary("pangocairo");
     exe.linkSystemLibrary("xkbcommon");
-
-    exe.linkLibC();
+    exe.linkSystemLibrary("egl");
+    exe.linkSystemLibrary("gl");
+    exe.linkSystemLibrary("wayland-egl");
 
     // TODO: remove when https://github.com/ziglang/zig/issues/131 is implemented
     scanner.addCSource(exe);

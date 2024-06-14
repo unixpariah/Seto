@@ -1,7 +1,5 @@
 zig-out
-zig-cache
 .direnv
 .cache
 result
 .zig-cache
-doc/output.roff
