@@ -11,10 +11,12 @@ pub const Egl = struct {
     display: c.EGLDisplay,
     config: c.EGLConfig,
     context: c.EGLContext,
+    window: *wl.EglWindow,
+    surface: c.EGLSurface,
 
     const Self = @This();
 
-    pub fn new(display: *wl.Display) !Self {
+    pub fn new(display: *wl.Display, size: [2]c_int, surface: *wl.Surface) !Self {
         const egl_display = c.eglGetDisplay(@ptrCast(display));
         if (c.eglInitialize(egl_display, null, null) != c.EGL_TRUE) return error.EGLError;
 
@@ -49,19 +51,40 @@ pub const Egl = struct {
             },
         ) orelse return error.EGLError;
 
+        const egl_window = wl.EglWindow.create(surface, size[0], size[1]) catch unreachable;
         return .{
             .display = egl_display,
             .config = config,
             .context = context,
+            .window = egl_window,
+            .surface = c.eglCreateWindowSurface(egl_display, config, @ptrCast(egl_window), null),
         };
     }
 
-    pub fn createSurface(self: *Self, surface: *wl.Surface, width: c_int, height: c_int) c.EGLSurface {
-        const egl_window = wl.EglWindow.create(surface, width, height) catch unreachable;
-        const egl_surface = c.eglCreateWindowSurface(self.display, self.config, @ptrCast(egl_window), null);
-        if (c.eglMakeCurrent(self.display, egl_surface, egl_surface, self.context) != c.EGL_TRUE) {
+    pub fn changeCurrent(self: *Self) void {
+        if (c.eglMakeCurrent(self.display, self.surface, self.surface, self.context) != c.EGL_TRUE) {
             std.process.exit(1);
         }
-        return egl_surface;
+    }
+
+    pub fn swapBuffers(self: *Self) void {
+        if (c.eglSwapBuffers(self.display, self.surface) != c.EGL_TRUE) {
+            std.debug.print("EGLError", .{});
+            std.process.exit(1);
+        }
+    }
+
+    pub fn clearScreen(self: *Self) void {
+        self.changeCurrent();
+        c.glClearColor(0, 0, 0, 0);
+        c.glClear(c.GL_COLOR_BUFFER_BIT);
+        self.swapBuffers();
+    }
+
+    pub fn destroy(self: *Self) void {
+        _ = c.eglDestroySurface(self.display, self.surface);
+        _ = c.eglDestroyContext(self.display, self.context);
+        _ = c.eglTerminate(self.display);
+        self.window.destroy();
     }
 };

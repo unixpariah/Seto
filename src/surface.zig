@@ -14,6 +14,7 @@ const c = @cImport({
 
 const Seto = @import("main.zig").Seto;
 const Tree = @import("tree.zig").Tree;
+const Egl = @import("egl.zig").Egl;
 
 pub const OutputInfo = struct {
     name: ?[]const u8 = null,
@@ -39,8 +40,7 @@ pub const Surface = struct {
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
-    egl_display: ?c.EGLDisplay = null,
-    egl_surface: ?c.EGLSurface = null,
+    egl: ?Egl = null,
 
     const Self = @This();
 
@@ -73,12 +73,12 @@ pub const Surface = struct {
     }
 
     pub fn draw(self: *Self) !void {
-        c.glClearColor(0.3, 0.3, 0, 0.1);
+        self.egl.?.changeCurrent();
+        c.glClearColor(0.3, 0, 0, 0.1);
         c.glClear(c.GL_COLOR_BUFFER_BIT);
-        if (c.eglSwapBuffers(self.egl_display.?, self.egl_surface.?) != c.EGL_TRUE) {
-            std.debug.print("EGLError", .{});
-            std.process.exit(1);
-        }
+        self.egl.?.swapBuffers();
+        const callback = try self.surface.frame();
+        callback.setListener(*Self, frameListener, self);
     }
 
     pub fn isConfigured(self: *const Self) bool {
@@ -90,6 +90,7 @@ pub const Surface = struct {
         self.surface.destroy();
         self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
+        self.egl.?.destroy();
     }
 };
 
@@ -137,8 +138,11 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
                     surface.layer_surface.setSize(configure.width, configure.height);
                     surface.layer_surface.ackConfigure(configure.serial);
 
-                    surface.egl_surface = seto.egl.createSurface(surface.surface, @intCast(configure.width), @intCast(configure.height));
-                    surface.egl_display = seto.egl.display;
+                    surface.egl = Egl.new(
+                        seto.display,
+                        .{ @intCast(configure.width), @intCast(configure.height) },
+                        surface.surface,
+                    ) catch return;
 
                     if (!surface.isConfigured()) surface.draw() catch return;
                 }

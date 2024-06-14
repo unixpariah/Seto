@@ -21,7 +21,6 @@ const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 const Seat = @import("seat.zig").Seat;
 const Result = @import("tree.zig").Result;
 const Config = @import("config.zig").Config;
-const Egl = @import("egl.zig").Egl;
 
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("surface.zig").xdgOutputListener;
@@ -44,6 +43,7 @@ pub const Mode = union(enum) {
 };
 
 pub const Seto = struct {
+    display: *wl.Display,
     compositor: ?*wl.Compositor = null,
     layer_shell: ?*zwlr.LayerShellV1 = null,
     output_manager: ?*zxdg.OutputManagerV1 = null,
@@ -53,7 +53,6 @@ pub const Seto = struct {
     alloc: mem.Allocator,
     tree: ?Tree = null,
     total_dimensions: [2]i32 = .{ 0, 0 },
-    egl: Egl,
 
     first_draw: bool = true,
     exit: bool = false,
@@ -68,7 +67,7 @@ pub const Seto = struct {
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
             .config = Config.load(alloc),
-            .egl = Egl.new(display) catch unreachable,
+            .display = display,
         };
     }
 
@@ -334,7 +333,9 @@ pub fn main() !void {
         try seto.createSurfaces();
     }
 
-    if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
+    for (seto.outputs.items) |*output| {
+        output.egl.?.clearScreen();
+    }
 }
 
 fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Seto) void {
@@ -371,8 +372,13 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 
                     const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
 
-                    const output_info = OutputInfo{ .wl_output = global_output };
-                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info);
+                    const output = Surface.new(
+                        surface,
+                        layer_surface,
+                        seto.alloc,
+                        xdg_output,
+                        OutputInfo{ .wl_output = global_output },
+                    );
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 
