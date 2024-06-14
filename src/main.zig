@@ -8,6 +8,11 @@ const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
+const c = @cImport({
+    @cInclude("wayland-egl.h");
+    @cInclude("GLES2/gl2.h");
+    @cInclude("EGL/egl.h");
+});
 
 const Tree = @import("tree.zig").Tree;
 const OutputInfo = @import("surface.zig").OutputInfo;
@@ -26,7 +31,6 @@ const parseArgs = @import("cli.zig").parseArgs;
 const frameListener = @import("surface.zig").frameListener;
 
 const EventInterfaces = enum {
-    wl_shm,
     wl_compositor,
     zwlr_layer_shell_v1,
     wl_output,
@@ -43,7 +47,6 @@ pub const Seto = struct {
     compositor: ?*wl.Compositor = null,
     layer_shell: ?*zwlr.LayerShellV1 = null,
     output_manager: ?*zxdg.OutputManagerV1 = null,
-    shm: ?*wl.Shm = null,
     seat: Seat,
     outputs: std.ArrayList(Surface),
     config: Config,
@@ -276,7 +279,7 @@ pub const Seto = struct {
             output_ctx.paint();
 
             const data = try output_surface.getData();
-            @memcpy(surface.mmap.?, data);
+            _ = data;
         }
     }
 
@@ -289,7 +292,6 @@ pub const Seto = struct {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
-        self.shm.?.destroy();
         for (self.outputs.items) |*output| {
             output.destroy();
         }
@@ -322,7 +324,7 @@ pub fn main() !void {
     if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 
-    if (seto.compositor == null or seto.layer_shell == null or seto.shm == null) {
+    if (seto.compositor == null or seto.layer_shell == null) {
         std.debug.print("Compositor, layer_shell or shm not bound", .{});
         std.process.exit(1);
     }
@@ -332,11 +334,6 @@ pub fn main() !void {
         try seto.createSurfaces();
     }
 
-    for (seto.outputs.items) |*output| {
-        if (!output.isConfigured()) continue;
-        @memset(output.mmap.?, 0);
-        try output.draw();
-    }
     if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
 }
 
@@ -345,9 +342,6 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
         .global => |global| {
             const event_str = std.meta.stringToEnum(EventInterfaces, mem.span(global.interface)) orelse return;
             switch (event_str) {
-                .wl_shm => {
-                    seto.shm = registry.bind(global.name, wl.Shm, 1) catch |err| @panic(@errorName(err));
-                },
                 .wl_compositor => {
                     seto.compositor = registry.bind(global.name, wl.Compositor, wl.Compositor.generated_version) catch |err| @panic(@errorName(err));
                 },

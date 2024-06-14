@@ -39,8 +39,6 @@ pub const Surface = struct {
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
-    mmap: ?[]align(mem.page_size) u8 = null,
-    buffer: ?*wl.Buffer = null,
     egl_display: ?c.EGLDisplay = null,
     egl_surface: ?c.EGLSurface = null,
 
@@ -75,7 +73,8 @@ pub const Surface = struct {
     }
 
     pub fn draw(self: *Self) !void {
-        c.glClearColor(1, 1, 0, 1);
+        c.glClearColor(0.3, 0.3, 0, 0.1);
+        c.glClear(c.GL_COLOR_BUFFER_BIT);
         if (c.eglSwapBuffers(self.egl_display.?, self.egl_surface.?) != c.EGL_TRUE) {
             std.debug.print("EGLError", .{});
             std.process.exit(1);
@@ -91,8 +90,6 @@ pub const Surface = struct {
         self.surface.destroy();
         self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
-        self.buffer.?.destroy();
-        posix.munmap(self.mmap.?);
     }
 };
 
@@ -107,18 +104,21 @@ pub const SurfaceIterator = struct {
         return Self{ .outputs = outputs };
     }
 
+    fn isNewline(self: *Self) bool {
+        return self.index > 0 and self.outputs[self.index].output_info.x <= self.outputs[self.index - 1].output_info.x;
+    }
+
     pub fn next(self: *Self) ?std.meta.Tuple(&.{ Surface, [2]i32 }) {
         if (self.index >= self.outputs.len) return null;
         const output = self.outputs[self.index];
-        const info = output.output_info;
         if (!output.isConfigured()) return self.next();
 
-        if (self.index > 0) {
-            if (info.x <= self.outputs[self.index - 1].output_info.x) self.position = .{ 0, self.outputs[self.index - 1].output_info.height };
+        if (self.isNewline()) {
+            self.position = .{ 0, self.outputs[self.index - 1].output_info.height };
         }
 
         defer self.index += 1;
-        defer self.position[0] += info.width;
+        defer self.position[0] += output.output_info.width;
 
         return .{ output, self.position };
     }
@@ -137,26 +137,6 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
                     surface.layer_surface.setSize(configure.width, configure.height);
                     surface.layer_surface.ackConfigure(configure.serial);
 
-                    const size = configure.width * configure.height * 4;
-
-                    const fd = posix.memfd_create("seto", 0) catch |err| @panic(@errorName(err));
-                    posix.ftruncate(fd, size) catch @panic("OOM");
-
-                    const pool = seto.shm.?.createPool(fd, @intCast(size)) catch |err| @panic(@errorName(err));
-
-                    defer std.posix.close(fd);
-                    defer pool.destroy();
-
-                    if (surface.mmap) |mmap| posix.munmap(mmap);
-                    if (surface.buffer) |buffer| buffer.destroy();
-
-                    surface.mmap = posix.mmap(null, size, posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, fd, 0) catch @panic("OOM");
-
-                    surface.buffer = pool.createBuffer(0, @intCast(configure.width), @intCast(configure.height), @intCast(configure.width * 4), wl.Shm.Format.argb8888) catch unreachable;
-
-                    const region = seto.compositor.?.createRegion() catch unreachable;
-                    region.add(0, 0, @intCast(configure.width), @intCast(configure.height));
-                    surface.surface.setOpaqueRegion(region);
                     surface.egl_surface = seto.egl.createSurface(surface.surface, @intCast(configure.width), @intCast(configure.height));
                     surface.egl_display = seto.egl.display;
 

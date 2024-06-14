@@ -29,6 +29,7 @@ pub const Egl = struct {
                     c.EGL_RED_SIZE,        8,
                     c.EGL_GREEN_SIZE,      8,
                     c.EGL_BLUE_SIZE,       8,
+                    c.EGL_ALPHA_SIZE,      8,
                     c.EGL_NONE,
                 },
                 &config,
