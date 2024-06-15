@@ -51,21 +51,6 @@ compositors implementing layer-shell protocol.
 *--font-family* _family_
 	Set font family.
 
-*--font-weight* _weight_
-	Set weight of font.
-
-*--font-style* _style_
-	Set font style. See *FONT STYLING* for more details.
-
-*--font-variant* _variant_
-	Set font variant. See *FONT STYLING* for more details.
-
-*--font-gravity* _gravity_
-	Set font gravity. See *FONT STYLING* for more details.
-
-*--font-stretch* _stretch_
-	Set font stretch. See *FONT STYLING* for more details.
-
 *--font-offset* _x_,_y_
 	Relatively move text on grid.
 
@@ -138,40 +123,6 @@ Interpreted sequences are:
 	not known
 
 The default format is "%x,%y %wx%h\n".
-
-# FONT STYLING
-
-*FONT STYLE*
-	- Normal
-	- Italic
-	- Oblique
-
-*FONT VARIANT*
-	- Normal
-	- Unicase
-	- SmallCaps
-	- TitleCaps
-	- PetiteCaps
-	- AllSmallCaps
-	- AllPetiteCaps
-
-*FONT GRAVITY*
-	- Auto
-	- East
-	- West
-	- South
-	- North
-
-*FONT STRETCH*
-	- Normal
-	- Expanded
-	- Condensed
-	- SemiExpanded
-	- SemiCondensed
-	- ExtraExpanded
-	- ExtraCondensed
-	- UltraExpanded
-	- UltraCondensed
 
 # FUNCTIONS
 

@@ -24,8 +24,6 @@
             src = cleanSource ./.;
 
             nativeBuildInputs = with env.pkgs; [
-              pango
-              cairo
               wayland
               wayland-protocols
               egl-wayland
@@ -81,8 +79,6 @@
 
       devShells.default = env.mkShell {
         packages = with env.pkgs; [
-          pango
-          cairo
           pkg-config
           wayland
           wayland-protocols
@@ -90,6 +86,7 @@
           libxkbcommon
           egl-wayland
           libGL
+          glxinfo
           zls.packages.${system}.default
         ];
       };

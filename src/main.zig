@@ -2,8 +2,6 @@ const std = @import("std");
 const mem = std.mem;
 const posix = std.posix;
 
-const cairo = @import("cairo");
-const pango = @import("pango");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
@@ -91,20 +89,12 @@ pub const Seto = struct {
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
     }
 
-    fn drawGrid(self: *Self, width: u32, height: u32, context: *cairo.Context) void {
+    fn drawGrid(self: *Self, width: u32, height: u32) void {
         const grid = self.config.grid;
 
         defer switch (self.mode) {
             .Region => |position| if (position) |pos| {
-                context.moveTo(0, @floatFromInt(pos[1]));
-                context.lineTo(@floatFromInt(width), @floatFromInt(pos[1]));
-
-                context.moveTo(@floatFromInt(pos[0]), 0);
-                context.lineTo(@floatFromInt(pos[0]), @floatFromInt(height));
-
-                context.setSourceRgba(grid.selected_color[0], grid.selected_color[1], grid.selected_color[2], grid.selected_color[3]);
-                context.setLineWidth(grid.selected_line_width);
-                context.stroke();
+                _ = pos;
             },
             .Single => {},
         };
@@ -115,36 +105,18 @@ pub const Seto = struct {
                 const surface: Surface, const pos: [2]i32 = res;
                 const info = surface.output_info;
 
-                context.rectangle(.{
-                    .x = @floatFromInt(pos[0]),
-                    .y = @floatFromInt(pos[1]),
-                    .width = @floatFromInt(info.width),
-                    .height = @floatFromInt(info.height),
-                });
+                _ = info;
+                _ = pos;
             }
-
-            context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
-            context.setLineWidth(grid.line_width);
-            context.stroke();
 
             return;
         }
 
         var i: i32 = grid.offset[0];
-        while (i <= width) : (i += grid.size[0]) {
-            context.moveTo(@floatFromInt(i), 0);
-            context.lineTo(@floatFromInt(i), @floatFromInt(height));
-        }
+        while (i <= width) : (i += grid.size[0]) {}
 
         i = grid.offset[1];
-        while (i <= height) : (i += grid.size[1]) {
-            context.moveTo(0, @floatFromInt(i));
-            context.lineTo(@floatFromInt(width), @floatFromInt(i));
-        }
-
-        context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
-        context.setLineWidth(grid.line_width);
-        context.stroke();
+        while (i <= height) : (i += grid.size[1]) {}
     }
 
     fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32, outputs: []Surface) void {
@@ -209,27 +181,6 @@ pub const Seto = struct {
         }
     }
 
-    fn createLayout(self: *Self, ctx: *cairo.Context) *pango.Layout {
-        const font = self.config.font;
-        const layout: *pango.Layout = ctx.createLayout() catch @panic("OOM");
-        const font_description = pango.FontDescription.new() catch @panic("OOM");
-        defer font_description.free();
-
-        font_description.setFamilyStatic(font.family);
-        font_description.setStyle(font.style);
-        font_description.setWeight(font.weight);
-        font_description.setAbsoluteSize(font.size * pango.SCALE);
-        font_description.setVariant(font.variant);
-        font_description.setStretch(font.stretch);
-        font_description.setGravity(font.gravity);
-
-        layout.setFontDescription(font_description);
-
-        ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
-
-        return layout;
-    }
-
     fn createSurfaces(self: *Self) !void {
         if (!self.shouldDraw()) return;
         self.printToStdout() catch |err| {
@@ -242,43 +193,12 @@ pub const Seto = struct {
             }
         };
 
-        const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(self.total_dimensions[0]), @intCast(self.total_dimensions[1]));
-        defer cairo_surface.destroy();
-        const ctx = try cairo.Context.create(cairo_surface.asSurface());
-        defer ctx.destroy();
-
-        const bg_color = self.config.background_color;
-        ctx.setSourceRgba(bg_color[0], bg_color[1], bg_color[2], bg_color[3]);
-        ctx.paint();
-
-        self.drawGrid(@intCast(self.total_dimensions[0]), @intCast(self.total_dimensions[1]), ctx);
-        const layout = self.createLayout(ctx);
-        defer layout.destroy();
-
-        self.tree.?.drawText(
-            ctx,
-            self.config.font,
-            self.seat.buffer.items,
-            layout,
-            self.border_mode,
-            self.outputs.items,
-        );
+        self.drawGrid(@intCast(self.total_dimensions[0]), @intCast(self.total_dimensions[1]));
 
         var surf_iter = SurfaceIterator.new(self.outputs.items);
-        while (surf_iter.next()) |res| {
-            const surface: Surface, const pos: [2]i32 = res;
-            const info = surface.output_info;
-
-            const output_surface = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
-            defer output_surface.destroy();
-            const output_ctx = try cairo.Context.create(output_surface.asSurface());
-            defer output_ctx.destroy();
-
-            output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-pos[0]), @floatFromInt(-pos[1]));
-            output_ctx.paint();
-
-            const data = try output_surface.getData();
-            _ = data;
+        while (surf_iter.next()) |*res| {
+            var surface = res.@"0";
+            try surface.draw();
         }
     }
 

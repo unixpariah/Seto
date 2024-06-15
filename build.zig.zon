@@ -3,10 +3,6 @@
     .version = "0.1.0",
     .paths = .{""},
     .dependencies = .{
-        .giza = .{
-            .url = "https://github.com/unixpariah/giza/archive/zig-0.13.0.tar.gz",
-            .hash = "1220cfe58a81834cafa00a5ea0735535c07269d4c427b80d8e9c8f7bf3b0d30c3086",
-        },
         .ziglua = .{
             .url = "https://github.com/natecraddock/ziglua/archive/main.tar.gz",
             .hash = "1220affeb3fe37ef09411b5a213b5fdf9bb6568e9913bade204694648983a8b2776d",

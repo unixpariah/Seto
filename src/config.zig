@@ -2,7 +2,6 @@ const std = @import("std");
 const fs = std.fs;
 
 const Lua = @import("ziglua").Lua;
-const pango = @import("pango");
 
 fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     var args = std.process.args();
@@ -118,11 +117,6 @@ pub const Font = struct {
     offset: [2]i32 = .{ 5, 5 },
     size: f64 = 16,
     family: [:0]const u8,
-    style: pango.Style = .Normal,
-    weight: pango.Weight = .normal,
-    variant: pango.Variant = .Normal,
-    stretch: pango.Stretch = .Normal,
-    gravity: pango.Gravity = .Auto,
 
     const Self = @This();
 
@@ -178,49 +172,6 @@ pub const Font = struct {
             font.family = alloc.dupeZ(u8, font_family) catch @panic("OOM");
         }
         lua.pop(1);
-
-        font.style = getStyle(pango.Style, "style", lua) catch |err| switch (err) {
-            error.OptNotFound => {
-                std.debug.print("Font style not found\nSee man 5 seto for more details\n", .{});
-                std.process.exit(1);
-            },
-            else => font.style,
-        };
-
-        _ = lua.pushString("weight");
-        _ = lua.getTable(2);
-        if (!lua.isNil(3)) {
-            const result = lua.toNumber(3) catch {
-                std.debug.print("Font weight should be a number\n", .{});
-                std.process.exit(1);
-            };
-            font.weight = std.meta.intToEnum(pango.Weight, @as(u32, @intFromFloat(result))) catch |err| @panic(@errorName(err));
-        }
-        lua.pop(1);
-
-        font.variant = getStyle(pango.Variant, "variant", lua) catch |err| switch (err) {
-            error.OptNotFound => {
-                std.debug.print("Font variant not found\nSee man 5 seto for more details\n", .{});
-                std.process.exit(1);
-            },
-            else => font.variant,
-        };
-
-        font.gravity = getStyle(pango.Gravity, "gravity", lua) catch |err| switch (err) {
-            error.OptNotFound => {
-                std.debug.print("Font gravity not found\nSee man 5 seto for more details\n", .{});
-                std.process.exit(1);
-            },
-            else => font.gravity,
-        };
-
-        font.stretch = getStyle(pango.Stretch, "stretch", lua) catch |err| switch (err) {
-            error.OptNotFound => {
-                std.debug.print("Font stretch not found\nSee man 5 seto for more details\n", .{});
-                std.process.exit(1);
-            },
-            else => font.stretch,
-        };
 
         _ = lua.pushString("offset");
         _ = lua.getTable(2);

@@ -7,8 +7,8 @@
 - zig
 - wayland
 - libxkbcommon
-- cairo
-- pango
+- libGl
+- egl-wayland
 - scdoc (optional: man pages)
 
 2. Clone the repository:

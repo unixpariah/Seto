@@ -1,6 +1,5 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const pango = @import("pango");
 
 const Seto = @import("main.zig").Seto;
 const Function = @import("config.zig").Function;
@@ -81,20 +80,6 @@ pub fn parseArgs(seto: *Seto) void {
         } else if (std.mem.eql(u8, arg, "--font-family")) {
             seto.alloc.free(seto.config.font.family);
             seto.config.font.family = seto.alloc.dupeZ(u8, getNextArg(&args, arg)) catch @panic("OOM");
-        } else if (std.mem.eql(u8, arg, "--font-weight")) {
-            const font_weight = std.fmt.parseInt(u32, getNextArg(&args, arg), 10) catch {
-                std.debug.print("Font weight should be a number\n", .{});
-                std.process.exit(1);
-            };
-            seto.config.font.weight = std.meta.intToEnum(pango.Weight, font_weight) catch |err| @panic(@errorName(err));
-        } else if (std.mem.eql(u8, arg, "--font-style")) {
-            seto.config.font.style = getStyle(pango.Style, getNextArg(&args, arg));
-        } else if (std.mem.eql(u8, arg, "--font-variant")) {
-            seto.config.font.variant = getStyle(pango.Variant, getNextArg(&args, arg));
-        } else if (std.mem.eql(u8, arg, "--font-gravity")) {
-            seto.config.font.gravity = getStyle(pango.Gravity, getNextArg(&args, arg));
-        } else if (std.mem.eql(u8, arg, "--font-stretch")) {
-            seto.config.font.stretch = getStyle(pango.Stretch, getNextArg(&args, arg));
         } else if (std.mem.eql(u8, arg, "--font-offset")) {
             seto.config.font.offset = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-size")) {
@@ -171,11 +156,6 @@ const help_message =
     \\  --font-color <HEX>                         Set font color
     \\  --font-size <INT>                          Set font size
     \\  --font-family <STRING>                     Set font family
-    \\  --font-weight <INT>                        Set font weight
-    \\  --font-style <STRING>                      Set font style
-    \\  --font-variant <STRING>                    Set font variant
-    \\  --font-gravity <STRING>                    Set font gravity
-    \\  --font-stretch <STRING>                    Set font stretch
     \\  --font-offset <INT,INT>                    Change position of text on grid
     \\
     \\Grid styling:

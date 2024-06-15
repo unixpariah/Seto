@@ -76,9 +76,18 @@ pub const Surface = struct {
         self.egl.?.changeCurrent();
         c.glClearColor(0.3, 0, 0, 0.1);
         c.glClear(c.GL_COLOR_BUFFER_BIT);
+
+        const vertices_position: [4]f32 = .{
+            0.0, 0.0,
+            1.0, 0.0,
+        };
+
+        var vbo: u32 = undefined;
+        c.glGenBuffers(1, &vbo);
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo);
+        c.glBufferData(c.GL_ARRAY_BUFFER, vertices_position.len, &vertices_position, c.GL_STATIC_DRAW);
+
         self.egl.?.swapBuffers();
-        const callback = try self.surface.frame();
-        callback.setListener(*Self, frameListener, self);
     }
 
     pub fn isConfigured(self: *const Self) bool {

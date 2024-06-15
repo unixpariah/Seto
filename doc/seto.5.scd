@@ -59,51 +59,6 @@ following sections describe the configurable options.
 
 	_Example:_ "JetBrainsMono Nerd Font" \
 
-*font.style*
-	Style of font \
-
-	_Type:_ String \
-
-	_Default:_ "Normal" \
-
-	_Example:_ "Italic" \
-
-*font.weight*
-	Weight of font. \
-
-	_Type:_ Number \
-
-	_Default:_ 400 \
-
-	_Example:_ 1000 \
-
-*font.variant*
-	Variant of font. \
-
-	_Type:_ String \
-
-	_Default:_ "Normal" \
-
-	_Example:_ "AllPetiteCaps" \
-
-*font.gravity*
-	Gravity of font. \
-
-	_Type_: String \
-
-	_Default:_ "Auto" \
-
-	_Example:_ "South" \
-
-*font.stretch*
-	Stretch of font \
-
-	_Type:_ String \
-
-	_Default:_ "Normal" \
-
-	_Example:_ "UltraCondensed" \
-
 *font.offset*
 	Relative position of font on grid. \
 
@@ -212,40 +167,6 @@ following sections describe the configurable options.
 # COLORS
 
 Colors may be specified in #RRGGBB or #RRGGBBAA format. The # is optional.
-
-# FONT STYLING
-
-*FONT STYLE*
-	- Normal
-	- Italic
-	- Oblique
-
-*FONT VARIANT*
-	- Normal
-	- Unicase
-	- SmallCaps
-	- TitleCaps
-	- PetiteCaps
-	- AllSmallCaps
-	- AllPetiteCaps
-
-*FONT GRAVITY*
-	- Auto
-	- East
-	- West
-	- South
-	- North
-
-*FONT STRETCH*
-	- Normal
-	- Expanded
-	- Condensed
-	- SemiExpanded
-	- SemiCondensed
-	- ExtraExpanded
-	- ExtraCondensed
-	- UltraExpanded
-	- UltraCondensed
 
 # FUNCTIONS
 
