@@ -19,6 +19,7 @@ const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 const Seat = @import("seat.zig").Seat;
 const Result = @import("tree.zig").Result;
 const Config = @import("config.zig").Config;
+const Egl = @import("egl.zig").Egl;
 
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("surface.zig").xdgOutputListener;
@@ -41,7 +42,7 @@ pub const Mode = union(enum) {
 };
 
 pub const Seto = struct {
-    display: *wl.Display,
+    egl: Egl,
     compositor: ?*wl.Compositor = null,
     layer_shell: ?*zwlr.LayerShellV1 = null,
     output_manager: ?*zxdg.OutputManagerV1 = null,
@@ -59,13 +60,13 @@ pub const Seto = struct {
 
     const Self = @This();
 
-    fn new(alloc: mem.Allocator, display: *wl.Display) Self {
+    fn new(alloc: mem.Allocator, display: *wl.Display) !Self {
         return .{
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
             .config = Config.load(alloc),
-            .display = display,
+            .egl = try Egl.new(display),
         };
     }
 
@@ -198,7 +199,16 @@ pub const Seto = struct {
         var surf_iter = SurfaceIterator.new(self.outputs.items);
         while (surf_iter.next()) |*res| {
             var surface = res.@"0";
-            try surface.draw();
+            if (!surface.isConfigured()) continue;
+            try self.egl.changeCurrent(surface.egl);
+
+            const bg = self.config.background_color;
+            c.glClearColor(@floatCast(bg[0] * bg[3]), @floatCast(bg[1] * bg[3]), @floatCast(bg[2] * bg[3]), @floatCast(bg[3]));
+            c.glClear(c.GL_COLOR_BUFFER_BIT);
+
+            c.glUseProgram(self.egl.shader_program);
+            surface.draw();
+            try self.egl.swapBuffers(surface.egl);
         }
     }
 
@@ -234,13 +244,12 @@ pub fn main() !void {
     };
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
-    var seto = Seto.new(alloc, display);
+    var seto = try Seto.new(alloc, display);
     defer seto.destroy();
 
     parseArgs(&seto);
 
     registry.setListener(*Seto, registryListener, &seto);
-    if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 
     if (seto.compositor == null or seto.layer_shell == null) {
@@ -251,10 +260,6 @@ pub fn main() !void {
     while (display.dispatch() == .SUCCESS and !seto.exit) {
         if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
-    }
-
-    for (seto.outputs.items) |*output| {
-        output.egl.?.clearScreen();
     }
 }
 
@@ -292,12 +297,16 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 
                     const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
 
+                    const egl_surface = seto.egl.newSurface(surface, .{ 1, 1 }) catch return;
+
                     const output = Surface.new(
+                        egl_surface,
                         surface,
                         layer_surface,
                         seto.alloc,
                         xdg_output,
                         OutputInfo{ .wl_output = global_output },
+                        &seto.config,
                     );
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);

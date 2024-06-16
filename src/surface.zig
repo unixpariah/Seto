@@ -8,13 +8,19 @@ const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
 const c = @cImport({
     @cInclude("wayland-egl.h");
-    @cInclude("GLES2/gl2.h");
     @cInclude("EGL/egl.h");
+
+    @cDefine("GL_GLEXT_PROTOTYPES", "1");
+    @cInclude("GL/gl.h");
+    @cInclude("GL/glext.h");
+
+    @cInclude("sys/epoll.h");
 });
 
 const Seto = @import("main.zig").Seto;
+const Config = @import("config.zig").Config;
 const Tree = @import("tree.zig").Tree;
-const Egl = @import("egl.zig").Egl;
+const EglSurface = @import("egl.zig").EglSurface;
 
 pub const OutputInfo = struct {
     name: ?[]const u8 = null,
@@ -35,23 +41,28 @@ pub const OutputInfo = struct {
 };
 
 pub const Surface = struct {
+    egl: EglSurface,
     layer_surface: *zwlr.LayerSurfaceV1,
     surface: *wl.Surface,
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
-    egl: ?Egl = null,
+    config: *const Config,
 
     const Self = @This();
 
     pub fn new(
+        egl: EglSurface,
         surface: *wl.Surface,
         layer_surface: *zwlr.LayerSurfaceV1,
         alloc: mem.Allocator,
         xdg_output: *zxdg.OutputV1,
         output_info: OutputInfo,
+        config_ptr: *Config,
     ) Self {
         return .{
+            .config = config_ptr,
+            .egl = egl,
             .surface = surface,
             .layer_surface = layer_surface,
             .alloc = alloc,
@@ -72,22 +83,30 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *Self) !void {
-        self.egl.?.changeCurrent();
-        c.glClearColor(0.3, 0, 0, 0.1);
-        c.glClear(c.GL_COLOR_BUFFER_BIT);
-
-        const vertices_position: [4]f32 = .{
-            0.0, 0.0,
-            1.0, 0.0,
+    pub fn draw(_: *Self) void {
+        const vertices: [9]f32 = .{
+            -0.5, -0.5, 0,
+            0.5,  -0.5, 0,
+            0,    0.5,  0,
         };
 
-        var vbo: u32 = undefined;
-        c.glGenBuffers(1, &vbo);
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, vbo);
-        c.glBufferData(c.GL_ARRAY_BUFFER, vertices_position.len, &vertices_position, c.GL_STATIC_DRAW);
+        var VBO: u32 = undefined;
+        var VAO: u32 = undefined;
 
-        self.egl.?.swapBuffers();
+        c.glGenVertexArrays(1, &VAO);
+        c.glGenBuffers(1, &VBO);
+
+        c.glBindVertexArray(VAO);
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+
+        c.glBufferData(c.GL_ARRAY_BUFFER, vertices.len, @ptrCast(&vertices), c.GL_STATIC_DRAW);
+        c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 3 * @sizeOf(f32), @ptrFromInt(0));
+
+        c.glEnableVertexAttribArray(0);
+        c.glBindVertexArray(0);
+
+        c.glBindVertexArray(VAO);
+        c.glDrawArrays(c.GL_TRIANGLES, 0, 3);
     }
 
     pub fn isConfigured(self: *const Self) bool {
@@ -99,7 +118,6 @@ pub const Surface = struct {
         self.surface.destroy();
         self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
-        self.egl.?.destroy();
     }
 };
 
@@ -146,14 +164,7 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
                 if (surface.layer_surface == lsurf) {
                     surface.layer_surface.setSize(configure.width, configure.height);
                     surface.layer_surface.ackConfigure(configure.serial);
-
-                    surface.egl = Egl.new(
-                        seto.display,
-                        .{ @intCast(configure.width), @intCast(configure.height) },
-                        surface.surface,
-                    ) catch return;
-
-                    if (!surface.isConfigured()) surface.draw() catch return;
+                    surface.egl.resize(.{ configure.width, configure.height });
                 }
             }
         },

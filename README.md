@@ -1,4 +1,4 @@
-# Seto - keyboard based screen selection tool for wayland compositors
+# Seto - hardware accelerated keyboard based screen selection tool for wayland compositors
 
 ## Building
 
