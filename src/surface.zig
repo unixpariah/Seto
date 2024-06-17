@@ -85,27 +85,18 @@ pub const Surface = struct {
 
     pub fn draw(_: *Self) void {
         const vertices: [9]f32 = .{
-            -0.5, -0.5, 0,
-            0.5,  -0.5, 0,
-            0,    0.5,  0,
+            -1, -1, 0,
+            1,  -1, 0,
+            0,  1,  0,
         };
 
-        var VBO: u32 = undefined;
-        var VAO: u32 = undefined;
-
-        c.glGenVertexArrays(1, &VAO);
-        c.glGenBuffers(1, &VBO);
-
-        c.glBindVertexArray(VAO);
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
-
-        c.glBufferData(c.GL_ARRAY_BUFFER, vertices.len, @ptrCast(&vertices), c.GL_STATIC_DRAW);
-        c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 3 * @sizeOf(f32), @ptrFromInt(0));
-
+        c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 3 * @sizeOf(f32), @ptrCast(&vertices));
         c.glEnableVertexAttribArray(0);
+
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+
         c.glBindVertexArray(0);
 
-        c.glBindVertexArray(VAO);
         c.glDrawArrays(c.GL_TRIANGLES, 0, 3);
     }
 

@@ -200,14 +200,20 @@ pub const Seto = struct {
         while (surf_iter.next()) |*res| {
             var surface = res.@"0";
             if (!surface.isConfigured()) continue;
-            try self.egl.changeCurrent(surface.egl);
+            try self.egl.makeCurrent(surface.egl);
 
             const bg = self.config.background_color;
-            c.glClearColor(@floatCast(bg[0] * bg[3]), @floatCast(bg[1] * bg[3]), @floatCast(bg[2] * bg[3]), @floatCast(bg[3]));
+            c.glClearColor(
+                @floatCast(bg[0] * bg[3]),
+                @floatCast(bg[1] * bg[3]),
+                @floatCast(bg[2] * bg[3]),
+                @floatCast(bg[3]),
+            );
             c.glClear(c.GL_COLOR_BUFFER_BIT);
 
             c.glUseProgram(self.egl.shader_program);
             surface.draw();
+            try surface.egl.getEglError();
             try self.egl.swapBuffers(surface.egl);
         }
     }
@@ -261,6 +267,17 @@ pub fn main() !void {
         if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
     }
+
+    var surf_iter = SurfaceIterator.new(seto.outputs.items);
+    while (surf_iter.next()) |res| {
+        const surface = res.@"0";
+        try seto.egl.makeCurrent(surface.egl);
+        c.glClearColor(0, 0, 0, 0);
+        c.glClear(c.GL_COLOR_BUFFER_BIT);
+        try seto.egl.swapBuffers(surface.egl);
+    }
+
+    if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 }
 
 fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Seto) void {

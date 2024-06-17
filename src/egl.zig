@@ -2,9 +2,10 @@ const std = @import("std");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const c = @cImport({
+    @cInclude("EGL/egl.h");
+    @cInclude("EGL/eglext.h");
     @cInclude("wayland-egl.h");
     @cInclude("GLES2/gl2.h");
-    @cInclude("EGL/egl.h");
 });
 
 pub const EglSurface = struct {
@@ -19,6 +20,18 @@ pub const EglSurface = struct {
         self.width = new_dimensions[0];
         self.height = new_dimensions[1];
         self.window.resize(@intCast(self.width), @intCast(self.height), 0, 0);
+    }
+
+    pub fn getEglError(_: *Self) !void {
+        switch (c.eglGetError()) {
+            c.EGL_SUCCESS => return,
+            c.GL_INVALID_ENUM => return error.GLInvalidEnum,
+            c.GL_INVALID_VALUE => return error.GLInvalidValue,
+            c.GL_INVALID_OPERATION => return error.GLInvalidOperation,
+            c.GL_INVALID_FRAMEBUFFER_OPERATION => return error.GLInvalidFramebufferOperation,
+            c.GL_OUT_OF_MEMORY => return error.OutOfMemory,
+            else => return error.UnknownEglError,
+        }
     }
 };
 
@@ -54,7 +67,12 @@ pub const Egl = struct {
 
     pub fn new(display: *wl.Display) !Self {
         if (c.eglBindAPI(c.EGL_OPENGL_API) == 0) return error.EGLError;
-        const egl_display = c.eglGetDisplay(@ptrCast(display)) orelse return error.EGLError;
+        const egl_display = c.eglGetPlatformDisplay(
+            c.EGL_PLATFORM_WAYLAND_EXT,
+            @ptrCast(display),
+            null,
+        ) orelse return error.EGLError;
+
         if (c.eglInitialize(egl_display, null, null) != c.EGL_TRUE) return error.EGLError;
 
         const config = egl_conf: {
@@ -64,11 +82,11 @@ pub const Egl = struct {
                 egl_display,
                 &[_]i32{
                     c.EGL_SURFACE_TYPE,    c.EGL_WINDOW_BIT,
-                    c.EGL_RENDERABLE_TYPE, c.EGL_OPENGL_BIT,
                     c.EGL_RED_SIZE,        8,
                     c.EGL_GREEN_SIZE,      8,
                     c.EGL_BLUE_SIZE,       8,
                     c.EGL_ALPHA_SIZE,      8,
+                    c.EGL_RENDERABLE_TYPE, c.EGL_OPENGL_ES2_BIT,
                     c.EGL_NONE,
                 },
                 &config,
@@ -83,10 +101,7 @@ pub const Egl = struct {
             config,
             c.EGL_NO_CONTEXT,
             &[_]i32{
-                c.EGL_CONTEXT_MAJOR_VERSION,       4,
-                c.EGL_CONTEXT_MINOR_VERSION,       3,
-                c.EGL_CONTEXT_OPENGL_DEBUG,        c.EGL_TRUE,
-                c.EGL_CONTEXT_OPENGL_PROFILE_MASK, c.EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
+                c.EGL_CONTEXT_CLIENT_VERSION, 2,
                 c.EGL_NONE,
             },
         ) orelse return error.EGLError;
@@ -99,18 +114,20 @@ pub const Egl = struct {
         ) != c.EGL_TRUE) return error.EGLError;
 
         const vertex_shader_source =
-            \\#version 330 core
-            \\layout (location = 0) in vec3 position;
+            \\#version 100
+            \\attribute vec3 aPos;
+            \\
             \\void main() {
-            \\  gl_Position = vec4(position.x, position.y, position.z, 1.0);
+            \\  gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
             \\}
         ;
 
         const fragment_shader_source =
-            \\#version 330 core
-            \\out vec4 color;
+            \\#version 100
+            \\precision mediump float;
+            \\
             \\void main() {
-            \\  color = vec4(1.0f, 0.5f, 0.2f, 1.0f);
+            \\  gl_FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
             \\}
         ;
 
@@ -146,12 +163,18 @@ pub const Egl = struct {
 
     pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface {
         const egl_window = try wl.EglWindow.create(surface, size[0], size[1]);
-        const egl_surface = c.eglCreateWindowSurface(self.display, self.config, @ptrCast(egl_window), null);
+
+        const egl_surface = c.eglCreatePlatformWindowSurface(
+            self.display,
+            self.config,
+            @ptrCast(egl_window),
+            null,
+        ) orelse return error.EGLError;
 
         return .{ .window = egl_window, .surface = egl_surface, .width = 0, .height = 0 };
     }
 
-    pub fn changeCurrent(self: *Self, egl_surface: EglSurface) !void {
+    pub fn makeCurrent(self: *Self, egl_surface: EglSurface) !void {
         if (c.eglMakeCurrent(
             self.display,
             egl_surface.surface,
@@ -163,13 +186,6 @@ pub const Egl = struct {
 
     pub fn swapBuffers(self: *Self, egl_surface: EglSurface) !void {
         if (c.eglSwapBuffers(self.display, egl_surface.surface) != c.EGL_TRUE) return error.EGLError;
-    }
-
-    pub fn clearScreen(self: *Self) !void {
-        try self.changeCurrent();
-        c.glClearColor(0, 0, 0, 0);
-        c.glClear(c.GL_COLOR_BUFFER_BIT);
-        try self.swapBuffers();
     }
 
     pub fn destroy(self: *Self) void {
