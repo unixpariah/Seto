@@ -83,21 +83,56 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(_: *Self) void {
-        const vertices: [9]f32 = .{
-            -1, -1, 0,
-            1,  -1, 0,
-            0,  1,  0,
-        };
+    pub fn draw(self: *Self) void {
+        const info = self.output_info;
+        const grid = self.config.grid;
 
-        c.glVertexAttribPointer(0, 3, c.GL_FLOAT, c.GL_FALSE, 3 * @sizeOf(f32), @ptrCast(&vertices));
-        c.glEnableVertexAttribArray(0);
+        c.glLineWidth(self.config.grid.line_width);
 
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+        // var vertices = std.ArrayList(f32).init(self.alloc);
+        // defer vertices.deinit();
 
-        c.glBindVertexArray(0);
+        const width: f32 = @floatFromInt(info.width);
+        const height: f32 = @floatFromInt(info.height);
 
-        c.glDrawArrays(c.GL_TRIANGLES, 0, 3);
+        var i: i32 = grid.offset[0];
+        while (i <= info.width) : (i += grid.size[0]) {
+            // vertices.append(2 * (@as(f32, @floatFromInt(i)) / width) - 1) catch @panic("OOM");
+            // vertices.append(1) catch @panic("OOM");
+            // vertices.append(2 * (@as(f32, @floatFromInt(i)) / width) - 1) catch @panic("OOM");
+            // vertices.append(-1) catch @panic("OOM");
+            const vertices = [_]f32{
+                2 * (@as(f32, @floatFromInt(i)) / width) - 1, 1,
+                2 * (@as(f32, @floatFromInt(i)) / width) - 1, -1,
+            };
+
+            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices));
+            c.glEnableVertexAttribArray(0);
+
+            c.glDrawArrays(c.GL_LINES, 0, 2);
+        }
+
+        i = grid.offset[1];
+        while (i <= info.height) : (i += grid.size[1]) {
+            //     vertices.append(-1) catch @panic("OOM");
+            //     vertices.append(2 * (@as(f32, @floatFromInt(i)) / height) - 1) catch @panic("OOM");
+            //     vertices.append(1) catch @panic("OOM");
+            //     vertices.append(2 * (@as(f32, @floatFromInt(i)) / height) - 1) catch @panic("OOM");
+            const vertices = [_]f32{
+                -1, 2 * ((height - @as(f32, @floatFromInt(i))) / height) - 1,
+                1,  2 * ((height - @as(f32, @floatFromInt(i))) / height) - 1,
+            };
+
+            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices));
+            c.glEnableVertexAttribArray(0);
+
+            c.glDrawArrays(c.GL_LINES, 0, 2);
+        }
+
+        // c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices));
+        // c.glEnableVertexAttribArray(0);
+
+        // c.glDrawArrays(c.GL_LINES, 0, 100);
     }
 
     pub fn isConfigured(self: *const Self) bool {

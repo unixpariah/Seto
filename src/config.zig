@@ -35,17 +35,17 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     return config_path;
 }
 
-fn hexToRgba(hex: []const u8) ![4]f64 {
+fn hexToRgba(hex: []const u8) ![4]f32 {
     const start: u8 = if (hex[0] == '#') 1 else 0;
 
     if (hex.len < 6 + start) {
         return error.InvalidColor;
     }
 
-    const r: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex[0 + start .. 2 + start], 16));
-    const g: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex[2 + start .. 4 + start], 16));
-    const b: f64 = @floatFromInt(try std.fmt.parseInt(u8, hex[4 + start .. 6 + start], 16));
-    const a: f64 = if (hex.len > 6 + start) @floatFromInt(try std.fmt.parseInt(u8, hex[6 + start .. 8 + start], 16)) else 255;
+    const r: f32 = @floatFromInt(try std.fmt.parseInt(u8, hex[0 + start .. 2 + start], 16));
+    const g: f32 = @floatFromInt(try std.fmt.parseInt(u8, hex[2 + start .. 4 + start], 16));
+    const b: f32 = @floatFromInt(try std.fmt.parseInt(u8, hex[4 + start .. 6 + start], 16));
+    const a: f32 = if (hex.len > 6 + start) @floatFromInt(try std.fmt.parseInt(u8, hex[6 + start .. 8 + start], 16)) else 255;
 
     return .{
         r / 255,
@@ -58,7 +58,7 @@ fn hexToRgba(hex: []const u8) ![4]f64 {
 pub const Config = struct {
     smooth_scrolling: bool = true,
     output_format: []const u8 = "%x,%y %wx%h\n",
-    background_color: [4]f64 = .{ 1, 1, 1, 0.4 },
+    background_color: [4]f32 = .{ 1, 1, 1, 0.4 },
     keys: Keys,
     font: Font,
     grid: Grid = Grid{},
@@ -112,8 +112,8 @@ pub const Config = struct {
 };
 
 pub const Font = struct {
-    color: [4]f64 = .{ 1, 1, 1, 1 },
-    highlight_color: [4]f64 = .{ 1, 1, 0, 1 },
+    color: [4]f32 = .{ 1, 1, 1, 1 },
+    highlight_color: [4]f32 = .{ 1, 1, 0, 1 },
     offset: [2]i32 = .{ 5, 5 },
     size: f64 = 16,
     family: [:0]const u8,
@@ -214,11 +214,11 @@ fn getStyle(comptime T: type, name: [:0]const u8, lua: *Lua) !T {
 }
 
 pub const Grid = struct {
-    color: [4]f64 = .{ 1, 1, 1, 1 },
-    selected_color: [4]f64 = .{ 1, 0, 0, 1 },
+    color: [4]f32 = .{ 1, 1, 1, 1 },
+    selected_color: [4]f32 = .{ 1, 0, 0, 1 },
     size: [2]i32 = .{ 80, 80 },
     offset: [2]i32 = .{ 0, 0 },
-    line_width: f64 = 2,
+    line_width: f32 = 2,
     selected_line_width: f64 = 2,
 
     const Self = @This();
@@ -300,10 +300,10 @@ pub const Grid = struct {
         _ = lua.pushString("line_width");
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
-            grid.line_width = lua.toNumber(3) catch {
+            grid.line_width = @floatCast(lua.toNumber(3) catch {
                 std.debug.print("Line width should be a float\n", .{});
                 std.process.exit(1);
-            };
+            });
         }
         lua.pop(1);
 

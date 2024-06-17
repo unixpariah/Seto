@@ -7,9 +7,7 @@ const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
 const c = @cImport({
-    @cInclude("wayland-egl.h");
     @cInclude("GLES2/gl2.h");
-    @cInclude("EGL/egl.h");
 });
 
 const Tree = @import("tree.zig").Tree;
@@ -211,7 +209,11 @@ pub const Seto = struct {
             );
             c.glClear(c.GL_COLOR_BUFFER_BIT);
 
+            const color_location = c.glGetUniformLocation(self.egl.shader_program, "u_Color");
+
             c.glUseProgram(self.egl.shader_program);
+            const color = self.config.grid.color;
+            c.glUniform4f(color_location, color[0], color[1], color[2], color[3]);
             surface.draw();
             try surface.egl.getEglError();
             try self.egl.swapBuffers(surface.egl);

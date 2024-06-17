@@ -82,9 +82,7 @@
           pkg-config
           wayland
           wayland-protocols
-          wayland-scanner
           libxkbcommon
-          egl-wayland
           libGL
           glxinfo
           zls.packages.${system}.default

@@ -4,22 +4,35 @@ const wl = wayland.client.wl;
 const c = @cImport({
     @cInclude("EGL/egl.h");
     @cInclude("EGL/eglext.h");
-    @cInclude("wayland-egl.h");
     @cInclude("GLES2/gl2.h");
 });
 
 pub const EglSurface = struct {
     window: *wl.EglWindow,
     surface: c.EGLSurface,
-    width: u32,
-    height: u32,
+    width: f32,
+    height: f32,
 
     const Self = @This();
 
+    pub fn drawLine(self: *Self, line: [4]i32) void {
+        const vertices = [_]f32{
+            2 * (@as(f32, @floatFromInt(line[0])) / self.width) - 1,
+            2 * ((self.height - @as(f32, @floatFromInt(line[1]))) / self.height) - 1,
+            2 * (@as(f32, @floatFromInt(line[2])) / self.width) - 1,
+            2 * ((self.height - @as(f32, @floatFromInt(line[3]))) / self.height) - 1,
+        };
+
+        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 2 * @sizeOf(f32), @ptrCast(&vertices));
+        c.glEnableVertexAttribArray(0);
+
+        c.glDrawArrays(c.GL_LINES, 0, 2);
+    }
+
     pub fn resize(self: *Self, new_dimensions: [2]u32) void {
-        self.width = new_dimensions[0];
-        self.height = new_dimensions[1];
-        self.window.resize(@intCast(self.width), @intCast(self.height), 0, 0);
+        self.width = @floatFromInt(new_dimensions[0]);
+        self.height = @floatFromInt(new_dimensions[1]);
+        self.window.resize(@intFromFloat(self.width), @intFromFloat(self.height), 0, 0);
     }
 
     pub fn getEglError(_: *Self) !void {
@@ -113,23 +126,8 @@ pub const Egl = struct {
             context,
         ) != c.EGL_TRUE) return error.EGLError;
 
-        const vertex_shader_source =
-            \\#version 100
-            \\attribute vec3 aPos;
-            \\
-            \\void main() {
-            \\  gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
-            \\}
-        ;
-
-        const fragment_shader_source =
-            \\#version 100
-            \\precision mediump float;
-            \\
-            \\void main() {
-            \\  gl_FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
-            \\}
-        ;
+        const vertex_shader_source = @embedFile("shaders/vertex_shader.glsl");
+        const fragment_shader_source = @embedFile("shaders/fragment_shader.glsl");
 
         const vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
         const fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
@@ -181,7 +179,7 @@ pub const Egl = struct {
             egl_surface.surface,
             self.context,
         ) != c.EGL_TRUE) return error.EGLError;
-        c.glViewport(0, 0, @intCast(egl_surface.width), @intCast(egl_surface.height));
+        c.glViewport(0, 0, @intFromFloat(egl_surface.width), @intFromFloat(egl_surface.height));
     }
 
     pub fn swapBuffers(self: *Self, egl_surface: EglSurface) !void {
