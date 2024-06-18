@@ -323,18 +323,23 @@ pub const Grid = struct {
 
     pub fn move(self: *Self, value: [2]i32) void {
         for (value, 0..) |val, i| {
-            if (self.offset[i] < -val) self.offset[i] = self.size[i];
-            self.offset[i] += val;
-            if (self.offset[i] >= self.size[i]) self.offset[i] -= self.size[i];
+            var new_offset = self.offset[i] + val;
+
+            if (new_offset < 0) {
+                new_offset = self.size[i] + @rem(new_offset, self.size[i]);
+            } else {
+                new_offset = @rem(new_offset, self.size[i]);
+            }
+
+            self.offset[i] = new_offset;
         }
     }
 
     pub fn resize(self: *Self, value: [2]i32) void {
         for (value, 0..) |val, i| {
             var new_size = self.size[i] + val;
-            if (new_size <= 0) {
-                new_size = 1;
-            }
+            if (new_size <= 0) new_size = 1;
+
             self.size[i] = new_size;
         }
     }
