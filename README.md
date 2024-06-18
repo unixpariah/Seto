@@ -7,7 +7,7 @@
 - zig
 - wayland
 - libxkbcommon
-- libEGl
+- libGL
 - scdoc (optional: man pages)
 
 2. Clone the repository:

@@ -34,6 +34,34 @@ const EventInterfaces = enum {
 pub const Mode = union(enum) {
     Region: ?[2]i32,
     Single,
+
+    const Self = @This();
+
+    pub fn withinBounds(self: *const Self, info: OutputInfo) bool {
+        return self.xWithinBounds(info) and self.yWithinBounds(info);
+    }
+
+    pub fn yWithinBounds(self: *const Self, info: OutputInfo) bool {
+        switch (self.*) {
+            .Region => |position| if (position) |pos| {
+                return pos[1] >= info.y and pos[1] <= info.x + info.width;
+            },
+            .Single => {},
+        }
+
+        return false;
+    }
+
+    pub fn xWithinBounds(self: *const Self, info: OutputInfo) bool {
+        switch (self.*) {
+            .Region => |position| if (position) |pos| {
+                return pos[0] >= info.x and pos[0] <= info.x + info.width;
+            },
+            .Single => {},
+        }
+
+        return false;
+    }
 };
 
 pub const Seto = struct {
@@ -160,15 +188,11 @@ pub const Seto = struct {
         };
 
         var surf_iter = SurfaceIterator.new(self.outputs.items);
-        while (surf_iter.next()) |*res| {
-            defer switch (self.mode) {
-                .Region => |position| if (position) |pos| {
-                    _ = pos;
-                },
-                .Single => {},
-            };
+        var start_pos: [2]?i32 = .{ null, null };
+        while (surf_iter.next()) |res| {
+            var surface, const p, const new_line = res;
+            _ = p;
 
-            var surface = res.@"0";
             if (!surface.isConfigured()) continue;
             try self.egl.makeCurrent(surface.egl);
 
@@ -181,12 +205,12 @@ pub const Seto = struct {
             );
             c.glClear(c.GL_COLOR_BUFFER_BIT);
 
-            const color_location = c.glGetUniformLocation(self.egl.shader_program, "u_Color");
-
             c.glUseProgram(self.egl.shader_program);
             const color = self.config.grid.color;
-            c.glUniform4f(color_location, color[0], color[1], color[2], color[3]);
-            surface.draw();
+            c.glUniform4f(0, color[0], color[1], color[2], color[3]);
+            const result: [2]?i32 = if (new_line) .{ null, start_pos[1] } else .{ start_pos[0], null };
+            start_pos = surface.draw(result, self.mode);
+
             try surface.egl.getEglError();
             c.glUseProgram(0);
             try self.egl.swapBuffers(surface.egl);
@@ -297,7 +321,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         layer_surface,
                         seto.alloc,
                         xdg_output,
-                        OutputInfo{ .wl_output = global_output },
+                        OutputInfo{ .id = global.name },
                         &seto.config,
                     );
 
@@ -318,7 +342,15 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                 },
             }
         },
-        .global_remove => {},
+        .global_remove => |global| {
+            for (seto.outputs.items, 0..) |*output, i| {
+                if (output.output_info.id == global.name) {
+                    output.destroy();
+                    _ = seto.outputs.swapRemove(i);
+                    seto.sortOutputs();
+                }
+            }
+        },
     }
 }
 

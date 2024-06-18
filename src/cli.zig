@@ -91,7 +91,7 @@ pub fn parseArgs(seto: *Seto) void {
             seto.config.grid.line_width = std.fmt.parseFloat(f32, line_width) catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
         } else if (std.mem.eql(u8, arg, "--selected-line-width")) {
             const line_width = getNextArg(&args, arg);
-            seto.config.grid.selected_line_width = std.fmt.parseFloat(f64, line_width) catch printAndExit("Incorrect argument for --line-width {s}\n", line_width);
+            seto.config.grid.selected_line_width = std.fmt.parseFloat(f32, line_width) catch printAndExit("Incorrect argument for --line-width {s}\n", line_width);
         } else if (std.mem.eql(u8, arg, "--search-keys") or std.mem.eql(u8, arg, "-s")) {
             seto.alloc.free(seto.config.keys.search);
             seto.config.keys.search = seto.alloc.dupe(u8, getNextArg(&args, arg)) catch @panic("OOM");

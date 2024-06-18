@@ -56,7 +56,6 @@ fn hexToRgba(hex: []const u8) ![4]f32 {
 }
 
 pub const Config = struct {
-    smooth_scrolling: bool = true,
     output_format: []const u8 = "%x,%y %wx%h\n",
     background_color: [4]f32 = .{ 1, 1, 1, 0.4 },
     keys: Keys,
@@ -219,7 +218,7 @@ pub const Grid = struct {
     size: [2]i32 = .{ 80, 80 },
     offset: [2]i32 = .{ 0, 0 },
     line_width: f32 = 2,
-    selected_line_width: f64 = 2,
+    selected_line_width: f32 = 2,
 
     const Self = @This();
 
@@ -310,10 +309,10 @@ pub const Grid = struct {
         _ = lua.pushString("selected_line_width");
         _ = lua.getTable(2);
         if (!lua.isNil(3)) {
-            grid.selected_line_width = lua.toNumber(3) catch {
+            grid.selected_line_width = @floatCast(lua.toNumber(3) catch {
                 std.debug.print("Selected line width should be a float\n", .{});
                 std.process.exit(1);
-            };
+            });
         }
         lua.pop(1);
 

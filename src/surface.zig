@@ -8,24 +8,24 @@ const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
 const c = @import("ffi.zig");
 
+const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("config.zig").Config;
 const Tree = @import("tree.zig").Tree;
 const EglSurface = @import("egl.zig").EglSurface;
 
 pub const OutputInfo = struct {
+    id: u32,
     name: ?[]const u8 = null,
     description: ?[]const u8 = null,
     height: i32 = 0,
     width: i32 = 0,
     x: i32 = 0,
     y: i32 = 0,
-    wl_output: *wl.Output,
 
     const Self = @This();
 
     fn destroy(self: *Self, alloc: mem.Allocator) void {
-        self.wl_output.destroy();
         alloc.free(self.name.?);
         alloc.free(self.description.?);
     }
@@ -74,11 +74,9 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *Self) void {
+    pub fn draw(self: *Self, start_pos: [2]?i32, mode: Mode) [2]?i32 {
         const info = self.output_info;
         const grid = self.config.grid;
-
-        c.glLineWidth(self.config.grid.line_width);
 
         const width: f32 = @floatFromInt(info.width);
         const height: f32 = @floatFromInt(info.height);
@@ -86,26 +84,81 @@ pub const Surface = struct {
         var vertices = std.ArrayList(f32).init(self.alloc);
         defer vertices.deinit();
 
-        var i: i32 = grid.offset[0];
-        while (i <= info.width) : (i += grid.size[0]) {
-            vertices.append(2 * (@as(f32, @floatFromInt(i)) / width) - 1) catch @panic("OOM");
+        var pos_x = if (start_pos[0]) |pos| pos else grid.offset[0];
+        while (pos_x <= info.width) : (pos_x += grid.size[0]) {
+            vertices.append(2 * (@as(f32, @floatFromInt(pos_x)) / width) - 1) catch @panic("OOM");
             vertices.append(1) catch @panic("OOM");
-            vertices.append(2 * (@as(f32, @floatFromInt(i)) / width) - 1) catch @panic("OOM");
+            vertices.append(2 * (@as(f32, @floatFromInt(pos_x)) / width) - 1) catch @panic("OOM");
             vertices.append(-1) catch @panic("OOM");
         }
 
-        i = grid.offset[1];
-        while (i <= info.height) : (i += grid.size[1]) {
+        var pos_y = if (start_pos[1]) |pos| pos else grid.offset[1];
+        while (pos_y <= info.height) : (pos_y += grid.size[1]) {
             vertices.append(-1) catch @panic("OOM");
-            vertices.append(2 * ((height - @as(f32, @floatFromInt(i))) / height) - 1) catch @panic("OOM");
+            vertices.append(2 * ((height - @as(f32, @floatFromInt(pos_y))) / height) - 1) catch @panic("OOM");
             vertices.append(1) catch @panic("OOM");
-            vertices.append(2 * ((height - @as(f32, @floatFromInt(i))) / height) - 1) catch @panic("OOM");
+            vertices.append(2 * ((height - @as(f32, @floatFromInt(pos_y))) / height) - 1) catch @panic("OOM");
         }
+
+        c.glLineWidth(self.config.grid.line_width);
 
         c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
         c.glEnableVertexAttribArray(0);
 
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
+
+        const selected_color = self.config.grid.selected_color;
+        c.glUniform4f(0, selected_color[0], selected_color[1], selected_color[2], selected_color[3]);
+
+        switch (mode) {
+            .Region => |position| if (position) |pos| {
+                const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
+                const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
+
+                if (mode.withinBounds(info)) {
+                    const selected_vertices = [_]f32{
+                        2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
+                        2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
+                        -1,                                         2 * (((height - f_position[1]) - f_p[1]) / height) - 1,
+                        1,                                          2 * (((height - f_position[1]) - f_p[1]) / height) - 1,
+                    };
+
+                    c.glLineWidth(self.config.grid.selected_line_width);
+
+                    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+                    c.glEnableVertexAttribArray(0);
+
+                    c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+                } else if (mode.yWithinBounds(info)) {
+                    const selected_vertices = [_]f32{
+                        -1, 2 * (((height - f_position[1]) - f_p[1]) / height) - 1,
+                        1,  2 * (((height - f_position[1]) - f_p[1]) / height) - 1,
+                    };
+
+                    c.glLineWidth(self.config.grid.selected_line_width);
+
+                    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+                    c.glEnableVertexAttribArray(0);
+
+                    c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+                } else if (mode.xWithinBounds(info)) {
+                    const selected_vertices = [_]f32{
+                        2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
+                        2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
+                    };
+
+                    c.glLineWidth(self.config.grid.selected_line_width);
+
+                    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+                    c.glEnableVertexAttribArray(0);
+
+                    c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+                }
+            },
+            .Single => {},
+        }
+
+        return .{ pos_x - info.width, pos_y - info.height };
     }
 
     pub fn isConfigured(self: *const Self) bool {
@@ -131,11 +184,12 @@ pub const SurfaceIterator = struct {
         return Self{ .outputs = outputs };
     }
 
-    fn isNewline(self: *Self) bool {
-        return self.index > 0 and self.outputs[self.index].output_info.x <= self.outputs[self.index - 1].output_info.x;
+    pub fn isNewline(self: *Self) bool {
+        if (self.index == 0) return false;
+        return self.outputs[self.index].output_info.x <= self.outputs[self.index - 1].output_info.x;
     }
 
-    pub fn next(self: *Self) ?std.meta.Tuple(&.{ Surface, [2]i32 }) {
+    pub fn next(self: *Self) ?std.meta.Tuple(&.{ Surface, [2]i32, bool }) {
         if (self.index >= self.outputs.len) return null;
         const output = self.outputs[self.index];
         if (!output.isConfigured()) return self.next();
@@ -147,7 +201,7 @@ pub const SurfaceIterator = struct {
         defer self.index += 1;
         defer self.position[0] += output.output_info.width;
 
-        return .{ output, self.position };
+        return .{ output, self.position, self.isNewline() };
     }
 };
 
