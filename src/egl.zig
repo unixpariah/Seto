@@ -1,11 +1,8 @@
 const std = @import("std");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
-const c = @cImport({
-    @cInclude("EGL/egl.h");
-    @cInclude("EGL/eglext.h");
-    @cInclude("GLES2/gl2.h");
-});
+
+const c = @import("ffi.zig");
 
 pub const EglSurface = struct {
     window: *wl.EglWindow,
@@ -179,7 +176,6 @@ pub const Egl = struct {
             egl_surface.surface,
             self.context,
         ) != c.EGL_TRUE) return error.EGLError;
-        c.glViewport(0, 0, @intFromFloat(egl_surface.width), @intFromFloat(egl_surface.height));
     }
 
     pub fn swapBuffers(self: *Self, egl_surface: EglSurface) !void {

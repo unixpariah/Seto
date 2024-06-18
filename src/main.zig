@@ -6,9 +6,7 @@ const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
-const c = @cImport({
-    @cInclude("GLES2/gl2.h");
-});
+const c = @import("ffi.zig");
 
 const Tree = @import("tree.zig").Tree;
 const OutputInfo = @import("surface.zig").OutputInfo;
@@ -24,7 +22,6 @@ const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
-const frameListener = @import("surface.zig").frameListener;
 
 const EventInterfaces = enum {
     wl_compositor,
@@ -86,36 +83,6 @@ pub const Seto = struct {
 
     pub fn sortOutputs(self: *Self) void {
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
-    }
-
-    fn drawGrid(self: *Self, width: u32, height: u32) void {
-        const grid = self.config.grid;
-
-        defer switch (self.mode) {
-            .Region => |position| if (position) |pos| {
-                _ = pos;
-            },
-            .Single => {},
-        };
-
-        if (self.border_mode) {
-            var surf_iter = SurfaceIterator.new(self.outputs.items);
-            while (surf_iter.next()) |res| {
-                const surface: Surface, const pos: [2]i32 = res;
-                const info = surface.output_info;
-
-                _ = info;
-                _ = pos;
-            }
-
-            return;
-        }
-
-        var i: i32 = grid.offset[0];
-        while (i <= width) : (i += grid.size[0]) {}
-
-        i = grid.offset[1];
-        while (i <= height) : (i += grid.size[1]) {}
     }
 
     fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32, outputs: []Surface) void {
@@ -192,10 +159,15 @@ pub const Seto = struct {
             }
         };
 
-        self.drawGrid(@intCast(self.total_dimensions[0]), @intCast(self.total_dimensions[1]));
-
         var surf_iter = SurfaceIterator.new(self.outputs.items);
         while (surf_iter.next()) |*res| {
+            defer switch (self.mode) {
+                .Region => |position| if (position) |pos| {
+                    _ = pos;
+                },
+                .Single => {},
+            };
+
             var surface = res.@"0";
             if (!surface.isConfigured()) continue;
             try self.egl.makeCurrent(surface.egl);
@@ -216,6 +188,7 @@ pub const Seto = struct {
             c.glUniform4f(color_location, color[0], color[1], color[2], color[3]);
             surface.draw();
             try surface.egl.getEglError();
+            c.glUseProgram(0);
             try self.egl.swapBuffers(surface.egl);
         }
     }

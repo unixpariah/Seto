@@ -35,11 +35,11 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("wayland", wayland);
     exe.root_module.addImport("xkbcommon", xkbcommon);
     exe.root_module.addImport("ziglua", ziglua);
-    exe.linkSystemLibrary("wayland-client");
+    exe.linkSystemLibrary("wayland-protocols");
+    exe.linkSystemLibrary("wayland-egl");
     exe.linkSystemLibrary("xkbcommon");
     exe.linkSystemLibrary("egl");
     exe.linkSystemLibrary("gl");
-    exe.linkSystemLibrary("wayland-egl");
 
     // TODO: remove when https://github.com/ziglang/zig/issues/131 is implemented
     scanner.addCSource(exe);

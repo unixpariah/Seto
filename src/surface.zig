@@ -6,16 +6,7 @@ const wayland = @import("wayland");
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
-const c = @cImport({
-    @cInclude("wayland-egl.h");
-    @cInclude("EGL/egl.h");
-
-    @cDefine("GL_GLEXT_PROTOTYPES", "1");
-    @cInclude("GL/gl.h");
-    @cInclude("GL/glext.h");
-
-    @cInclude("sys/epoll.h");
-});
+const c = @import("ffi.zig");
 
 const Seto = @import("main.zig").Seto;
 const Config = @import("config.zig").Config;
@@ -89,18 +80,11 @@ pub const Surface = struct {
 
         c.glLineWidth(self.config.grid.line_width);
 
-        // var vertices = std.ArrayList(f32).init(self.alloc);
-        // defer vertices.deinit();
-
         const width: f32 = @floatFromInt(info.width);
         const height: f32 = @floatFromInt(info.height);
 
         var i: i32 = grid.offset[0];
         while (i <= info.width) : (i += grid.size[0]) {
-            // vertices.append(2 * (@as(f32, @floatFromInt(i)) / width) - 1) catch @panic("OOM");
-            // vertices.append(1) catch @panic("OOM");
-            // vertices.append(2 * (@as(f32, @floatFromInt(i)) / width) - 1) catch @panic("OOM");
-            // vertices.append(-1) catch @panic("OOM");
             const vertices = [_]f32{
                 2 * (@as(f32, @floatFromInt(i)) / width) - 1, 1,
                 2 * (@as(f32, @floatFromInt(i)) / width) - 1, -1,
@@ -114,10 +98,6 @@ pub const Surface = struct {
 
         i = grid.offset[1];
         while (i <= info.height) : (i += grid.size[1]) {
-            //     vertices.append(-1) catch @panic("OOM");
-            //     vertices.append(2 * (@as(f32, @floatFromInt(i)) / height) - 1) catch @panic("OOM");
-            //     vertices.append(1) catch @panic("OOM");
-            //     vertices.append(2 * (@as(f32, @floatFromInt(i)) / height) - 1) catch @panic("OOM");
             const vertices = [_]f32{
                 -1, 2 * ((height - @as(f32, @floatFromInt(i))) / height) - 1,
                 1,  2 * ((height - @as(f32, @floatFromInt(i))) / height) - 1,
@@ -129,10 +109,29 @@ pub const Surface = struct {
             c.glDrawArrays(c.GL_LINES, 0, 2);
         }
 
-        // c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices));
+        // var vertices = std.ArrayList(f32).init(self.alloc);
+        // defer vertices.deinit();
+
+        // var i: i32 = grid.offset[0];
+        // while (i <= info.width) : (i += grid.size[0]) {
+        //     vertices.append(2 * (@as(f32, @floatFromInt(i)) / width) - 1) catch @panic("OOM");
+        //     vertices.append(1) catch @panic("OOM");
+        //     vertices.append(2 * (@as(f32, @floatFromInt(i)) / width) - 1) catch @panic("OOM");
+        //     vertices.append(-1) catch @panic("OOM");
+        // }
+
+        // i = grid.offset[1];
+        // while (i <= info.height) : (i += grid.size[1]) {
+        //     vertices.append(-1) catch @panic("OOM");
+        //     vertices.append(2 * ((height - @as(f32, @floatFromInt(i))) / height) - 1) catch @panic("OOM");
+        //     vertices.append(1) catch @panic("OOM");
+        //     vertices.append(2 * ((height - @as(f32, @floatFromInt(i))) / height) - 1) catch @panic("OOM");
+        // }
+
+        // c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices.items));
         // c.glEnableVertexAttribArray(0);
 
-        // c.glDrawArrays(c.GL_LINES, 0, 100);
+        // c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
     }
 
     pub fn isConfigured(self: *const Self) bool {

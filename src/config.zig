@@ -16,12 +16,12 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
 
             if (std.mem.eql(u8, path, "null")) return error.Null;
 
-            std.fs.accessAbsolute(path, .{}) catch {
+            fs.accessAbsolute(path, .{}) catch {
                 std.debug.print("File \"{s}\" not found\n", .{path});
                 std.process.exit(1);
             };
 
-            return std.fs.path.joinZ(alloc, &[_][]const u8{path});
+            return fs.path.joinZ(alloc, &[_][]const u8{path});
         }
     }
 

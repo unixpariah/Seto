@@ -29,8 +29,8 @@ fn hexToRgba(hex: ?[]const u8) ![4]f32 {
 }
 
 fn printAndExit(comptime message: []const u8, arg: []const u8) noreturn {
-    std.debug.print(message, .{arg});
-    std.debug.print("{s}\n", .{help_message});
+    std.log.debug(message, .{arg});
+    std.log.debug("{s}\n", .{help_message});
     std.process.exit(1);
 }
 
@@ -67,10 +67,10 @@ pub fn parseArgs(seto: *Seto) void {
         } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
             _ = getNextArg(&args, arg);
         } else if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
-            std.debug.print("{s}\n", .{help_message});
+            std.log.debug("{s}\n", .{help_message});
             std.process.exit(0);
         } else if (std.mem.eql(u8, arg, "-v") or std.mem.eql(u8, arg, "--version")) {
-            std.debug.print("Seto v0.1.0 \nBuild type: {}\nZig {}\n", .{ builtin.mode, builtin.zig_version });
+            std.log.debug("Seto v0.1.0 \nBuild type: {}\nZig {}\n", .{ builtin.mode, builtin.zig_version });
             std.process.exit(0);
         } else if (std.mem.eql(u8, arg, "--background-color")) {
             seto.config.background_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
@@ -124,13 +124,13 @@ pub fn parseArgs(seto: *Seto) void {
 
 fn getStyle(comptime T: type, arg: ?[]const u8) T {
     const c_arg = arg orelse {
-        std.debug.print("Missing Argument\n", .{});
-        std.debug.print("{s}\n", .{help_message});
+        std.log.debug("Missing Argument\n", .{});
+        std.log.debug("{s}\n", .{help_message});
         std.process.exit(1);
     };
     return std.meta.stringToEnum(T, c_arg) orelse {
-        std.debug.print("Option \"{s}\" does not exist\n", .{c_arg});
-        std.debug.print("{s}\n", .{help_message});
+        std.log.debug("Option \"{s}\" does not exist\n", .{c_arg});
+        std.log.debug("{s}\n", .{help_message});
         std.process.exit(1);
     };
 }

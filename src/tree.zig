@@ -1,10 +1,8 @@
 const std = @import("std");
 
-const Font = @import("config.zig").Font;
 const Seto = @import("main.zig").Seto;
 const Surface = @import("surface.zig").Surface;
 const Grid = @import("config.zig").Grid;
-const Mode = @import("main.zig").Mode;
 
 pub const Result = struct {
     path: []const u8,

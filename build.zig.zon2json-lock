@@ -1,13 +1,8 @@
 {
-  "1220cfe58a81834cafa00a5ea0735535c07269d4c427b80d8e9c8f7bf3b0d30c3086": {
-    "name": "giza",
-    "url": "https://github.com/unixpariah/giza/archive/zig-0.13.0.tar.gz",
-    "hash": "sha256-4HuV5xVF3MAcvcpE2q4hjdDJgzvYAn1vRlXryDLiL8Y="
-  },
-  "1220affeb3fe37ef09411b5a213b5fdf9bb6568e9913bade204694648983a8b2776d": {
+  "122069f4b75c946c705c0ed3218f52e0917ca361f55cebf3fb1c66a431a88ccc87b3": {
     "name": "ziglua",
-    "url": "https://github.com/natecraddock/ziglua/archive/main.tar.gz",
-    "hash": "sha256-XjEfZlLlo7aedtfZyEhNV0/osLGxklUIDSc137SDGfk="
+    "url": "https://github.com/natecraddock/ziglua/archive/a7cf85fb871a95a46d4222fe3abdd3946e3e0dab.tar.gz",
+    "hash": "sha256-TVgsyGrq2ds00Nm6VZAEAtAeFd0mAvOoMuz2xpQwXVY="
   },
   "12203fe1feebb81635f8df5a5a7242733e441fe3f3043989c8e6b4d6720e96988813": {
     "name": "lua51",
@@ -41,12 +36,12 @@
   },
   "1220ab835f090bde18b74191e88c4ab3bd49364d310bd9912eccebd3c47bad7957a3": {
     "name": "zig-wayland",
-    "url": "https://codeberg.org/ifreund/zig-wayland/archive/master.tar.gz",
+    "url": "https://codeberg.org/ifreund/zig-wayland/archive/092e3424345d9c0a9467771b2f629fa01560a69f.tar.gz",
     "hash": "sha256-hHIAXmuLoqnkpCkhV172D/XFqhf3NG1LwPi1OghYEOw="
   },
   "12200989a0e5c5d8186dd16752e3d83d914d4f54ecca7b3e147443f13a9580ede671": {
     "name": "zig-xkbcommon",
-    "url": "https://codeberg.org/ifreund/zig-xkbcommon/archive/master.tar.gz",
+    "url": "https://codeberg.org/ifreund/zig-xkbcommon/archive/d8412eed455c8cfea5b4cda2ea260095ccb47045.tar.gz",
     "hash": "sha256-dm2/OjwypwDAIxALe00f4m45MeCJZusXbp91f4l06RE="
   }
 }

@@ -27,7 +27,7 @@
               wayland
               wayland-protocols
               egl-wayland
-              libGl
+              libGL
               libxkbcommon
             ];
 
@@ -82,6 +82,7 @@
           pkg-config
           wayland
           wayland-protocols
+          wayland-utils
           libxkbcommon
           libGL
           glxinfo
