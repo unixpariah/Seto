@@ -81,9 +81,9 @@ pub const Tree = struct {
 
             start_pos = if (new_line) .{
                 null,
-                intersections.items[intersections.items.len - 1][0],
-            } else .{
                 intersections.items[intersections.items.len - 1][1],
+            } else .{
+                intersections.items[intersections.items.len - 1][0],
                 null,
             };
         }

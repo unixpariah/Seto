@@ -115,45 +115,30 @@ pub const Surface = struct {
                 const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
                 const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
 
-                if (mode.withinBounds(info)) {
-                    const selected_vertices = [_]f32{
-                        2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
-                        2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
-                        -1,                                         2 * (((height - f_position[1]) - f_p[1]) / height) - 1,
-                        1,                                          2 * (((height - f_position[1]) - f_p[1]) / height) - 1,
-                    };
+                var selected_vertices: [8]f32 =
+                    if (mode.withinBounds(info)) .{
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
+                    -1,                                         -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    1,                                          -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                } else if (mode.yWithinBounds(info)) .{
+                    -1, -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    1,  -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    0,  0,
+                    0,  0,
+                } else if (mode.xWithinBounds(info)) .{
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
+                    0,                                          0,
+                    0,                                          0,
+                } else unreachable;
 
-                    c.glLineWidth(self.config.grid.selected_line_width);
+                c.glLineWidth(self.config.grid.selected_line_width);
 
-                    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
-                    c.glEnableVertexAttribArray(0);
+                c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+                c.glEnableVertexAttribArray(0);
 
-                    c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
-                } else if (mode.yWithinBounds(info)) {
-                    const selected_vertices = [_]f32{
-                        -1, 2 * (((height - f_position[1]) - f_p[1]) / height) - 1,
-                        1,  2 * (((height - f_position[1]) - f_p[1]) / height) - 1,
-                    };
-
-                    c.glLineWidth(self.config.grid.selected_line_width);
-
-                    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
-                    c.glEnableVertexAttribArray(0);
-
-                    c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
-                } else if (mode.xWithinBounds(info)) {
-                    const selected_vertices = [_]f32{
-                        2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
-                        2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
-                    };
-
-                    c.glLineWidth(self.config.grid.selected_line_width);
-
-                    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
-                    c.glEnableVertexAttribArray(0);
-
-                    c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
-                }
+                c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
             },
             .Single => {},
         }

@@ -55,7 +55,7 @@ pub const Mode = union(enum) {
     pub fn yWithinBounds(self: *const Self, info: OutputInfo) bool {
         switch (self.*) {
             .Region => |position| if (position) |pos| {
-                return pos[1] >= info.y and pos[1] <= info.y + info.width;
+                return pos[1] >= info.y and pos[1] <= info.y + info.height;
             },
             .Single => {},
         }
@@ -257,7 +257,7 @@ pub fn main() !void {
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 
     if (seto.compositor == null or seto.layer_shell == null) {
-        std.debug.print("Compositor, layer_shell or shm not bound", .{});
+        std.log.err("Compositor, layer_shell or shm not bound", .{});
         std.process.exit(1);
     }
 
