@@ -208,7 +208,7 @@ pub const Seto = struct {
             const color = self.config.grid.color;
             c.glUniform4f(0, color[0], color[1], color[2], color[3]);
             const result: [2]?i32 = if (new_line) .{ null, start_pos[1] } else .{ start_pos[0], null };
-            start_pos = surface.draw(result, self.mode);
+            start_pos = surface.draw(result, self.mode, self.border_mode);
 
             try surface.egl.getEglError();
             c.glUseProgram(0);

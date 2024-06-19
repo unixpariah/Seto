@@ -74,7 +74,7 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *Self, start_pos: [2]?i32, mode: Mode) [2]?i32 {
+    pub fn draw(self: *Self, start_pos: [2]?i32, mode: Mode, border_mode: bool) [2]?i32 {
         const info = self.output_info;
         const grid = self.config.grid;
 
@@ -83,6 +83,65 @@ pub const Surface = struct {
 
         var vertices = std.ArrayList(f32).init(self.alloc);
         defer vertices.deinit();
+
+        defer switch (mode) {
+            .Region => |position| if (position) |pos| {
+                const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
+                const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
+
+                var selected_vertices: [8]f32 =
+                    if (mode.withinBounds(info)) .{
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
+                    -1,                                         -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    1,                                          -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                } else if (mode.yWithinBounds(info)) .{
+                    -1, -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    1,  -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    0,  0,
+                    0,  0,
+                } else if (mode.xWithinBounds(info)) .{
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
+                    0,                                          0,
+                    0,                                          0,
+                } else unreachable;
+
+                const selected_color = self.config.grid.selected_color;
+                c.glUniform4f(0, selected_color[0], selected_color[1], selected_color[2], selected_color[3]);
+
+                c.glLineWidth(self.config.grid.selected_line_width);
+
+                c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+                c.glEnableVertexAttribArray(0);
+
+                c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+            },
+            .Single => {},
+        };
+
+        if (border_mode) {
+            vertices.append(1) catch @panic("OOM");
+            vertices.append(1) catch @panic("OOM");
+
+            vertices.append(1) catch @panic("OOM");
+            vertices.append(-1) catch @panic("OOM");
+
+            vertices.append(-1) catch @panic("OOM");
+            vertices.append(-1) catch @panic("OOM");
+
+            vertices.append(-1) catch @panic("OOM");
+            vertices.append(1) catch @panic("OOM");
+
+            c.glLineWidth(self.config.grid.line_width);
+
+            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
+            c.glEnableVertexAttribArray(0);
+
+            c.glDrawArrays(c.GL_LINE_LOOP, 0, @intCast(vertices.items.len >> 1));
+
+            return .{ 0, 0 };
+        }
 
         var pos_x = if (start_pos[0]) |pos| pos else grid.offset[0];
         while (pos_x <= info.width) : (pos_x += grid.size[0]) {
@@ -106,42 +165,6 @@ pub const Surface = struct {
         c.glEnableVertexAttribArray(0);
 
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
-
-        const selected_color = self.config.grid.selected_color;
-        c.glUniform4f(0, selected_color[0], selected_color[1], selected_color[2], selected_color[3]);
-
-        switch (mode) {
-            .Region => |position| if (position) |pos| {
-                const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
-                const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
-
-                var selected_vertices: [8]f32 =
-                    if (mode.withinBounds(info)) .{
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
-                    -1,                                         -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    1,                                          -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                } else if (mode.yWithinBounds(info)) .{
-                    -1, -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    1,  -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    0,  0,
-                    0,  0,
-                } else if (mode.xWithinBounds(info)) .{
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
-                    0,                                          0,
-                    0,                                          0,
-                } else unreachable;
-
-                c.glLineWidth(self.config.grid.selected_line_width);
-
-                c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
-                c.glEnableVertexAttribArray(0);
-
-                c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
-            },
-            .Single => {},
-        }
 
         return .{ pos_x - info.width, pos_y - info.height };
     }
