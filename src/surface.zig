@@ -174,14 +174,14 @@ pub const Surface = struct {
 };
 
 pub const SurfaceIterator = struct {
-    position: [2]i32 = .{ 0, 0 },
+    position: [2]i32,
     outputs: []Surface,
     index: u8 = 0,
 
     const Self = @This();
 
     pub fn new(outputs: []Surface) Self {
-        return Self{ .outputs = outputs };
+        return Self{ .outputs = outputs, .position = .{ outputs[0].output_info.x, outputs[0].output_info.y } };
     }
 
     pub fn isNewline(self: *Self) bool {
@@ -190,9 +190,8 @@ pub const SurfaceIterator = struct {
     }
 
     pub fn next(self: *Self) ?std.meta.Tuple(&.{ Surface, [2]i32, bool }) {
-        if (self.index >= self.outputs.len) return null;
+        if (self.index >= self.outputs.len or !self.outputs[self.index].isConfigured()) return null;
         const output = self.outputs[self.index];
-        if (!output.isConfigured()) return self.next();
 
         if (self.isNewline()) {
             self.position = .{ 0, self.outputs[self.index - 1].output_info.height };
@@ -254,7 +253,6 @@ pub fn xdgOutputListener(
                     seto.tree = Tree.new(
                         seto.config.keys.search,
                         seto.alloc,
-                        seto.total_dimensions,
                         seto.config.grid,
                         seto.outputs.items,
                     );

@@ -41,10 +41,10 @@ pub const Mode = union(enum) {
         return self.xWithinBounds(info) and self.yWithinBounds(info);
     }
 
-    pub fn yWithinBounds(self: *const Self, info: OutputInfo) bool {
+    pub fn xWithinBounds(self: *const Self, info: OutputInfo) bool {
         switch (self.*) {
             .Region => |position| if (position) |pos| {
-                return pos[1] >= info.y and pos[1] <= info.x + info.width;
+                return pos[0] >= info.x and pos[0] <= info.x + info.width;
             },
             .Single => {},
         }
@@ -52,10 +52,10 @@ pub const Mode = union(enum) {
         return false;
     }
 
-    pub fn xWithinBounds(self: *const Self, info: OutputInfo) bool {
+    pub fn yWithinBounds(self: *const Self, info: OutputInfo) bool {
         switch (self.*) {
             .Region => |position| if (position) |pos| {
-                return pos[0] >= info.x and pos[0] <= info.x + info.width;
+                return pos[1] >= info.y and pos[1] <= info.y + info.width;
             },
             .Single => {},
         }
@@ -190,8 +190,7 @@ pub const Seto = struct {
         var surf_iter = SurfaceIterator.new(self.outputs.items);
         var start_pos: [2]?i32 = .{ null, null };
         while (surf_iter.next()) |res| {
-            var surface, const p, const new_line = res;
-            _ = p;
+            var surface, _, const new_line = res;
 
             if (!surface.isConfigured()) continue;
             try self.egl.makeCurrent(surface.egl);

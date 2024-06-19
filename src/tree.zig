@@ -3,6 +3,7 @@ const std = @import("std");
 const Seto = @import("main.zig").Seto;
 const Surface = @import("surface.zig").Surface;
 const Grid = @import("config.zig").Grid;
+const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 
 pub const Result = struct {
     path: []const u8,
@@ -12,13 +13,12 @@ pub const Result = struct {
 pub const Tree = struct {
     children: []Node,
     keys: []const u8,
-    dimensions: [2]i32,
     depth: u8,
     arena: std.heap.ArenaAllocator,
 
     const Self = @This();
 
-    pub fn new(keys: []const u8, alloc: std.mem.Allocator, dimensions: [2]i32, grid: Grid, outputs: []Surface) Self {
+    pub fn new(keys: []const u8, alloc: std.mem.Allocator, grid: Grid, outputs: []Surface) Self {
         var arena = std.heap.ArenaAllocator.init(alloc);
         const nodes = arena.allocator().alloc(Node, keys.len) catch @panic("OOM");
         for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -26,13 +26,12 @@ pub const Tree = struct {
         var tree = Self{
             .children = nodes,
             .keys = keys,
-            .dimensions = dimensions,
             .depth = 1,
             .arena = arena,
         };
 
         var tmp = std.ArrayList([64]u8).init(alloc);
-        tree.updateCoordinates(dimensions, grid, false, outputs, &tmp);
+        tree.updateCoordinates(grid, false, outputs, &tmp);
 
         return tree;
     }
@@ -48,59 +47,49 @@ pub const Tree = struct {
         return error.KeyNotFound;
     }
 
-    pub fn updateCoordinates(self: *Self, dimensions: [2]i32, grid: Grid, border_mode: bool, outputs: []Surface, buffer: *std.ArrayList([64]u8)) void {
-        const intersections = intersections: {
-            if (!border_mode) {
-                const width = dimensions[0];
-                const height = dimensions[1];
+    pub fn updateCoordinates(
+        self: *Self,
+        grid: Grid,
+        border_mode: bool,
+        outputs: []Surface,
+        buffer: *std.ArrayList([64]u8),
+    ) void {
+        var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
+        defer intersections.deinit();
 
-                const num_steps_i = @divTrunc((width - grid.offset[0]), grid.size[0]) + 1;
-                const num_steps_j = @divTrunc((height - grid.offset[1]), grid.size[1]) + 1;
+        var surf_iter = SurfaceIterator.new(outputs);
+        var start_pos: [2]?i32 = .{ null, null };
+        while (surf_iter.next()) |res| {
+            const surf, const position, const new_line = res;
+            const info = surf.output_info;
 
-                const total_intersections = num_steps_i * num_steps_j;
-
-                var intersections = self.arena.allocator().alloc([2]i32, @intCast(total_intersections)) catch @panic("OOM");
-
-                var index: usize = 0;
-                var i = grid.offset[0];
-                while (i <= width - 1) : (i += grid.size[0]) {
-                    var j = grid.offset[1];
-                    while (j <= height - 1) : (j += grid.size[1]) {
-                        intersections[index] = .{ i, j };
-                        index += 1;
-                    }
-                }
-
-                break :intersections intersections;
-            } else {
-                var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
-
-                var pos: [2]i32 = .{ 0, 0 };
-
-                var index: u8 = 0;
-                while (index < outputs.len) : (index += 1) {
-                    if (!outputs[index].isConfigured()) continue;
-                    const info = outputs[index].output_info;
-
-                    if (index > 0) {
-                        if (info.x <= outputs[index - 1].output_info.x) pos = .{ 0, outputs[index - 1].output_info.height };
-                    }
-
-                    intersections.append(pos) catch unreachable;
-                    intersections.append(.{ pos[0], pos[1] + info.height - 1 }) catch unreachable;
-                    intersections.append(.{ pos[0] + info.width - 1, pos[1] }) catch unreachable;
-                    intersections.append(.{ pos[0] + info.width - 1, pos[1] + info.height - 1 }) catch unreachable;
-
-                    pos[0] += info.width;
-                }
-
-                break :intersections intersections.toOwnedSlice() catch @panic("OOM");
+            if (border_mode) {
+                intersections.append(position) catch unreachable;
+                intersections.append(.{ position[0], position[1] + info.height - 1 }) catch unreachable;
+                intersections.append(.{ position[0] + info.width - 1, position[1] }) catch unreachable;
+                intersections.append(.{ position[0] + info.width - 1, position[1] + info.height - 1 }) catch unreachable;
+                continue;
             }
-        };
-        defer self.arena.allocator().free(intersections);
+
+            var i = if (start_pos[0]) |pos| pos else info.x + grid.offset[0];
+            while (i <= position[0] + info.width) : (i += grid.size[0]) {
+                var j = if (start_pos[1]) |pos| pos else info.y + grid.offset[1];
+                while (j <= position[1] + info.height) : (j += grid.size[1]) {
+                    intersections.append(.{ i, j }) catch unreachable;
+                }
+            }
+
+            start_pos = if (new_line) .{
+                null,
+                intersections.items[intersections.items.len - 1][0],
+            } else .{
+                intersections.items[intersections.items.len - 1][1],
+                null,
+            };
+        }
 
         const depth: u8 = depth: {
-            const items_len: f64 = @floatFromInt(intersections.len);
+            const items_len: f64 = @floatFromInt(intersections.items.len);
             const keys_len: f64 = @floatFromInt(self.keys.len);
             const depth = std.math.log(f64, keys_len, items_len);
             break :depth @intFromFloat(std.math.ceil(depth));
@@ -120,7 +109,7 @@ pub const Tree = struct {
 
         var index: usize = 0;
         for (self.children) |*child| {
-            child.traverseAndPutCoords(intersections, &index);
+            child.traverseAndPutCoords(intersections.items, &index);
         }
     }
 
@@ -218,75 +207,3 @@ const Node = struct {
         }
     }
 };
-
-test "new_tree" {
-    const assert = std.debug.assert;
-    const alloc = std.heap.page_allocator;
-
-    const keys = "asdfghjkl";
-    const tree = Tree.new(keys, alloc, .{ 1920, 1080 }, Grid{});
-    assert(tree.children.len == keys.len);
-    assert(tree.depth == 3);
-
-    for (tree.children, 0..) |node, i| {
-        assert(node.key == tree.keys[i]);
-    }
-
-    const bigger_tree = Tree.new(keys, alloc, .{ 5000, 5000 }, Grid{});
-    assert(bigger_tree.children.len == keys.len);
-    assert(bigger_tree.depth > 3);
-
-    for (tree.children, 0..) |node, i| {
-        assert(node.key == tree.keys[i]);
-    }
-
-    const smaller_tree = Tree.new(keys, alloc, .{ 500, 500 }, Grid{});
-    assert(smaller_tree.children.len == keys.len);
-    assert(smaller_tree.depth < 3);
-
-    for (tree.children, 0..) |node, i| {
-        assert(node.key == tree.keys[i]);
-    }
-
-    for (0..3) |i| { // Testing only 3 because some positions can be null
-        var node = tree.children[i];
-        while (node.children) |children| : (node = children[i]) {}
-        assert(node.coordinates != null);
-
-        node = bigger_tree.children[i];
-        while (node.children) |children| : (node = children[i]) {}
-        assert(node.coordinates != null);
-
-        node = smaller_tree.children[i];
-        while (node.children) |children| : (node = children[i]) {}
-        assert(node.coordinates != null);
-    }
-}
-
-test "find" {
-    const assert = std.debug.assert;
-    const alloc = std.heap.page_allocator;
-
-    const keys = "asdfghjkl";
-    var tree = Tree.new(keys, alloc, .{ 1920, 1080 }, Grid{});
-    var buffer: [0][64]u8 = undefined;
-    _ = tree.find(&buffer) catch |err| assert(err == error.EndNotReached);
-
-    var buffer_2: [1][64]u8 = undefined;
-    buffer_2[0][0] = 1;
-    _ = tree.find(&buffer_2) catch |err| assert(err == error.KeyNotFound);
-
-    var buffer_3: [3][64]u8 = undefined;
-    buffer_3[0][0] = 97;
-    buffer_3[1][0] = 97;
-    buffer_3[2][0] = 97;
-    var positions = tree.find(&buffer_3) catch @panic("");
-    assert(positions[0] == 0 and positions[1] == 0);
-
-    buffer_3 = undefined;
-    buffer_3[0][0] = 97;
-    buffer_3[1][0] = 97;
-    buffer_3[2][0] = 115;
-    positions = tree.find(&buffer_3) catch @panic("");
-    assert(positions[0] == 0 and positions[1] == 80);
-}

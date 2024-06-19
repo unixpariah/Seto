@@ -137,15 +137,15 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 
 fn moveSelection(seto: *Seto, value: [2]i32) void {
     if (seto.mode == .Single) return;
-    if (seto.mode.Region) |position| {
-        const region = &seto.mode.Region.?;
-        for (0..region.len) |i| {
-            if (position[i] + value[i] > seto.total_dimensions[i]) {
-                region[i] = seto.total_dimensions[i];
-            } else if (position[i] + value[i] < 0) {
-                region[i] = 0;
-            } else {
-                region[i] += value[i];
+    if (seto.mode.Region) |*position| {
+        const info: [2]i32 = .{ seto.outputs.items[0].output_info.x, seto.outputs.items[0].output_info.y };
+        for (position, 0..) |*pos, i| {
+            pos.* += value[i];
+
+            if (pos.* < info[i]) {
+                pos.* = info[i];
+            } else if (pos.* > info[i] + seto.total_dimensions[i]) {
+                pos.* = info[i] + seto.total_dimensions[i];
             }
         }
     }
@@ -179,7 +179,6 @@ pub fn handleKey(self: *Seto) void {
 
             if ((function == .move or function == .resize) and !self.border_mode or function == .border_select or function == .move_selection) {
                 self.tree.?.updateCoordinates(
-                    self.total_dimensions,
                     self.config.grid,
                     self.border_mode,
                     self.outputs.items,
