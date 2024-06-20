@@ -141,7 +141,7 @@ const help_message =
     \\
     \\Settings:
     \\  -r, --region                               Select region of screen
-    \\  -c, --config <PATH>                        Specifies config file
+    \\  -c, --config <PATH>                        Specifies path to config directory
     \\  -f, --format <STRING>                      Specifies format of output
     \\
     \\Miscellaneous:

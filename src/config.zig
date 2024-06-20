@@ -3,11 +3,10 @@ const fs = std.fs;
 
 const Lua = @import("ziglua").Lua;
 
-fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
+fn getPath(alloc: std.mem.Allocator) ![]const u8 {
     var args = std.process.args();
     var index: u8 = 0;
     while (args.next()) |arg| : (index += 1) {
-        if (index == 0) continue;
         if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
             const path = args.next() orelse {
                 std.log.err("Argument missing after: \"-c\"\nMore info with \"seto -h\"\n", .{});
@@ -16,23 +15,39 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
 
             if (std.mem.eql(u8, path, "null")) return error.Null;
 
-            fs.accessAbsolute(path, .{}) catch {
-                std.log.err("File \"{s}\" not found\n", .{path});
+            const absolute_path = try std.fs.cwd().realpathAlloc(alloc, path);
+
+            _ = fs.openDirAbsolute(absolute_path, .{}) catch {
+                std.log.err("Directory \"{s}\" not found", .{absolute_path});
                 std.process.exit(1);
             };
 
-            return fs.path.joinZ(alloc, &[_][]const u8{path});
+            const config_path = try fs.path.joinZ(alloc, &[_][]const u8{ absolute_path, "config.lua" });
+            defer alloc.free(config_path);
+
+            _ = fs.accessAbsolute(config_path, .{}) catch {
+                std.log.err("File config.lua not found in \"{s}\" directory", .{absolute_path});
+                std.process.exit(1);
+            };
+
+            return absolute_path;
         }
     }
 
     const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
-    const config_path = fs.path.joinZ(alloc, &[_][]const u8{ home, ".config/seto/config.lua" }) catch @panic("OOM");
+    const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
+    const config_path = fs.path.join(alloc, &[_][]const u8{ config_dir, "config.lua" }) catch |err| {
+        alloc.free(config_dir);
+        return err;
+    };
+    defer alloc.free(config_path);
+
     fs.accessAbsolute(config_path, .{}) catch |err| {
-        alloc.free(config_path);
+        alloc.free(config_dir);
         return err;
     };
 
-    return config_path;
+    return config_dir;
 }
 
 fn hexToRgba(hex: []const u8) ![4]f32 {
@@ -66,7 +81,7 @@ pub const Config = struct {
     const Self = @This();
 
     pub fn load(alloc: std.mem.Allocator) Self {
-        const config_path = getPath(alloc) catch {
+        const config_dir = getPath(alloc) catch {
             const keys = Keys{ .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"), .bindings = std.AutoHashMap(u8, Function).init(alloc) };
             const font = Font{
                 .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM"),
@@ -77,12 +92,16 @@ pub const Config = struct {
                 .keys = keys,
             };
         };
-        defer alloc.free(config_path);
+        defer alloc.free(config_dir);
 
         var lua = Lua.init(&alloc) catch @panic("OOM");
         defer lua.deinit();
-        lua.doFile(config_path) catch {
-            std.log.err("File {s} couldn't be executed by lua interpreter\n", .{config_path});
+
+        const config_file = fs.path.joinZ(alloc, &[_][]const u8{ config_dir, "config.lua" }) catch @panic("OOM");
+        defer alloc.free(config_file);
+
+        lua.doFile(config_file) catch {
+            std.log.err("File {s} couldn't be executed by lua interpreter\n", .{config_file});
             std.process.exit(1);
         };
 

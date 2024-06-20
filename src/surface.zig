@@ -84,6 +84,8 @@ pub const Surface = struct {
         var vertices = std.ArrayList(f32).init(self.alloc);
         defer vertices.deinit();
 
+        c.glEnableVertexAttribArray(0);
+
         defer switch (mode) {
             .Region => |position| if (position) |pos| {
                 const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
@@ -109,16 +111,15 @@ pub const Surface = struct {
 
                 const selected_color = self.config.grid.selected_color;
                 c.glUniform4f(0, selected_color[0], selected_color[1], selected_color[2], selected_color[3]);
-
                 c.glLineWidth(self.config.grid.selected_line_width);
 
                 c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
-                c.glEnableVertexAttribArray(0);
-
                 c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
             },
             .Single => {},
         };
+
+        c.glLineWidth(self.config.grid.line_width);
 
         if (border_mode) {
             vertices.append(1) catch @panic("OOM");
@@ -133,14 +134,10 @@ pub const Surface = struct {
             vertices.append(-1) catch @panic("OOM");
             vertices.append(1) catch @panic("OOM");
 
-            c.glLineWidth(self.config.grid.line_width);
-
             c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
-            c.glEnableVertexAttribArray(0);
-
             c.glDrawArrays(c.GL_LINE_LOOP, 0, @intCast(vertices.items.len >> 1));
 
-            return .{ 0, 0 };
+            return .{ null, null };
         }
 
         var pos_x = if (start_pos[0]) |pos| pos else grid.offset[0];
@@ -159,11 +156,7 @@ pub const Surface = struct {
             vertices.append(2 * ((height - @as(f32, @floatFromInt(pos_y))) / height) - 1) catch @panic("OOM");
         }
 
-        c.glLineWidth(self.config.grid.line_width);
-
         c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
-        c.glEnableVertexAttribArray(0);
-
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
 
         return .{ pos_x - info.width, pos_y - info.height };

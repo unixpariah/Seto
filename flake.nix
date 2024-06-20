@@ -86,6 +86,8 @@
           libxkbcommon
           libGL
           glxinfo
+          freetype
+          ydotool
           zls.packages.${system}.default
         ];
       };

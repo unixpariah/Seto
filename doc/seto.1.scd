@@ -29,7 +29,7 @@ compositors implementing layer-shell protocol.
 	Select region of screen.
 
 *-c, --config* _path_
-	Specifies path to config file. Pass *null* as argument to use default
+	Specifies path to config directory. Pass *null* as argument to use default
 	config.
 
 *-f, --format* _format_
@@ -116,8 +116,6 @@ Interpreted sequences are:
 
 %H	The height of the selection cropped to the output containing the top left
 	corner.
-
-%l	Label included with region from stdin (This is a TODO)
 
 %o	The name of the output containing the top left corner, or "<unknown>" if
 	not known

@@ -239,6 +239,22 @@ pub fn main() !void {
     const display = try wl.Display.connect(null);
     defer display.disconnect();
 
+    var ft: c.FT_Library = undefined;
+    if (c.FT_Init_FreeType(&ft) == 1) {
+        std.log.err("Could not init FreeType Library\n", .{});
+    }
+
+    var face: c.FT_Face = undefined;
+    if (c.FT_New_Face(ft, "/nix/store/09w34ps5vacfih6qn6rh3dkc29ax86fr-dejavu-fonts-minimal-2.37/share/fonts/truetype/DejaVuSans.ttf", 0, &face) == 1) {
+        std.log.err("Failed to load font\n", .{});
+    }
+
+    _ = c.FT_Set_Pixel_Sizes(face, 0, 48);
+
+    if (c.FT_Load_Char(face, 'X', c.FT_LOAD_RENDER) == 1) {
+        std.log.err("Failed to load character\n", .{});
+    }
+
     const registry = try display.getRegistry();
     defer registry.destroy();
 
@@ -354,6 +370,8 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 }
 
 fn inPlaceReplace(comptime T: type, alloc: std.mem.Allocator, input: *[]const u8, needle: []const u8, replacement: T) void {
+    if (needle.len == 0) return;
+
     const count = std.mem.count(u8, input.*, needle);
     if (count == 0) return;
     const str = if (T == []const u8)
@@ -364,4 +382,26 @@ fn inPlaceReplace(comptime T: type, alloc: std.mem.Allocator, input: *[]const u8
     const buffer = alloc.alloc(u8, count * str.len + (input.*.len - needle.len * count)) catch @panic("OOM");
     _ = std.mem.replace(u8, input.*, needle, str, buffer);
     input.* = buffer;
+}
+
+test "in_place_replace" {
+    const alloc = std.heap.page_allocator;
+    const assert = std.debug.assert;
+
+    var format: []const u8 = "h w";
+    inPlaceReplace([]const u8, alloc, &format, "h", "hello");
+    inPlaceReplace([]const u8, alloc, &format, "w", "world");
+    assert(std.mem.eql(u8, format, "hello world"));
+
+    format = "no match";
+    inPlaceReplace(i32, alloc, &format, "%z", 42);
+    assert(std.mem.eql(u8, format, "no match"));
+
+    format = "no change";
+    inPlaceReplace(i32, alloc, &format, "", 42);
+    assert(std.mem.eql(u8, format, "no change"));
+
+    format = "full change";
+    inPlaceReplace([]const u8, alloc, &format, "full change", "");
+    assert(std.mem.eql(u8, format, ""));
 }
