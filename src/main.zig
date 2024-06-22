@@ -191,7 +191,6 @@ pub const Seto = struct {
         var start_pos: [2]?i32 = .{ null, null };
         while (surf_iter.next()) |res| {
             var surface, _, const new_line = res;
-
             if (!surface.isConfigured()) continue;
             try self.egl.makeCurrent(surface.egl);
 

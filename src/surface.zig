@@ -86,39 +86,6 @@ pub const Surface = struct {
 
         c.glEnableVertexAttribArray(0);
 
-        defer switch (mode) {
-            .Region => |position| if (position) |pos| {
-                const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
-                const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
-
-                var selected_vertices: [8]f32 =
-                    if (mode.withinBounds(info)) .{
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
-                    -1,                                         -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    1,                                          -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                } else if (mode.yWithinBounds(info)) .{
-                    -1, -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    1,  -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    0,  0,
-                    0,  0,
-                } else if (mode.xWithinBounds(info)) .{
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
-                    0,                                          0,
-                    0,                                          0,
-                } else unreachable;
-
-                const selected_color = self.config.grid.selected_color;
-                c.glUniform4f(0, selected_color[0], selected_color[1], selected_color[2], selected_color[3]);
-                c.glLineWidth(self.config.grid.selected_line_width);
-
-                c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
-                c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
-            },
-            .Single => {},
-        };
-
         c.glLineWidth(self.config.grid.line_width);
 
         if (border_mode) {
@@ -158,6 +125,39 @@ pub const Surface = struct {
 
         c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
+
+        switch (mode) {
+            .Region => |position| if (position) |pos| {
+                const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
+                const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
+
+                var selected_vertices: [8]f32 =
+                    if (mode.withinBounds(info)) .{
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
+                    -1,                                         -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    1,                                          -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                } else if (mode.yWithinBounds(info)) .{
+                    -1, -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    1,  -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    0,  0,
+                    0,  0,
+                } else if (mode.xWithinBounds(info)) .{
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
+                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
+                    0,                                          0,
+                    0,                                          0,
+                } else unreachable;
+
+                const selected_color = self.config.grid.selected_color;
+                c.glUniform4f(0, selected_color[0], selected_color[1], selected_color[2], selected_color[3]);
+                c.glLineWidth(self.config.grid.selected_line_width);
+
+                c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+                c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+            },
+            .Single => {},
+        }
 
         return .{ pos_x - info.width, pos_y - info.height };
     }

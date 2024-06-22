@@ -111,7 +111,7 @@ pub const Egl = struct {
             config,
             c.EGL_NO_CONTEXT,
             &[_]i32{
-                c.EGL_CONTEXT_CLIENT_VERSION, 2,
+                c.EGL_CONTEXT_CLIENT_VERSION, 3,
                 c.EGL_NONE,
             },
         ) orelse return error.EGLError;
