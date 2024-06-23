@@ -29,6 +29,7 @@
               egl-wayland
               libGL
               libxkbcommon
+              freetype
             ];
 
             buildInputs = with env.pkgsForTarget target; [
@@ -88,6 +89,7 @@
           glxinfo
           freetype
           ydotool
+          shfmt
           zls.packages.${system}.default
         ];
       };

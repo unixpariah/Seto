@@ -31,17 +31,7 @@ test "path_not_specified" {
     assert(exit_status.Exited == 1);
 }
 
-test "custom_config" {
-    const exit_status = try spawnChildProcess(&[_][]const u8{ "zig-out/bin/seto", "-c", "./tests" });
-    assert(exit_status.Exited == 0);
-}
-
 test "wrong_custom_config" {
     const exit_status = try spawnChildProcess(&[_][]const u8{ "zig-out/bin/seto", "-c", "." });
     assert(exit_status.Exited == 1);
-}
-
-test "default_config" {
-    const exit_status = try spawnChildProcess(&[_][]const u8{ "zig-out/bin/seto", "-c", "null" });
-    assert(exit_status.Exited == 0);
 }

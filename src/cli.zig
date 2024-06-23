@@ -2,31 +2,9 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const Seto = @import("main.zig").Seto;
-const Function = @import("config.zig").Function;
+const Function = @import("config/Keys.zig").Function;
 
-fn hexToRgba(hex: ?[]const u8) ![4]f32 {
-    if (hex == null) {
-        return error.ArgumentMissing;
-    }
-
-    const start: u8 = if (hex.?[0] == '#') 1 else 0;
-
-    if (hex.?.len < 6 + start) {
-        return error.InvalidColor;
-    }
-
-    const r: f32 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[0 + start .. 2 + start], 16));
-    const g: f32 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[2 + start .. 4 + start], 16));
-    const b: f32 = @floatFromInt(try std.fmt.parseInt(u8, hex.?[4 + start .. 6 + start], 16));
-    const a: f32 = if (hex.?.len > 6 + start) @floatFromInt(try std.fmt.parseInt(u8, hex.?[6 + start .. 8 + start], 16)) else 255;
-
-    return .{
-        r / 255,
-        g / 255,
-        b / 255,
-        a / 255,
-    };
-}
+const hexToRgba = @import("helpers.zig").hexToRgba;
 
 fn printAndExit(comptime message: []const u8, arg: []const u8) noreturn {
     std.log.debug(message, .{arg});

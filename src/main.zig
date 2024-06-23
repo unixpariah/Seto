@@ -8,12 +8,11 @@ const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
 const c = @import("ffi.zig");
 
-const Tree = @import("tree.zig").Tree;
+const Tree = @import("Tree.zig");
 const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
 const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 const Seat = @import("seat.zig").Seat;
-const Result = @import("tree.zig").Result;
 const Config = @import("config.zig").Config;
 const Egl = @import("egl.zig").Egl;
 
@@ -151,7 +150,11 @@ pub const Seto = struct {
                 if (positions) |pos| {
                     const top_left: [2]i32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
                     const bottom_right: [2]i32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
-                    const size: [2]i32 = .{ bottom_right[0] - top_left[0], bottom_right[1] - top_left[1] };
+
+                    const width = bottom_right[0] - top_left[0];
+                    const height = bottom_right[1] - top_left[1];
+
+                    const size: [2]i32 = .{ if (width == 0) 1 else width, if (height == 0) 1 else height };
 
                     var arena = std.heap.ArenaAllocator.init(self.alloc);
                     defer arena.deinit();
@@ -234,25 +237,16 @@ pub const Seto = struct {
     }
 };
 
+const Character = struct {
+    texture_id: u32,
+    size: [2]i32,
+    bearing: [2]i32,
+    advance: u32,
+};
+
 pub fn main() !void {
     const display = try wl.Display.connect(null);
     defer display.disconnect();
-
-    var ft: c.FT_Library = undefined;
-    if (c.FT_Init_FreeType(&ft) == 1) {
-        std.log.err("Could not init FreeType Library\n", .{});
-    }
-
-    var face: c.FT_Face = undefined;
-    if (c.FT_New_Face(ft, "/nix/store/09w34ps5vacfih6qn6rh3dkc29ax86fr-dejavu-fonts-minimal-2.37/share/fonts/truetype/DejaVuSans.ttf", 0, &face) == 1) {
-        std.log.err("Failed to load font\n", .{});
-    }
-
-    _ = c.FT_Set_Pixel_Sizes(face, 0, 48);
-
-    if (c.FT_Load_Char(face, 'X', c.FT_LOAD_RENDER) == 1) {
-        std.log.err("Failed to load character\n", .{});
-    }
 
     const registry = try display.getRegistry();
     defer registry.destroy();

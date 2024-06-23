@@ -47,14 +47,23 @@ pub fn build(b: *std.Build) void {
 
     b.installArtifact(exe);
 
+    const root_files = [_][]const u8{
+        "src/tree.zig",
+        "src/main.zig",
+        "tests/integration.zig",
+        "src/config/Grid.zig",
+        "src/helpers.zig",
+    };
+
     const unit_tests_step = b.step("test", "Run all tests");
-    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = b.path("src/config.zig") })).step);
-    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = b.path("src/tree.zig") })).step);
-    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = b.path("src/main.zig") })).step);
-    unit_tests_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_source_file = b.path("tests/integration.zig") })).step);
+    for (root_files) |file| {
+        const test_file = b.addTest(.{ .root_source_file = b.path(file) });
+        unit_tests_step.dependOn(&b.addRunArtifact(test_file).step);
+    }
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
+    if (b.args) |args| run_cmd.addArgs(args);
     const run_step = b.step("run", "Run client");
     run_step.dependOn(&run_cmd.step);
 }

@@ -11,7 +11,7 @@ const c = @import("ffi.zig");
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("config.zig").Config;
-const Tree = @import("tree.zig").Tree;
+const Tree = @import("Tree.zig");
 const EglSurface = @import("egl.zig").EglSurface;
 
 pub const OutputInfo = struct {
