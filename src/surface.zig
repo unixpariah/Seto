@@ -84,6 +84,53 @@ pub const Surface = struct {
         var vertices = std.ArrayList(f32).init(self.alloc);
         defer vertices.deinit();
 
+        defer switch (mode) {
+            .Region => |position| if (position) |pos| {
+                const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
+                const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
+
+                var selected_vertices: [8]f32 =
+                    if (mode.withinBounds(info)) .{
+                    (f_position[0] - f_p[0]) / width, 0,
+                    (f_position[0] - f_p[0]) / width, 1,
+                    0,                                (f_position[1] - f_p[1]) / height,
+                    1,                                (f_position[1] - f_p[1]) / height,
+                } else if (mode.yWithinBounds(info)) .{
+                    0, (f_position[1] - f_p[1]) / height,
+                    1, (f_position[1] - f_p[1]) / height,
+                    0, 0,
+                    0, 0,
+                } else if (mode.xWithinBounds(info)) .{
+                    (f_position[0] - f_p[0]) / width, 1,
+                    (f_position[0] - f_p[0]) / width, 1,
+                    0,                                0,
+                    0,                                0,
+                } else unreachable;
+
+                const selected_color = self.config.grid.selected_color;
+                c.glUniform4f(
+                    0,
+                    selected_color.start_color[0] * selected_color.start_color[3],
+                    selected_color.start_color[1] * selected_color.start_color[3],
+                    selected_color.start_color[2] * selected_color.start_color[3],
+                    selected_color.start_color[3],
+                );
+                c.glUniform4f(
+                    1,
+                    selected_color.end_color[0] * selected_color.end_color[3],
+                    selected_color.end_color[1] * selected_color.end_color[3],
+                    selected_color.end_color[2] * selected_color.end_color[3],
+                    selected_color.end_color[3],
+                );
+                c.glUniform1f(2, selected_color.deg);
+                c.glLineWidth(self.config.grid.selected_line_width);
+
+                c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+                c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+            },
+            .Single => {},
+        };
+
         c.glLineWidth(self.config.grid.line_width);
 
         if (border_mode) {
@@ -123,53 +170,6 @@ pub const Surface = struct {
 
         c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
-
-        switch (mode) {
-            .Region => |position| if (position) |pos| {
-                const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
-                const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
-
-                var selected_vertices: [8]f32 =
-                    if (mode.withinBounds(info)) .{
-                    (f_position[0] - f_p[0]) / width, 0,
-                    (f_position[0] - f_p[0]) / width, 1,
-                    0,                                (f_position[1] - f_p[1]) / height,
-                    1,                                (f_position[1] - f_p[1]) / height,
-                } else if (mode.yWithinBounds(info)) .{
-                    0, (f_position[1] - f_p[1]) / height,
-                    1, (f_position[1] - f_p[1]) / height,
-                    0, 0,
-                    0, 0,
-                } else if (mode.xWithinBounds(info)) .{
-                    (f_position[0] - f_p[0]) / width, 1,
-                    (f_position[0] - f_p[0]) / width, 1,
-                    0,                                0,
-                    0,                                0,
-                } else unreachable;
-
-                const selected_color = self.config.grid.selected_color;
-                c.glUniform4f(
-                    0,
-                    selected_color.start_color[0],
-                    selected_color.start_color[1],
-                    selected_color.start_color[2],
-                    selected_color.start_color[3],
-                );
-                c.glUniform4f(
-                    1,
-                    selected_color.end_color[0],
-                    selected_color.end_color[1],
-                    selected_color.end_color[2],
-                    selected_color.end_color[3],
-                );
-                c.glUniform1f(2, selected_color.deg);
-                c.glLineWidth(self.config.grid.selected_line_width);
-
-                c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
-                c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
-            },
-            .Single => {},
-        }
 
         return .{ pos_x - info.width, pos_y - info.height };
     }

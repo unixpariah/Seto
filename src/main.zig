@@ -202,23 +202,23 @@ pub const Seto = struct {
             c.glUseProgram(self.egl.shader_program);
             c.glEnableVertexAttribArray(0);
 
-            const bg = self.config.background_color;
+            c.glEnable(c.GL_BLEND);
+            c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 
-            const start_alpha = bg.start_color[3];
-            const end_alpha = bg.start_color[3];
+            const bg = self.config.background_color;
 
             c.glUniform4f(
                 0,
-                bg.start_color[0] * start_alpha,
-                bg.start_color[1] * start_alpha,
-                bg.start_color[2] * start_alpha,
+                bg.start_color[0] * bg.start_color[3],
+                bg.start_color[1] * bg.start_color[3],
+                bg.start_color[2] * bg.start_color[3],
                 bg.start_color[3],
             );
             c.glUniform4f(
                 1,
-                bg.end_color[0] * end_alpha,
-                bg.end_color[1] * end_alpha,
-                bg.end_color[2] * end_alpha,
+                bg.end_color[0] * bg.end_color[3],
+                bg.end_color[1] * bg.end_color[3],
+                bg.end_color[2] * bg.end_color[3],
                 bg.end_color[3],
             );
             c.glUniform1f(2, bg.deg);
@@ -237,8 +237,20 @@ pub const Seto = struct {
 
             const color = self.config.grid.color;
 
-            c.glUniform4f(0, color.start_color[0], color.start_color[1], color.start_color[2], color.start_color[3]);
-            c.glUniform4f(1, color.end_color[0], color.end_color[1], color.end_color[2], color.end_color[3]);
+            c.glUniform4f(
+                0,
+                color.start_color[0] * color.start_color[3],
+                color.start_color[1] * color.start_color[3],
+                color.start_color[2] * color.start_color[3],
+                color.start_color[3],
+            );
+            c.glUniform4f(
+                1,
+                color.end_color[0] * color.end_color[3],
+                color.end_color[1] * color.end_color[3],
+                color.end_color[2] * color.end_color[3],
+                color.end_color[3],
+            );
             c.glUniform1f(2, color.deg);
             const result: [2]?i32 = if (new_line) .{ null, start_pos[1] } else .{ start_pos[0], null };
             start_pos = surface.draw(result, self.mode, self.border_mode);

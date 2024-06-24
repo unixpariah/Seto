@@ -167,13 +167,11 @@ pub const Function = union(enum) {
         } else if (std.mem.eql(u8, string, "cancel_selection")) {
             return .cancel_selection;
         } else if (std.mem.eql(u8, string, "move")) {
-            const val = value orelse return error.NullValue;
-            return .{ .move = .{ val[0], -val[1] } };
+            return .{ .move = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "resize")) {
             return .{ .resize = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "move_selection")) {
-            const val = value orelse return error.NullValue;
-            return .{ .move_selection = .{ val[0], -val[1] } };
+            return .{ .move_selection = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "border_select")) {
             return .border_select;
         }

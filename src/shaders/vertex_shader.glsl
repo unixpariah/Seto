@@ -10,6 +10,7 @@ void main() {
 
     vec4 position = vec4(aPos, 0.0, 1.0);
     position.xy = position.xy * 2. - 1.;
+    position.y = -position.y;
 
     gl_Position = position;
 }
