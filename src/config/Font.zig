@@ -1,28 +1,12 @@
-//var ft: c.FT_Library = undefined;
-//if (c.FT_Init_FreeType(&ft) == 1) {
-//    std.log.err("Could not init FreeType Library\n", .{});
-//}
-
-//var face: c.FT_Face = undefined;
-//if (c.FT_New_Face(ft, "/nix/store/09w34ps5vacfih6qn6rh3dkc29ax86fr-dejavu-fonts-minimal-2.37/share/fonts/truetype/DejaVuSans.ttf", 0, &face) == 1) {
-//    std.log.err("Failed to load font\n", .{});
-//}
-
-//_ = c.FT_Set_Pixel_Sizes(face, 0, 48);
-
-//if (c.FT_Load_Char(face, 'X', c.FT_LOAD_RENDER) == 1) {
-//    std.log.err("Failed to load character\n", .{});
-//}
-
-//const char_map = std.ArrayList(Character).init(alloc);
-//_ = char_map;
-
-const Lua = @import("ziglua").Lua;
 const std = @import("std");
+
 const hexToRgba = @import("../helpers.zig").hexToRgba;
 
-color: [4]f32 = .{ 1, 1, 1, 1 },
-highlight_color: [4]f32 = .{ 1, 1, 0, 1 },
+const Lua = @import("ziglua").Lua;
+const Color = @import("../helpers.zig").Color;
+
+color: Color,
+highlight_color: Color,
 offset: [2]i32 = .{ 5, 5 },
 size: f64 = 16,
 family: [:0]const u8,
@@ -30,7 +14,11 @@ family: [:0]const u8,
 const Self = @This();
 
 pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
-    var font = Self{ .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM") };
+    var font = Self{
+        .color = Color.parse("#FFFFFF", alloc) catch unreachable,
+        .highlight_color = Color.parse("#FFFF00", alloc) catch unreachable,
+        .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM"),
+    };
 
     _ = lua.pushString("font");
     _ = lua.getTable(1);
@@ -42,7 +30,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         std.log.err("Font color expected hex value\n", .{});
         std.process.exit(1);
     }
-    font.color = hexToRgba(lua.toString(3) catch unreachable) catch {
+    font.color = Color.parse(lua.toString(3) catch unreachable, alloc) catch {
         std.log.err("Failed to parse font color\n", .{});
         std.process.exit(1);
     };
@@ -54,7 +42,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         std.log.err("Font highlight color expected hex value\n", .{});
         std.process.exit(1);
     }
-    font.highlight_color = hexToRgba(lua.toString(3) catch unreachable) catch {
+    font.highlight_color = Color.parse(lua.toString(3) catch unreachable, alloc) catch {
         std.log.err("Failed to parse highlight color\n", .{});
         std.process.exit(1);
     };
@@ -103,5 +91,6 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     lua.pop(1);
 
     lua.pop(1);
+
     return font;
 }

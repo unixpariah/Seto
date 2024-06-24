@@ -4,12 +4,8 @@ return {
 		color = "#FFFFFF",
 		highlight_color = "#DD7878",
 		size = 16,
-		family = "JetBrainsMono Nerd Font",
-		style = "Normal",
 		weight = 1000,
-		variant = "Normal",
-		gravity = "Auto",
-		stretch = "Normal",
+		family = "JetBrainsMono Nerd Font",
 		offset = { 5, 5 },
 	},
 	grid = {

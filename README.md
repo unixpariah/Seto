@@ -8,6 +8,7 @@
 - wayland
 - libxkbcommon
 - libGL
+- ydotool (optional: tests)
 - scdoc (optional: man pages)
 
 2. Clone the repository:

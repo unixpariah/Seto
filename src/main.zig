@@ -13,14 +13,15 @@ const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
 const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 const Seat = @import("seat.zig").Seat;
-const Config = @import("config.zig").Config;
-const Egl = @import("egl.zig").Egl;
+const Config = @import("Config.zig");
+const Egl = @import("Egl.zig");
 
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
+const inPlaceReplace = @import("helpers.zig").inPlaceReplace;
 
 const EventInterfaces = enum {
     wl_compositor,
@@ -197,18 +198,48 @@ pub const Seto = struct {
             if (!surface.isConfigured()) continue;
             try self.egl.makeCurrent(surface.egl);
 
-            const bg = self.config.background_color;
-            c.glClearColor(
-                @floatCast(bg[0] * bg[3]),
-                @floatCast(bg[1] * bg[3]),
-                @floatCast(bg[2] * bg[3]),
-                @floatCast(bg[3]),
-            );
             c.glClear(c.GL_COLOR_BUFFER_BIT);
-
             c.glUseProgram(self.egl.shader_program);
+            c.glEnableVertexAttribArray(0);
+
+            const bg = self.config.background_color;
+
+            const start_alpha = bg.start_color[3];
+            const end_alpha = bg.start_color[3];
+
+            c.glUniform4f(
+                0,
+                bg.start_color[0] * start_alpha,
+                bg.start_color[1] * start_alpha,
+                bg.start_color[2] * start_alpha,
+                bg.start_color[3],
+            );
+            c.glUniform4f(
+                1,
+                bg.end_color[0] * end_alpha,
+                bg.end_color[1] * end_alpha,
+                bg.end_color[2] * end_alpha,
+                bg.end_color[3],
+            );
+            c.glUniform1f(2, bg.deg);
+
+            const vertices = [_]f32{
+                1, 1,
+                1, 0,
+                0, 0,
+                0, 0,
+                0, 1,
+                1, 1,
+            };
+
+            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices));
+            c.glDrawArrays(c.GL_TRIANGLES, 0, @intCast(vertices.len >> 1));
+
             const color = self.config.grid.color;
-            c.glUniform4f(0, color[0], color[1], color[2], color[3]);
+
+            c.glUniform4f(0, color.start_color[0], color.start_color[1], color.start_color[2], color.start_color[3]);
+            c.glUniform4f(1, color.end_color[0], color.end_color[1], color.end_color[2], color.end_color[3]);
+            c.glUniform1f(2, color.deg);
             const result: [2]?i32 = if (new_line) .{ null, start_pos[1] } else .{ start_pos[0], null };
             start_pos = surface.draw(result, self.mode, self.border_mode);
 
@@ -235,13 +266,6 @@ pub const Seto = struct {
         self.config.destroy();
         self.tree.?.arena.deinit();
     }
-};
-
-const Character = struct {
-    texture_id: u32,
-    size: [2]i32,
-    bearing: [2]i32,
-    advance: u32,
 };
 
 pub fn main() !void {
@@ -360,41 +384,4 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
             }
         },
     }
-}
-
-fn inPlaceReplace(comptime T: type, alloc: std.mem.Allocator, input: *[]const u8, needle: []const u8, replacement: T) void {
-    if (needle.len == 0) return;
-
-    const count = std.mem.count(u8, input.*, needle);
-    if (count == 0) return;
-    const str = if (T == []const u8)
-        std.fmt.allocPrint(alloc, "{s}", .{replacement}) catch @panic("OOM")
-    else
-        std.fmt.allocPrint(alloc, "{}", .{replacement}) catch @panic("OOM");
-
-    const buffer = alloc.alloc(u8, count * str.len + (input.*.len - needle.len * count)) catch @panic("OOM");
-    _ = std.mem.replace(u8, input.*, needle, str, buffer);
-    input.* = buffer;
-}
-
-test "in_place_replace" {
-    const alloc = std.heap.page_allocator;
-    const assert = std.debug.assert;
-
-    var format: []const u8 = "h w";
-    inPlaceReplace([]const u8, alloc, &format, "h", "hello");
-    inPlaceReplace([]const u8, alloc, &format, "w", "world");
-    assert(std.mem.eql(u8, format, "hello world"));
-
-    format = "no match";
-    inPlaceReplace(i32, alloc, &format, "%z", 42);
-    assert(std.mem.eql(u8, format, "no match"));
-
-    format = "no change";
-    inPlaceReplace(i32, alloc, &format, "", 42);
-    assert(std.mem.eql(u8, format, "no change"));
-
-    format = "full change";
-    inPlaceReplace([]const u8, alloc, &format, "full change", "");
-    assert(std.mem.eql(u8, format, ""));
 }

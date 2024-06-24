@@ -2,17 +2,17 @@ const std = @import("std");
 const mem = std.mem;
 const posix = std.posix;
 
-const wayland = @import("wayland");
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
+const wayland = @import("wayland");
 const c = @import("ffi.zig");
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
-const Config = @import("config.zig").Config;
+const Config = @import("Config.zig");
+const EglSurface = @import("Egl.zig").EglSurface;
 const Tree = @import("Tree.zig");
-const EglSurface = @import("egl.zig").EglSurface;
 
 pub const OutputInfo = struct {
     id: u32,
@@ -84,8 +84,6 @@ pub const Surface = struct {
         var vertices = std.ArrayList(f32).init(self.alloc);
         defer vertices.deinit();
 
-        c.glEnableVertexAttribArray(0);
-
         c.glLineWidth(self.config.grid.line_width);
 
         if (border_mode) {
@@ -93,12 +91,12 @@ pub const Surface = struct {
             vertices.append(1) catch @panic("OOM");
 
             vertices.append(1) catch @panic("OOM");
-            vertices.append(-1) catch @panic("OOM");
+            vertices.append(0) catch @panic("OOM");
 
-            vertices.append(-1) catch @panic("OOM");
-            vertices.append(-1) catch @panic("OOM");
+            vertices.append(0) catch @panic("OOM");
+            vertices.append(0) catch @panic("OOM");
 
-            vertices.append(-1) catch @panic("OOM");
+            vertices.append(0) catch @panic("OOM");
             vertices.append(1) catch @panic("OOM");
 
             c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
@@ -109,18 +107,18 @@ pub const Surface = struct {
 
         var pos_x = if (start_pos[0]) |pos| pos else grid.offset[0];
         while (pos_x <= info.width) : (pos_x += grid.size[0]) {
-            vertices.append(2 * (@as(f32, @floatFromInt(pos_x)) / width) - 1) catch @panic("OOM");
+            vertices.append(@as(f32, @floatFromInt(pos_x)) / width) catch @panic("OOM");
             vertices.append(1) catch @panic("OOM");
-            vertices.append(2 * (@as(f32, @floatFromInt(pos_x)) / width) - 1) catch @panic("OOM");
-            vertices.append(-1) catch @panic("OOM");
+            vertices.append(@as(f32, @floatFromInt(pos_x)) / width) catch @panic("OOM");
+            vertices.append(0) catch @panic("OOM");
         }
 
         var pos_y = if (start_pos[1]) |pos| pos else grid.offset[1];
         while (pos_y <= info.height) : (pos_y += grid.size[1]) {
-            vertices.append(-1) catch @panic("OOM");
-            vertices.append(2 * ((height - @as(f32, @floatFromInt(pos_y))) / height) - 1) catch @panic("OOM");
+            vertices.append(0) catch @panic("OOM");
+            vertices.append((height - @as(f32, @floatFromInt(pos_y))) / height) catch @panic("OOM");
             vertices.append(1) catch @panic("OOM");
-            vertices.append(2 * ((height - @as(f32, @floatFromInt(pos_y))) / height) - 1) catch @panic("OOM");
+            vertices.append((height - @as(f32, @floatFromInt(pos_y))) / height) catch @panic("OOM");
         }
 
         c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
@@ -133,24 +131,38 @@ pub const Surface = struct {
 
                 var selected_vertices: [8]f32 =
                     if (mode.withinBounds(info)) .{
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
-                    -1,                                         -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    1,                                          -(2 * ((f_position[1] - f_p[1]) / height) - 1),
+                    (f_position[0] - f_p[0]) / width, 0,
+                    (f_position[0] - f_p[0]) / width, 1,
+                    0,                                (f_position[1] - f_p[1]) / height,
+                    1,                                (f_position[1] - f_p[1]) / height,
                 } else if (mode.yWithinBounds(info)) .{
-                    -1, -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    1,  -(2 * ((f_position[1] - f_p[1]) / height) - 1),
-                    0,  0,
-                    0,  0,
+                    0, (f_position[1] - f_p[1]) / height,
+                    1, (f_position[1] - f_p[1]) / height,
+                    0, 0,
+                    0, 0,
                 } else if (mode.xWithinBounds(info)) .{
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, -1,
-                    2 * ((f_position[0] - f_p[0]) / width) - 1, 1,
-                    0,                                          0,
-                    0,                                          0,
+                    (f_position[0] - f_p[0]) / width, 1,
+                    (f_position[0] - f_p[0]) / width, 1,
+                    0,                                0,
+                    0,                                0,
                 } else unreachable;
 
                 const selected_color = self.config.grid.selected_color;
-                c.glUniform4f(0, selected_color[0], selected_color[1], selected_color[2], selected_color[3]);
+                c.glUniform4f(
+                    0,
+                    selected_color.start_color[0],
+                    selected_color.start_color[1],
+                    selected_color.start_color[2],
+                    selected_color.start_color[3],
+                );
+                c.glUniform4f(
+                    1,
+                    selected_color.end_color[0],
+                    selected_color.end_color[1],
+                    selected_color.end_color[2],
+                    selected_color.end_color[3],
+                );
+                c.glUniform1f(2, selected_color.deg);
                 c.glLineWidth(self.config.grid.selected_line_width);
 
                 c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
@@ -185,7 +197,7 @@ pub const SurfaceIterator = struct {
         return Self{ .outputs = outputs, .position = .{ outputs[0].output_info.x, outputs[0].output_info.y } };
     }
 
-    pub fn isNewline(self: *Self) bool {
+    fn isNewline(self: *Self) bool {
         if (self.index == 0) return false;
         return self.outputs[self.index].output_info.x <= self.outputs[self.index - 1].output_info.x;
     }

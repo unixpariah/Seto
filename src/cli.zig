@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 
 const Seto = @import("main.zig").Seto;
 const Function = @import("config/Keys.zig").Function;
+const Color = @import("helpers.zig").Color;
 
 const hexToRgba = @import("helpers.zig").hexToRgba;
 
@@ -51,7 +52,7 @@ pub fn parseArgs(seto: *Seto) void {
             std.log.debug("Seto v0.1.0 \nBuild type: {}\nZig {}\n", .{ builtin.mode, builtin.zig_version });
             std.process.exit(0);
         } else if (std.mem.eql(u8, arg, "--background-color")) {
-            seto.config.background_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.background_color = Color.parse(getNextArg(&args, arg), seto.alloc) catch unreachable;
         } else if (std.mem.eql(u8, arg, "--font-size")) {
             const font_size = getNextArg(&args, arg);
             seto.config.font.size = std.fmt.parseFloat(f64, font_size) catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
@@ -74,13 +75,13 @@ pub fn parseArgs(seto: *Seto) void {
             seto.alloc.free(seto.config.keys.search);
             seto.config.keys.search = seto.alloc.dupe(u8, getNextArg(&args, arg)) catch @panic("OOM");
         } else if (std.mem.eql(u8, arg, "--font-color")) {
-            seto.config.font.color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.font.color = Color.parse(getNextArg(&args, arg), seto.alloc) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--highlight-color")) {
-            seto.config.font.highlight_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.font.highlight_color = Color.parse(getNextArg(&args, arg), seto.alloc) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-color")) {
-            seto.config.grid.color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.grid.color = Color.parse(getNextArg(&args, arg), seto.alloc) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--grid-selected-color")) {
-            seto.config.grid.selected_color = hexToRgba(getNextArg(&args, arg)) catch printAndExit("Failed to parse hex value {s}\n", arg);
+            seto.config.grid.selected_color = Color.parse(getNextArg(&args, arg), seto.alloc) catch printAndExit("Failed to parse hex value {s}\n", arg);
         } else if (std.mem.eql(u8, arg, "--format") or std.mem.eql(u8, arg, "-f")) {
             const format = getNextArg(&args, arg);
             seto.config.output_format = format;

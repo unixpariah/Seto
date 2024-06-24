@@ -19,7 +19,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FFFFFF66 \
 
-	_Example:_ #FF000066 \
+	_Example:_ #FF000066 #00FFFF66 45deg \
 
 *Font Settings* \
 
@@ -30,7 +30,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FFFFFFFF \
 
-	_Example:_ #0000FFFF \
+	_Example:_ #0000FFFF #FF00FFFF 45deg \
 
 *font.highlight_color*
 	Color of highlighted characters. \
@@ -39,7 +39,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FFFF00FF \
 
-	_Example:_ #FF0000FF \
+	_Example:_ #FF0000FF #00FFFFFF 90deg \
 
 *font.size*
 	Size of font. \
@@ -77,7 +77,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FFFFFFFF \
 
-	_Example:_ #FF0000FF \
+	_Example:_ #FF0000FF #00FFFFFF 90deg \
 
 *grid.line_width*
 	Width of grid lines. \
@@ -113,7 +113,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FF0000FF \
 
-	_Example:_ #FFFF00FF \
+	_Example:_ #FFFF00FF #0000FFFF 180deg \
 
 *grid.selected_line_width:*
 	Width of selected position (Applies only when using *--region* option).
@@ -200,12 +200,8 @@ return {
 		color = "#FFFFFF",
 		highlight_color = "#FFFF00FF",
 		size = 16,
-		family = "JetBrainsMono Nerd Font",
-		style = "Normal",
 		weight = 1000,
-		variant = "Normal",
-		gravity = "Auto",
-		stretch = "Normal",
+		family = "JetBrainsMono Nerd Font",
 		offset = { 5, 5 },
 	},
 	grid = {

@@ -1,9 +1,12 @@
 const std = @import("std");
-const hexToRgba = @import("../helpers.zig").hexToRgba;
-const Lua = @import("ziglua").Lua;
 
-color: [4]f32 = .{ 1, 1, 1, 1 },
-selected_color: [4]f32 = .{ 1, 0, 0, 1 },
+const hexToRgba = @import("../helpers.zig").hexToRgba;
+
+const Lua = @import("ziglua").Lua;
+const Color = @import("../helpers.zig").Color;
+
+color: Color,
+selected_color: Color,
 size: [2]i32 = .{ 80, 80 },
 offset: [2]i32 = .{ 0, 0 },
 line_width: f32 = 2,
@@ -11,8 +14,11 @@ selected_line_width: f32 = 2,
 
 const Self = @This();
 
-pub fn new(lua: *Lua) Self {
-    var grid = Self{};
+pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
+    var grid = Self{
+        .selected_color = Color.parse("FF0000", alloc) catch unreachable,
+        .color = Color.parse("FFFFFF", alloc) catch unreachable,
+    };
 
     _ = lua.pushString("grid");
     _ = lua.getTable(1);
@@ -27,11 +33,12 @@ pub fn new(lua: *Lua) Self {
         std.log.err("Grid color expected hex value\n", .{});
         std.process.exit(1);
     };
-    grid.color = hexToRgba(grid_color) catch {
+    lua.pop(1);
+
+    grid.color = Color.parse(grid_color, alloc) catch {
         std.log.err("Failed to parse grid color\n", .{});
         std.process.exit(1);
     };
-    lua.pop(1);
 
     _ = lua.pushString("selected_color");
     _ = lua.getTable(2);
@@ -39,7 +46,7 @@ pub fn new(lua: *Lua) Self {
         std.log.err("Grid selected color expected hex value\n", .{});
         std.process.exit(1);
     };
-    grid.selected_color = hexToRgba(grid_selected_color) catch {
+    grid.selected_color = Color.parse(grid_selected_color, alloc) catch {
         std.log.err("Failed to parse selected grid color\n", .{});
         std.process.exit(1);
     };

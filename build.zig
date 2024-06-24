@@ -48,7 +48,7 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     const root_files = [_][]const u8{
-        "src/tree.zig",
+        "src/Tree.zig",
         "src/main.zig",
         "tests/integration.zig",
         "src/config/Grid.zig",
