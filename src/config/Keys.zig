@@ -134,6 +134,12 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     var face: c.FT_Face = undefined;
     defer _ = c.FT_Done_Face(face);
 
+    _ = c.FcInit();
+    const config = c.FcInitLoadConfigAndFonts();
+    const pattern = c.FcNameParse("Arial");
+    _ = c.FcConfigSubstitute(config, pattern, c.FcMatchPattern);
+    c.FcDefaultSubstitute(pattern);
+
     if (c.FT_New_Face(ft, "/nix/store/09w34ps5vacfih6qn6rh3dkc29ax86fr-dejavu-fonts-minimal-2.37/share/fonts/truetype/DejaVuSans.ttf", 0, &face) == 1) {
         std.log.err("Failed to load font\n", .{});
     }

@@ -37,11 +37,11 @@ pub const Mode = union(enum) {
 
     const Self = @This();
 
-    pub fn withinBounds(self: *const Self, info: OutputInfo) bool {
-        return self.xWithinBounds(info) and self.yWithinBounds(info);
+    pub fn withinBounds(self: *const Self, info: *const OutputInfo) bool {
+        return self.horWithinBounds(info) and self.verWithinBounds(info);
     }
 
-    pub fn xWithinBounds(self: *const Self, info: OutputInfo) bool {
+    pub fn verWithinBounds(self: *const Self, info: *const OutputInfo) bool {
         switch (self.*) {
             .Region => |position| if (position) |pos| {
                 return pos[0] >= info.x and pos[0] <= info.x + info.width;
@@ -52,7 +52,7 @@ pub const Mode = union(enum) {
         return false;
     }
 
-    pub fn yWithinBounds(self: *const Self, info: OutputInfo) bool {
+    pub fn horWithinBounds(self: *const Self, info: *const OutputInfo) bool {
         switch (self.*) {
             .Region => |position| if (position) |pos| {
                 return pos[1] >= info.y and pos[1] <= info.y + info.height;
@@ -62,6 +62,14 @@ pub const Mode = union(enum) {
 
         return false;
     }
+};
+
+pub const State = struct {
+    first_draw: bool = true,
+    exit: bool = false,
+    mode: Mode = .Single,
+    border_mode: bool = false,
+    start_pos: [2]?i32 = .{ null, null },
 };
 
 pub const Seto = struct {
@@ -75,11 +83,7 @@ pub const Seto = struct {
     alloc: mem.Allocator,
     tree: ?Tree = null,
     total_dimensions: [2]i32 = .{ 0, 0 },
-
-    first_draw: bool = true,
-    exit: bool = false,
-    mode: Mode = .Single,
-    border_mode: bool = false,
+    state: State = State{},
 
     const Self = @This();
 
@@ -94,6 +98,9 @@ pub const Seto = struct {
     }
 
     pub fn updateDimensions(self: *Self) void {
+        // Sort outputs from left to right row by row
+        std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
+
         var x: [2]i32 = .{ 0, 0 };
         var y: [2]i32 = .{ 0, 0 };
         for (self.outputs.items) |output| {
@@ -109,12 +116,8 @@ pub const Seto = struct {
         self.total_dimensions = .{ x[1] - x[0], y[1] - y[0] };
     }
 
-    pub fn sortOutputs(self: *Self) void {
-        std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
-    }
-
     fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
-        var surf_iter = SurfaceIterator.new(self.outputs.items);
+        var surf_iter = SurfaceIterator.new(&self.outputs.items);
         while (surf_iter.next()) |res| {
             const surface = res.@"0";
 
@@ -128,150 +131,98 @@ pub const Seto = struct {
                     @abs(top_left[0] - @min((info.x + info.width), top_left[0] + size[0])),
                     @abs(top_left[1] - @min((info.y + info.height), top_left[1] + size[1])),
                 };
-                inPlaceReplace(
-                    []const u8,
-                    arena.allocator(),
-                    &self.config.output_format,
-                    "%o",
-                    if (info.name) |name| name else "<unkown>",
-                );
+
+                const output_name = if (info.name) |name| name else "<unkown>";
+
+                inPlaceReplace([]const u8, arena.allocator(), &self.config.output_format, "%o", output_name);
                 inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%X", relative_pos[0]);
                 inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%Y", relative_pos[1]);
                 inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%W", relative_size[0]);
                 inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%H", relative_size[1]);
+
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%x", top_left[0]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%y", top_left[1]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%w", size[0]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%h", size[1]);
+
+                return;
             }
         }
-
-        inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%x", top_left[0]);
-        inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%y", top_left[1]);
-        inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%w", size[0]);
-        inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%h", size[1]);
     }
 
-    fn printToStdout(self: *Self) void {
-        const coords = self.tree.?.find(self.seat.buffer.items) orelse return;
-        switch (self.mode) {
-            .Region => |positions| {
-                if (positions) |pos| {
-                    const top_left: [2]i32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
-                    const bottom_right: [2]i32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
+    fn printToStdout(self: *Self) !void {
+        const coords = try self.tree.?.find(&self.seat.buffer.items);
+        var arena = std.heap.ArenaAllocator.init(self.alloc);
+        defer arena.deinit();
 
-                    const width = bottom_right[0] - top_left[0];
-                    const height = bottom_right[1] - top_left[1];
+        switch (self.state.mode) {
+            .Single => self.formatOutput(&arena, coords, .{ 1, 1 }),
+            .Region => |positions| if (positions) |pos| {
+                const top_left: [2]i32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
+                const bottom_right: [2]i32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
 
-                    const size: [2]i32 = .{ if (width == 0) 1 else width, if (height == 0) 1 else height };
+                const width = bottom_right[0] - top_left[0];
+                const height = bottom_right[1] - top_left[1];
 
-                    var arena = std.heap.ArenaAllocator.init(self.alloc);
-                    defer arena.deinit();
-                    self.formatOutput(&arena, top_left, size);
+                const size: [2]i32 = .{ if (width == 0) 1 else width, if (height == 0) 1 else height };
 
-                    _ = std.io.getStdOut().write(self.config.output_format) catch @panic("Write error");
-                    self.exit = true;
-                } else {
-                    self.mode = .{ .Region = coords };
-                    self.seat.buffer.clearAndFree();
-                }
-            },
-            .Single => {
-                var arena = std.heap.ArenaAllocator.init(self.alloc);
-                defer arena.deinit();
-                _ = self.formatOutput(&arena, coords, .{ 1, 1 });
-
-                _ = std.io.getStdOut().write(self.config.output_format) catch @panic("Write error");
-                self.exit = true;
+                self.formatOutput(&arena, top_left, size);
+            } else {
+                self.state.mode = .{ .Region = coords };
+                self.seat.buffer.clearAndFree();
+                return;
             },
         }
+
+        _ = std.io.getStdOut().write(self.config.output_format) catch @panic("Write error");
+        self.state.exit = true;
     }
 
     fn createSurfaces(self: *Self) !void {
         if (!self.shouldDraw()) return;
-        self.printToStdout();
+        self.printToStdout() catch |err| {
+            switch (err) {
+                error.KeyNotFound => {
+                    _ = self.seat.buffer.popOrNull();
+                    return;
+                },
+                else => {},
+            }
+        };
 
-        var surf_iter = SurfaceIterator.new(self.outputs.items);
         var start_pos: [2]?i32 = .{ null, null };
+        var surf_iter = SurfaceIterator.new(&self.outputs.items);
         while (surf_iter.next()) |res| {
             var surface, _, const new_line = res;
             if (!surface.isConfigured()) continue;
 
-            try self.egl.makeCurrent(surface.egl);
-
-            c.glClear(c.GL_COLOR_BUFFER_BIT);
-            c.glUseProgram(self.egl.shader_program);
-            c.glEnableVertexAttribArray(0);
-            c.glEnable(c.GL_BLEND);
-            c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
-
-            const bg = self.config.background_color;
-            c.glUniform4f(
-                c.glGetUniformLocation(self.egl.shader_program, "u_startcolor"),
-                bg.start_color[0] * bg.start_color[3],
-                bg.start_color[1] * bg.start_color[3],
-                bg.start_color[2] * bg.start_color[3],
-                bg.start_color[3],
-            );
-            c.glUniform4f(
-                c.glGetUniformLocation(self.egl.shader_program, "u_endcolor"),
-                bg.end_color[0] * bg.end_color[3],
-                bg.end_color[1] * bg.end_color[3],
-                bg.end_color[2] * bg.end_color[3],
-                bg.end_color[3],
-            );
-            c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program, "u_degrees"), bg.deg);
-
-            const vertices = [_]f32{
-                1, 1,
-                1, 0,
-                0, 0,
-                0, 0,
-                0, 1,
-                1, 1,
-            };
-
-            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices));
-            c.glDrawArrays(c.GL_TRIANGLES, 0, @intCast(vertices.len >> 1));
-
-            const color = self.config.grid.color;
-
-            c.glUniform4f(
-                c.glGetUniformLocation(self.egl.shader_program, "u_startcolor"),
-                color.start_color[0] * color.start_color[3],
-                color.start_color[1] * color.start_color[3],
-                color.start_color[2] * color.start_color[3],
-                color.start_color[3],
-            );
-            c.glUniform4f(
-                c.glGetUniformLocation(self.egl.shader_program, "u_endcolor"),
-                color.end_color[0] * color.end_color[3],
-                color.end_color[1] * color.end_color[3],
-                color.end_color[2] * color.end_color[3],
-                color.end_color[3],
-            );
-            c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program, "u_degrees"), color.deg);
             const result: [2]?i32 = if (new_line) .{ null, start_pos[1] } else .{ start_pos[0], null };
-            start_pos = surface.draw(result, self.mode, self.border_mode, self.egl.shader_program);
+            start_pos = surface.draw(result, self.state.border_mode, self.state.mode);
 
-            try surface.egl.getEglError();
-            c.glUseProgram(0);
-            try self.egl.swapBuffers(surface.egl);
+            surface.egl.swapBuffers() catch {
+                std.log.err("Failed to swap buffers\n", .{});
+                std.process.exit(1);
+            };
         }
     }
 
     fn shouldDraw(self: *Self) bool {
-        defer self.first_draw = false;
-        return self.seat.repeat.key != null or self.first_draw;
+        defer self.state.first_draw = false;
+        return self.seat.repeat.key != null or self.state.first_draw;
     }
 
-    fn destroy(self: *Self) void {
+    fn destroy(self: *Self) !void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
         for (self.outputs.items) |*output| {
-            output.destroy();
+            try output.destroy();
         }
         self.outputs.deinit();
         self.seat.destroy();
         self.config.destroy();
         self.tree.?.arena.deinit();
+        try self.egl.destroy();
     }
 };
 
@@ -289,7 +240,6 @@ pub fn main() !void {
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
     var seto = try Seto.new(alloc, display);
-    defer seto.destroy();
 
     parseArgs(&seto);
 
@@ -301,20 +251,21 @@ pub fn main() !void {
         std.process.exit(1);
     }
 
-    while (display.dispatch() == .SUCCESS and !seto.exit) {
+    while (display.dispatch() == .SUCCESS and !seto.state.exit) {
         if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
     }
 
-    var surf_iter = SurfaceIterator.new(seto.outputs.items);
+    var surf_iter = SurfaceIterator.new(&seto.outputs.items);
     while (surf_iter.next()) |res| {
         const surface = res.@"0";
-        try seto.egl.makeCurrent(surface.egl);
+        try surface.egl.makeCurrent();
         c.glClearColor(0, 0, 0, 0);
         c.glClear(c.GL_COLOR_BUFFER_BIT);
-        try seto.egl.swapBuffers(surface.egl);
+        try surface.egl.swapBuffers();
     }
 
+    try seto.destroy();
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 }
 
@@ -384,9 +335,10 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
         .global_remove => |global| {
             for (seto.outputs.items, 0..) |*output, i| {
                 if (output.output_info.id == global.name) {
-                    output.destroy();
+                    output.destroy() catch return;
                     _ = seto.outputs.swapRemove(i);
-                    seto.sortOutputs();
+                    seto.updateDimensions();
+                    return;
                 }
             }
         },

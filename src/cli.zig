@@ -43,7 +43,7 @@ pub fn parseArgs(seto: *Seto) void {
         if (index == 0) continue;
 
         if (std.mem.eql(u8, arg, "-r") or std.mem.eql(u8, arg, "--region")) {
-            seto.mode = .{ .Region = null };
+            seto.state.mode = .{ .Region = null };
         } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
             _ = getNextArg(&args, arg);
         } else if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {

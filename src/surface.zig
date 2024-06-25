@@ -38,6 +38,7 @@ pub const Surface = struct {
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
+
     config: *const Config,
 
     const Self = @This();
@@ -74,7 +75,110 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *Self, start_pos: [2]?i32, mode: Mode, border_mode: bool, program: c_uint) [2]?i32 {
+    fn drawBackground(self: *Self) void {
+        c.glClear(c.GL_COLOR_BUFFER_BIT);
+
+        self.egl.makeCurrent() catch unreachable;
+
+        const bg = self.config.background_color;
+        c.glUniform4f(
+            c.glGetUniformLocation(self.egl.shader_program.*, "u_startcolor"),
+            bg.start_color[0] * bg.start_color[3],
+            bg.start_color[1] * bg.start_color[3],
+            bg.start_color[2] * bg.start_color[3],
+            bg.start_color[3],
+        );
+        c.glUniform4f(
+            c.glGetUniformLocation(self.egl.shader_program.*, "u_endcolor"),
+            bg.end_color[0] * bg.end_color[3],
+            bg.end_color[1] * bg.end_color[3],
+            bg.end_color[2] * bg.end_color[3],
+            bg.end_color[3],
+        );
+        c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), bg.deg);
+
+        const bg_vertices = [_]f32{
+            1, 1,
+            1, 0,
+            0, 0,
+            0, 1,
+        };
+
+        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&bg_vertices));
+        c.glDrawArrays(c.GL_POLYGON, 0, @intCast(bg_vertices.len >> 1));
+    }
+
+    fn drawSelection(self: *Self, mode: Mode) void {
+        if (mode.Region) |pos| {
+            const info = self.output_info;
+            const width: f32 = @floatFromInt(info.width);
+            const height: f32 = @floatFromInt(info.height);
+
+            const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
+            const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
+
+            var selected_vertices: [8]f32 =
+                if (mode.withinBounds(&info)) .{
+                (f_position[0] - f_p[0]) / width, 0,
+                (f_position[0] - f_p[0]) / width, 1,
+                0,                                (f_position[1] - f_p[1]) / height,
+                1,                                (f_position[1] - f_p[1]) / height,
+            } else if (mode.horWithinBounds(&info)) .{
+                0, (f_position[1] - f_p[1]) / height,
+                1, (f_position[1] - f_p[1]) / height,
+                0, 0,
+                0, 0,
+            } else if (mode.verWithinBounds(&info)) .{
+                (f_position[0] - f_p[0]) / width, 0,
+                (f_position[0] - f_p[0]) / width, 1,
+                0,                                0,
+                0,                                0,
+            } else unreachable;
+
+            const selected_color = self.config.grid.selected_color;
+            c.glUniform4f(
+                c.glGetUniformLocation(self.egl.shader_program.*, "u_startcolor"),
+                selected_color.start_color[0] * selected_color.start_color[3],
+                selected_color.start_color[1] * selected_color.start_color[3],
+                selected_color.start_color[2] * selected_color.start_color[3],
+                selected_color.start_color[3],
+            );
+            c.glUniform4f(
+                c.glGetUniformLocation(self.egl.shader_program.*, "u_endcolor"),
+                selected_color.end_color[0] * selected_color.end_color[3],
+                selected_color.end_color[1] * selected_color.end_color[3],
+                selected_color.end_color[2] * selected_color.end_color[3],
+                selected_color.end_color[3],
+            );
+            c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), selected_color.deg);
+            c.glLineWidth(self.config.grid.selected_line_width);
+
+            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+            c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+        }
+    }
+
+    pub fn draw(self: *Self, start_pos: [2]?i32, border_mode: bool, mode: Mode) [2]?i32 {
+        self.drawBackground();
+
+        const color = self.config.grid.color;
+
+        c.glUniform4f(
+            c.glGetUniformLocation(self.egl.shader_program.*, "u_startcolor"),
+            color.start_color[0] * color.start_color[3],
+            color.start_color[1] * color.start_color[3],
+            color.start_color[2] * color.start_color[3],
+            color.start_color[3],
+        );
+        c.glUniform4f(
+            c.glGetUniformLocation(self.egl.shader_program.*, "u_endcolor"),
+            color.end_color[0] * color.end_color[3],
+            color.end_color[1] * color.end_color[3],
+            color.end_color[2] * color.end_color[3],
+            color.end_color[3],
+        );
+        c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), color.deg);
+
         const info = self.output_info;
         const grid = self.config.grid;
 
@@ -83,53 +187,6 @@ pub const Surface = struct {
 
         var vertices = std.ArrayList(f32).init(self.alloc);
         defer vertices.deinit();
-
-        defer switch (mode) {
-            .Region => |position| if (position) |pos| {
-                const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
-                const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
-
-                var selected_vertices: [8]f32 =
-                    if (mode.withinBounds(info)) .{
-                    (f_position[0] - f_p[0]) / width, 0,
-                    (f_position[0] - f_p[0]) / width, 1,
-                    0,                                (f_position[1] - f_p[1]) / height,
-                    1,                                (f_position[1] - f_p[1]) / height,
-                } else if (mode.yWithinBounds(info)) .{
-                    0, (f_position[1] - f_p[1]) / height,
-                    1, (f_position[1] - f_p[1]) / height,
-                    0, 0,
-                    0, 0,
-                } else if (mode.xWithinBounds(info)) .{
-                    (f_position[0] - f_p[0]) / width, 1,
-                    (f_position[0] - f_p[0]) / width, 1,
-                    0,                                0,
-                    0,                                0,
-                } else unreachable;
-
-                const selected_color = self.config.grid.selected_color;
-                c.glUniform4f(
-                    c.glGetUniformLocation(program, "u_startcolor"),
-                    selected_color.start_color[0] * selected_color.start_color[3],
-                    selected_color.start_color[1] * selected_color.start_color[3],
-                    selected_color.start_color[2] * selected_color.start_color[3],
-                    selected_color.start_color[3],
-                );
-                c.glUniform4f(
-                    c.glGetUniformLocation(program, "u_endcolor"),
-                    selected_color.end_color[0] * selected_color.end_color[3],
-                    selected_color.end_color[1] * selected_color.end_color[3],
-                    selected_color.end_color[2] * selected_color.end_color[3],
-                    selected_color.end_color[3],
-                );
-                c.glUniform1f(c.glGetUniformLocation(program, "u_degrees"), selected_color.deg);
-                c.glLineWidth(self.config.grid.selected_line_width);
-
-                c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
-                c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
-            },
-            .Single => {},
-        };
 
         c.glLineWidth(self.config.grid.line_width);
 
@@ -171,6 +228,13 @@ pub const Surface = struct {
         c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
 
+        if (mode == .Region) self.drawSelection(mode);
+
+        self.egl.getEglError() catch |err| {
+            std.log.err("{}\n", .{err});
+            std.process.exit(1);
+        };
+
         return .{ pos_x - info.width, pos_y - info.height };
     }
 
@@ -178,36 +242,37 @@ pub const Surface = struct {
         return self.output_info.width > 0 and self.output_info.height > 0;
     }
 
-    pub fn destroy(self: *Self) void {
+    pub fn destroy(self: *Self) !void {
         self.layer_surface.destroy();
         self.surface.destroy();
         self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
+        try self.egl.destroy();
     }
 };
 
 pub const SurfaceIterator = struct {
     position: [2]i32,
-    outputs: []Surface,
+    outputs: *const []Surface,
     index: u8 = 0,
 
     const Self = @This();
 
-    pub fn new(outputs: []Surface) Self {
-        return Self{ .outputs = outputs, .position = .{ outputs[0].output_info.x, outputs[0].output_info.y } };
+    pub fn new(outputs: *const []Surface) Self {
+        return Self{ .outputs = outputs, .position = .{ outputs.*[0].output_info.x, outputs.*[0].output_info.y } };
     }
 
     fn isNewline(self: *Self) bool {
         if (self.index == 0) return false;
-        return self.outputs[self.index].output_info.x <= self.outputs[self.index - 1].output_info.x;
+        return self.outputs.*[self.index].output_info.x <= self.outputs.*[self.index - 1].output_info.x;
     }
 
     pub fn next(self: *Self) ?std.meta.Tuple(&.{ Surface, [2]i32, bool }) {
-        if (self.index >= self.outputs.len or !self.outputs[self.index].isConfigured()) return null;
-        const output = self.outputs[self.index];
+        if (self.index >= self.outputs.len or !self.outputs.*[self.index].isConfigured()) return null;
+        const output = self.outputs.*[self.index];
 
         if (self.isNewline()) {
-            self.position = .{ 0, self.outputs[self.index - 1].output_info.height };
+            self.position = .{ 0, self.outputs.*[self.index - 1].output_info.height };
         }
 
         defer self.index += 1;
@@ -255,14 +320,13 @@ pub fn xdgOutputListener(
                     surface.output_info.width = size.width;
 
                     seto.updateDimensions();
-                    seto.sortOutputs();
 
                     if (seto.tree) |tree| tree.arena.deinit();
                     seto.tree = Tree.new(
                         seto.config.keys.search,
                         seto.alloc,
-                        seto.config.grid,
-                        seto.outputs.items,
+                        &seto.config.grid,
+                        &seto.outputs.items,
                     );
                 },
                 .done => {},

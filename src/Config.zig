@@ -55,9 +55,9 @@ pub fn load(alloc: std.mem.Allocator) Self {
 
     return .{
         .alloc = alloc,
-        .keys = Keys.new(lua, alloc),
         .grid = Grid.new(lua, alloc),
         .font = Font.new(lua, alloc),
+        .keys = Keys.new(lua, alloc),
         .background_color = Color.parse(background_color, alloc) catch unreachable,
     };
 }

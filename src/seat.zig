@@ -22,14 +22,14 @@ pub const Seat = struct {
     xkb_context: *xkb.Context,
     alloc: std.mem.Allocator,
     repeat: Repeat = Repeat{},
-    buffer: std.ArrayList(u8),
+    buffer: std.ArrayList([64]u8),
 
     const Self = @This();
 
     pub fn new(alloc: std.mem.Allocator) Self {
         return .{
             .xkb_context = xkb.Context.new(.no_flags) orelse @panic(""),
-            .buffer = std.ArrayList(u8).init(alloc),
+            .buffer = std.ArrayList([64]u8).init(alloc),
             .alloc = alloc,
         };
     }
@@ -122,8 +122,6 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     const keysym = xkb_state.keyGetOneSym(keycode);
                     if (keysym == .NoSymbol) return;
 
-                    //if (seto.config.keys.char_info.get())
-
                     seto.seat.repeat.key = @intFromEnum(keysym);
                     handleKey(seto);
                 },
@@ -138,8 +136,8 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 }
 
 fn moveSelection(seto: *Seto, value: [2]i32) void {
-    if (seto.mode == .Single) return;
-    if (seto.mode.Region) |*position| {
+    if (seto.state.mode == .Single) return;
+    if (seto.state.mode.Region) |*position| {
         const info: [2]i32 = .{ seto.outputs.items[0].output_info.x, seto.outputs.items[0].output_info.y };
         for (position, 0..) |*pos, i| {
             pos.* += value[i];
@@ -155,39 +153,46 @@ fn moveSelection(seto: *Seto, value: [2]i32) void {
 
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
-    if (key > 255) return;
+    const grid = &self.config.grid;
 
     const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
         xkb.names.mod.ctrl,
         @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
     ) == 1;
 
-    if (key == 'c' and ctrl_active) self.exit = true;
+    {
+        var buffer: [64]u8 = undefined;
+        const keysym: xkb.Keysym = @enumFromInt(key);
+        _ = keysym.toUTF8(&buffer, 64);
+        if (self.config.keys.bindings.get(buffer[0])) |function| {
+            switch (function) {
+                .move => |value| grid.move(value),
+                .resize => |value| grid.resize(value),
+                .remove => _ = self.seat.buffer.popOrNull(),
+                .cancel_selection => if (self.state.mode == Mode.Region) {
+                    self.state.mode = Mode{ .Region = null };
+                },
+                .move_selection => |value| moveSelection(self, value),
+                .border_select => self.state.border_mode = !self.state.border_mode,
+                .quit => self.state.exit = true,
+            }
 
-    const grid = &self.config.grid;
-    if (self.config.keys.bindings.get(@intCast(key))) |function| {
-        switch (function) {
-            .move => |value| grid.move(value),
-            .resize => |value| grid.resize(value),
-            .remove => _ = self.seat.buffer.popOrNull(),
-            .cancel_selection => if (self.mode == Mode.Region) {
-                self.mode = Mode{ .Region = null };
-            },
-            .move_selection => |value| moveSelection(self, value),
-            .border_select => self.border_mode = !self.border_mode,
-            .quit => self.exit = true,
+            if ((function == .move or function == .resize) and !self.state.border_mode or function == .border_select or function == .move_selection) {
+                self.tree.?.updateCoordinates(
+                    &self.config.grid,
+                    self.state.border_mode,
+                    &self.outputs.items,
+                    &self.seat.buffer,
+                );
+                return;
+            }
         }
 
-        if ((function == .move or function == .resize) and !self.border_mode or function == .border_select or function == .move_selection) {
-            self.tree.?.updateCoordinates(
-                self.config.grid,
-                self.border_mode,
-                self.outputs.items,
-                &self.seat.buffer,
-            );
-            return;
-        }
+        if (buffer[0] == 'c' and ctrl_active) self.state.exit = true;
     }
 
-    self.seat.buffer.append(@intCast(key)) catch return;
+    var buffer: [64]u8 = undefined;
+    const keynum: xkb.Keysym = @enumFromInt(key);
+    _ = keynum.getName(&buffer, 64);
+    self.seat.buffer.append(buffer) catch return;
 }

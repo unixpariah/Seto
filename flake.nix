@@ -30,6 +30,7 @@
               libGL
               libxkbcommon
               freetype
+              fontconfig
             ];
 
             buildInputs = with env.pkgsForTarget target; [
@@ -90,6 +91,7 @@
           freetype
           ydotool
           shfmt
+          fontconfig
           zls.packages.${system}.default
         ];
       };

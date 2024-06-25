@@ -8,6 +8,11 @@ pub const EglSurface = struct {
     width: f32,
     height: f32,
 
+    display: *c.EGLDisplay,
+    config: *c.EGLConfig,
+    context: *c.EGLContext,
+    shader_program: *c_uint,
+
     pub fn drawLine(self: *EglSurface, line: [4]i32) void {
         const vertices = [_]f32{
             2 * (@as(f32, @floatFromInt(line[0])) / self.width) - 1,
@@ -38,6 +43,24 @@ pub const EglSurface = struct {
             c.GL_OUT_OF_MEMORY => return error.OutOfMemory,
             else => return error.UnknownEglError,
         }
+    }
+
+    pub fn makeCurrent(self: *const EglSurface) !void {
+        if (c.eglMakeCurrent(
+            self.display.*,
+            self.surface,
+            self.surface,
+            self.context.*,
+        ) != c.EGL_TRUE) return error.EGLError;
+    }
+
+    pub fn swapBuffers(self: *const EglSurface) !void {
+        if (c.eglSwapBuffers(self.display.*, self.surface) != c.EGL_TRUE) return error.EGLError;
+    }
+
+    pub fn destroy(self: *EglSurface) !void {
+        if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) return error.DestroyError;
+        self.window.destroy();
     }
 };
 
@@ -139,9 +162,13 @@ pub fn new(display: *wl.Display) !Self {
     if (link_success != c.GL_TRUE) {
         var info_log: [512]u8 = undefined;
         c.glGetShaderInfoLog(shader_program, 512, null, @ptrCast(&info_log));
-        std.log.err("{s}\n", .{info_log});
         return error.EGLError;
     }
+
+    c.glEnable(c.GL_BLEND);
+    c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
+    c.glEnableVertexAttribArray(0);
+    c.glUseProgram(shader_program);
 
     return .{
         .display = egl_display,
@@ -161,25 +188,19 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         null,
     ) orelse return error.EGLError;
 
-    return .{ .window = egl_window, .surface = egl_surface, .width = 0, .height = 0 };
+    return .{
+        .window = egl_window,
+        .surface = egl_surface,
+        .width = 0,
+        .height = 0,
+        .display = &self.display,
+        .config = &self.config,
+        .context = &self.context,
+        .shader_program = &self.shader_program,
+    };
 }
 
-pub fn makeCurrent(self: *Self, egl_surface: EglSurface) !void {
-    if (c.eglMakeCurrent(
-        self.display,
-        egl_surface.surface,
-        egl_surface.surface,
-        self.context,
-    ) != c.EGL_TRUE) return error.EGLError;
-}
-
-pub fn swapBuffers(self: *Self, egl_surface: EglSurface) !void {
-    if (c.eglSwapBuffers(self.display, egl_surface.surface) != c.EGL_TRUE) return error.EGLError;
-}
-
-pub fn destroy(self: *Self) void {
-    _ = c.eglDestroySurface(self.display, self.surface);
-    _ = c.eglDestroyContext(self.display, self.context);
-    _ = c.eglTerminate(self.display);
-    self.window.destroy();
+pub fn destroy(self: *Self) !void {
+    if (c.eglDestroyContext(self.display, self.context) != c.EGL_TRUE) return error.DestroyError;
+    if (c.eglTerminate(self.display) != c.EGL_TRUE) return error.TerminateError;
 }

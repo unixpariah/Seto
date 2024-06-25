@@ -12,7 +12,7 @@ arena: std.heap.ArenaAllocator,
 
 const Self = @This();
 
-pub fn new(keys: []const u8, alloc: std.mem.Allocator, grid: Grid, outputs: []Surface) Self {
+pub fn new(keys: []const u8, alloc: std.mem.Allocator, grid: *const Grid, outputs: *const []Surface) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, keys.len) catch @panic("OOM");
     for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -24,29 +24,29 @@ pub fn new(keys: []const u8, alloc: std.mem.Allocator, grid: Grid, outputs: []Su
         .arena = arena,
     };
 
-    var tmp = std.ArrayList(u8).init(alloc);
+    var tmp = std.ArrayList([64]u8).init(alloc);
     tree.updateCoordinates(grid, false, outputs, &tmp);
 
     return tree;
 }
 
-pub fn find(self: *Self, buffer: []u8) ?[2]i32 {
-    if (buffer.len == 0) return null;
+pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
+    if (buffer.len == 0) return error.EndNotReached;
     for (self.children) |*child| {
-        if (child.key == buffer[0]) {
+        if (child.key == buffer.*[0][0]) {
             return child.traverseAndFind(buffer, 1);
         }
     }
 
-    return null;
+    return error.KeyNotFound;
 }
 
 pub fn updateCoordinates(
     self: *Self,
-    grid: Grid,
+    grid: *const Grid,
     border_mode: bool,
-    outputs: []Surface,
-    buffer: *std.ArrayList(u8),
+    outputs: *const []Surface,
+    buffer: *std.ArrayList([64]u8),
 ) void {
     var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
     defer intersections.deinit();
@@ -126,18 +126,30 @@ const Node = struct {
     children: ?[]Node = null,
     coordinates: ?[2]i32 = null,
 
-    fn traverseAndFind(self: *Node, buffer: []u8, index: usize) ?[2]i32 {
-        if (self.coordinates) |coordinates| return coordinates;
-        if (buffer.len <= index) return null;
+    fn checkIfOnScreen(self: *Node) !void {
         if (self.children) |children| {
             for (children) |*child| {
-                if (child.key == buffer[index]) {
+                if (child.children == null and child.coordinates == null) return error.KeyNotFound;
+                return child.checkIfOnScreen();
+            }
+        }
+    }
+
+    fn traverseAndFind(self: *Node, buffer: *[][64]u8, index: usize) ![2]i32 {
+        if (self.coordinates) |coordinates| return coordinates;
+        if (buffer.*.len <= index) {
+            try self.checkIfOnScreen();
+            return error.EndNotReached;
+        }
+        if (self.children) |children| {
+            for (children) |*child| {
+                if (child.key == buffer.*[index][0]) {
                     return child.traverseAndFind(buffer, index + 1);
                 }
             }
         }
 
-        return null;
+        return error.KeyNotFound;
     }
 
     fn traverseAndPutCoords(self: *Node, intersections: [][2]i32, index: *usize) void {

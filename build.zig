@@ -44,6 +44,7 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("egl");
     exe.linkSystemLibrary("gl");
     exe.linkSystemLibrary("freetype2");
+    exe.linkSystemLibrary("fontconfig");
 
     // TODO: remove when https://github.com/ziglang/zig/issues/131 is implemented
     scanner.addCSource(exe);
