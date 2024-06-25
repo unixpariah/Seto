@@ -1,7 +1,8 @@
 const std = @import("std");
+const helpers = @import("helpers");
 const fs = std.fs;
 
-const hexToRgba = @import("helpers.zig").hexToRgba;
+const hexToRgba = helpers.hexToRgba;
 
 const Lua = @import("ziglua").Lua;
 const Font = @import("config/Font.zig");
@@ -9,7 +10,7 @@ const Keys = @import("config//Keys.zig");
 const Grid = @import("config/Grid.zig");
 const Function = @import("config/Keys.zig").Function;
 const Character = @import("config/Keys.zig").Character;
-const Color = @import("helpers.zig").Color;
+const Color = helpers.Color;
 
 output_format: []const u8 = "%x,%y %wx%h\n",
 background_color: Color,
@@ -22,25 +23,12 @@ const Self = @This();
 
 pub fn load(alloc: std.mem.Allocator) Self {
     const config_dir = getPath(alloc) catch {
-        const keys = Keys{
-            .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"),
-            .bindings = std.AutoHashMap(u8, Function).init(alloc),
-            .char_info = std.AutoHashMap(u8, Character).init(alloc),
-        };
-        const font = Font{
-            .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM"),
-            .color = Color.parse("#FFFFFF", alloc) catch unreachable,
-            .highlight_color = Color.parse("#FFFF00", alloc) catch unreachable,
-        };
         return .{
             .alloc = alloc,
-            .font = font,
-            .keys = keys,
+            .font = Font.default(alloc),
+            .keys = Keys.default(alloc),
+            .grid = Grid.default(alloc),
             .background_color = Color.parse("#FFFFFF66", alloc) catch unreachable,
-            .grid = Grid{
-                .selected_color = Color.parse("FFFFFF", alloc) catch unreachable,
-                .color = Color.parse("FFFFFF", alloc) catch unreachable,
-            },
         };
     };
     defer alloc.free(config_dir);

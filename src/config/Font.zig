@@ -1,9 +1,10 @@
 const std = @import("std");
+const helpers = @import("helpers");
 
-const hexToRgba = @import("../helpers.zig").hexToRgba;
+const hexToRgba = helpers.hexToRgba;
 
 const Lua = @import("ziglua").Lua;
-const Color = @import("../helpers.zig").Color;
+const Color = helpers.Color;
 
 color: Color,
 highlight_color: Color,
@@ -13,12 +14,16 @@ family: [:0]const u8,
 
 const Self = @This();
 
-pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
-    var font = Self{
+pub fn default(alloc: std.mem.Allocator) Self {
+    return .{
         .color = Color.parse("#FFFFFF", alloc) catch unreachable,
         .highlight_color = Color.parse("#FFFF00", alloc) catch unreachable,
         .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM"),
     };
+}
+
+pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
+    var font = Self.default(alloc);
 
     _ = lua.pushString("font");
     _ = lua.getTable(1);
@@ -26,11 +31,11 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
 
     _ = lua.pushString("color");
     _ = lua.getTable(2);
-    if (!lua.isString(3)) {
+    const font_color = lua.toString(3) catch {
         std.log.err("Font color expected hex value\n", .{});
         std.process.exit(1);
-    }
-    font.color = Color.parse(lua.toString(3) catch unreachable, alloc) catch {
+    };
+    font.color = Color.parse(font_color, alloc) catch {
         std.log.err("Failed to parse font color\n", .{});
         std.process.exit(1);
     };
@@ -38,11 +43,11 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
 
     _ = lua.pushString("highlight_color");
     _ = lua.getTable(2);
-    if (!lua.isString(3)) {
+    const font_highlight_color = lua.toString(3) catch {
         std.log.err("Font highlight color expected hex value\n", .{});
         std.process.exit(1);
-    }
-    font.highlight_color = Color.parse(lua.toString(3) catch unreachable, alloc) catch {
+    };
+    font.highlight_color = Color.parse(font_highlight_color, alloc) catch {
         std.log.err("Failed to parse highlight color\n", .{});
         std.process.exit(1);
     };

@@ -1,9 +1,10 @@
 const std = @import("std");
+const helpers = @import("helpers");
 
-const hexToRgba = @import("../helpers.zig").hexToRgba;
+const hexToRgba = helpers.hexToRgba;
 
 const Lua = @import("ziglua").Lua;
-const Color = @import("../helpers.zig").Color;
+const Color = helpers.Color;
 
 color: Color,
 selected_color: Color,
@@ -14,11 +15,15 @@ selected_line_width: f32 = 2,
 
 const Self = @This();
 
-pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
-    var grid = Self{
+pub fn default(alloc: std.mem.Allocator) Self {
+    return .{
         .selected_color = Color.parse("FF0000", alloc) catch unreachable,
         .color = Color.parse("FFFFFF", alloc) catch unreachable,
     };
+}
+
+pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
+    var grid = Self.default(alloc);
 
     _ = lua.pushString("grid");
     _ = lua.getTable(1);
@@ -141,9 +146,10 @@ pub fn resize(self: *Self, value: [2]i32) void {
 
 test "resize" {
     const assert = std.debug.assert;
+    const alloc = std.heap.page_allocator;
 
     for (1..10) |i| {
-        var grid = Self{};
+        var grid = Self.default(alloc);
         var initial = grid.size;
         const index: i32 = @intCast(i);
         grid.resize(.{ index, 0 });
@@ -172,9 +178,10 @@ test "resize" {
 
 test "move" {
     const assert = std.debug.assert;
+    const alloc = std.heap.page_allocator;
 
     for (1..10) |i| {
-        var grid = Self{};
+        var grid = Self.default(alloc);
         var initial = grid.offset;
         const index: i32 = @intCast(i);
         grid.move(.{ index, 0 });

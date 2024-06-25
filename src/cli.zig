@@ -1,11 +1,12 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const helpers = @import("helpers");
 
 const Seto = @import("main.zig").Seto;
 const Function = @import("config/Keys.zig").Function;
-const Color = @import("helpers.zig").Color;
+const Color = helpers.Color;
 
-const hexToRgba = @import("helpers.zig").hexToRgba;
+const hexToRgba = helpers.hexToRgba;
 
 fn printAndExit(comptime message: []const u8, arg: []const u8) noreturn {
     std.log.debug(message, .{arg});

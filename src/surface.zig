@@ -74,7 +74,7 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *Self, start_pos: [2]?i32, mode: Mode, border_mode: bool) [2]?i32 {
+    pub fn draw(self: *Self, start_pos: [2]?i32, mode: Mode, border_mode: bool, program: c_uint) [2]?i32 {
         const info = self.output_info;
         const grid = self.config.grid;
 
@@ -109,20 +109,20 @@ pub const Surface = struct {
 
                 const selected_color = self.config.grid.selected_color;
                 c.glUniform4f(
-                    0,
+                    c.glGetUniformLocation(program, "u_startcolor"),
                     selected_color.start_color[0] * selected_color.start_color[3],
                     selected_color.start_color[1] * selected_color.start_color[3],
                     selected_color.start_color[2] * selected_color.start_color[3],
                     selected_color.start_color[3],
                 );
                 c.glUniform4f(
-                    1,
+                    c.glGetUniformLocation(program, "u_endcolor"),
                     selected_color.end_color[0] * selected_color.end_color[3],
                     selected_color.end_color[1] * selected_color.end_color[3],
                     selected_color.end_color[2] * selected_color.end_color[3],
                     selected_color.end_color[3],
                 );
-                c.glUniform1f(2, selected_color.deg);
+                c.glUniform1f(c.glGetUniformLocation(program, "u_degrees"), selected_color.deg);
                 c.glLineWidth(self.config.grid.selected_line_width);
 
                 c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
@@ -216,11 +216,6 @@ pub const SurfaceIterator = struct {
         return .{ output, self.position, self.isNewline() };
     }
 };
-
-pub fn frameListener(callback: *wl.Callback, event: wl.Callback.Event, surface: *Surface) void {
-    defer callback.destroy();
-    if (event == .done) surface.draw() catch return;
-}
 
 pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, seto: *Seto) void {
     switch (event) {

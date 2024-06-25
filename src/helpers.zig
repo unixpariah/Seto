@@ -72,6 +72,9 @@ test "errors" {
 
     color = Color.parse("#FFFFFF #FFFFFF deg90deg", alloc);
     assert(color == error.DegParseError);
+
+    color = Color.parse("#FFFFFF #FFFFFF deg", alloc);
+    assert(color == error.InvalidCharacter);
 }
 
 test "single color" {
@@ -159,6 +162,12 @@ test "hex_to_rgba" {
     for (rgba) |color| {
         assert(color == 1);
     }
+
+    rgba = try hexToRgba("7FABE3");
+    assert(rgba[0] == 127.0 / 255.0);
+    assert(rgba[1] == 171.0 / 255.0);
+    assert(rgba[2] == 227.0 / 255.0);
+    assert(rgba[3] == 1);
 
     const too_short = hexToRgba("FFFF");
     assert(too_short == error.InvalidColor);

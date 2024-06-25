@@ -50,12 +50,16 @@ char_info: std.AutoHashMap(u8, Character),
 
 const Self = @This();
 
-pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
-    var keys_s = Self{
+pub fn default(alloc: std.mem.Allocator) Self {
+    return .{
         .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"),
         .bindings = std.AutoHashMap(u8, Function).init(alloc),
         .char_info = std.AutoHashMap(u8, Character).init(alloc),
     };
+}
+
+pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
+    var keys_s = Self.default(alloc);
 
     _ = lua.pushString("keys");
     _ = lua.getTable(1);
@@ -151,10 +155,10 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
 }
 
 pub const Function = union(enum) {
-    border_select,
     resize: [2]i32,
     move: [2]i32,
     move_selection: [2]i32,
+    border_select,
     cancel_selection,
     remove,
     quit,

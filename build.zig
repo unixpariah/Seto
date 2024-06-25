@@ -32,6 +32,9 @@ pub fn build(b: *std.Build) void {
 
     exe.linkLibC();
 
+    const helpers = b.addModule("helpers", .{ .root_source_file = b.path("src/helpers.zig") });
+
+    exe.root_module.addImport("helpers", helpers);
     exe.root_module.addImport("wayland", wayland);
     exe.root_module.addImport("xkbcommon", xkbcommon);
     exe.root_module.addImport("ziglua", ziglua);
@@ -48,22 +51,25 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     const root_files = [_][]const u8{
+        "src/helpers.zig",
         "src/Tree.zig",
         "src/main.zig",
         "tests/integration.zig",
         "src/config/Grid.zig",
-        "src/helpers.zig",
     };
 
     const unit_tests_step = b.step("test", "Run all tests");
     for (root_files) |file| {
         const test_file = b.addTest(.{ .root_source_file = b.path(file) });
+        test_file.root_module.addImport("helpers", helpers);
         unit_tests_step.dependOn(&b.addRunArtifact(test_file).step);
     }
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
+
     if (b.args) |args| run_cmd.addArgs(args);
+
     const run_step = b.step("run", "Run client");
     run_step.dependOn(&run_cmd.step);
 }

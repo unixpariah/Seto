@@ -24,21 +24,21 @@ pub fn new(keys: []const u8, alloc: std.mem.Allocator, grid: Grid, outputs: []Su
         .arena = arena,
     };
 
-    var tmp = std.ArrayList([64]u8).init(alloc);
+    var tmp = std.ArrayList(u8).init(alloc);
     tree.updateCoordinates(grid, false, outputs, &tmp);
 
     return tree;
 }
 
-pub fn find(self: *Self, buffer: [][64]u8) ![2]i32 {
-    if (buffer.len == 0) return error.EndNotReached;
+pub fn find(self: *Self, buffer: []u8) ?[2]i32 {
+    if (buffer.len == 0) return null;
     for (self.children) |*child| {
-        if (child.key == buffer[0][0]) {
+        if (child.key == buffer[0]) {
             return child.traverseAndFind(buffer, 1);
         }
     }
 
-    return error.KeyNotFound;
+    return null;
 }
 
 pub fn updateCoordinates(
@@ -46,7 +46,7 @@ pub fn updateCoordinates(
     grid: Grid,
     border_mode: bool,
     outputs: []Surface,
-    buffer: *std.ArrayList([64]u8),
+    buffer: *std.ArrayList(u8),
 ) void {
     var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
     defer intersections.deinit();
@@ -126,30 +126,18 @@ const Node = struct {
     children: ?[]Node = null,
     coordinates: ?[2]i32 = null,
 
-    fn checkIfOnScreen(self: *Node) !void {
-        if (self.children) |children| {
-            for (children) |*child| {
-                if (child.children == null and child.coordinates == null) return error.KeyNotFound;
-                return child.checkIfOnScreen();
-            }
-        }
-    }
-
-    fn traverseAndFind(self: *Node, buffer: [][64]u8, index: usize) ![2]i32 {
+    fn traverseAndFind(self: *Node, buffer: []u8, index: usize) ?[2]i32 {
         if (self.coordinates) |coordinates| return coordinates;
-        if (buffer.len <= index) {
-            try self.checkIfOnScreen();
-            return error.EndNotReached;
-        }
+        if (buffer.len <= index) return null;
         if (self.children) |children| {
             for (children) |*child| {
-                if (child.key == buffer[index][0]) {
+                if (child.key == buffer[index]) {
                     return child.traverseAndFind(buffer, index + 1);
                 }
             }
         }
 
-        return error.KeyNotFound;
+        return null;
     }
 
     fn traverseAndPutCoords(self: *Node, intersections: [][2]i32, index: *usize) void {

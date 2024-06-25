@@ -2,11 +2,11 @@ const std = @import("std");
 const mem = std.mem;
 const posix = std.posix;
 
+const c = @import("ffi.zig");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
-const c = @import("ffi.zig");
 
 const Tree = @import("Tree.zig");
 const OutputInfo = @import("surface.zig").OutputInfo;
@@ -21,7 +21,7 @@ const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
-const inPlaceReplace = @import("helpers.zig").inPlaceReplace;
+const inPlaceReplace = @import("helpers").inPlaceReplace;
 
 const EventInterfaces = enum {
     wl_compositor,
@@ -113,39 +113,43 @@ pub const Seto = struct {
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
     }
 
-    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32, outputs: []Surface) void {
-        var pos: [2]i32 = .{ 0, 0 };
-        var output_name: []const u8 = "<unkown>";
-        for (outputs, 0..) |*output, i| {
-            if (!output.isConfigured()) continue;
-            const info = output.output_info;
+    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
+        var surf_iter = SurfaceIterator.new(self.outputs.items);
+        while (surf_iter.next()) |res| {
+            const surface = res.@"0";
 
-            if (i > 0) {
-                if (info.x <= outputs[i - 1].output_info.x) pos = .{ 0, outputs[i - 1].output_info.height };
-            }
+            if (!surface.isConfigured()) continue;
 
-            if (output.posInSurface(top_left)) {
+            const info = surface.output_info;
+
+            if (surface.posInSurface(top_left)) {
                 const relative_pos = .{ top_left[0] - info.x, top_left[1] - info.y };
-                const relative_size = .{ @abs(top_left[0] - @min((info.x + info.width), top_left[0] + size[0])), @abs(top_left[1] - @min((info.y + info.height), top_left[1] + size[1])) };
-                output_name = if (info.name) |name| name else "<unkown>";
+                const relative_size = .{
+                    @abs(top_left[0] - @min((info.x + info.width), top_left[0] + size[0])),
+                    @abs(top_left[1] - @min((info.y + info.height), top_left[1] + size[1])),
+                };
+                inPlaceReplace(
+                    []const u8,
+                    arena.allocator(),
+                    &self.config.output_format,
+                    "%o",
+                    if (info.name) |name| name else "<unkown>",
+                );
                 inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%X", relative_pos[0]);
                 inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%Y", relative_pos[1]);
                 inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%W", relative_size[0]);
                 inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%H", relative_size[1]);
             }
-
-            pos[0] += info.width;
         }
 
         inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%x", top_left[0]);
         inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%y", top_left[1]);
         inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%w", size[0]);
         inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%h", size[1]);
-        inPlaceReplace([]const u8, arena.allocator(), &self.config.output_format, "%o", output_name);
     }
 
-    fn printToStdout(self: *Self) !void {
-        const coords = try self.tree.?.find(self.seat.buffer.items);
+    fn printToStdout(self: *Self) void {
+        const coords = self.tree.?.find(self.seat.buffer.items) orelse return;
         switch (self.mode) {
             .Region => |positions| {
                 if (positions) |pos| {
@@ -159,7 +163,7 @@ pub const Seto = struct {
 
                     var arena = std.heap.ArenaAllocator.init(self.alloc);
                     defer arena.deinit();
-                    self.formatOutput(&arena, top_left, size, self.outputs.items);
+                    self.formatOutput(&arena, top_left, size);
 
                     _ = std.io.getStdOut().write(self.config.output_format) catch @panic("Write error");
                     self.exit = true;
@@ -171,7 +175,7 @@ pub const Seto = struct {
             .Single => {
                 var arena = std.heap.ArenaAllocator.init(self.alloc);
                 defer arena.deinit();
-                _ = self.formatOutput(&arena, coords, .{ 1, 1 }, self.outputs.items);
+                _ = self.formatOutput(&arena, coords, .{ 1, 1 });
 
                 _ = std.io.getStdOut().write(self.config.output_format) catch @panic("Write error");
                 self.exit = true;
@@ -181,47 +185,38 @@ pub const Seto = struct {
 
     fn createSurfaces(self: *Self) !void {
         if (!self.shouldDraw()) return;
-        self.printToStdout() catch |err| {
-            switch (err) {
-                error.KeyNotFound => {
-                    _ = self.seat.buffer.popOrNull();
-                    return;
-                },
-                else => {},
-            }
-        };
+        self.printToStdout();
 
         var surf_iter = SurfaceIterator.new(self.outputs.items);
         var start_pos: [2]?i32 = .{ null, null };
         while (surf_iter.next()) |res| {
             var surface, _, const new_line = res;
             if (!surface.isConfigured()) continue;
+
             try self.egl.makeCurrent(surface.egl);
 
             c.glClear(c.GL_COLOR_BUFFER_BIT);
             c.glUseProgram(self.egl.shader_program);
             c.glEnableVertexAttribArray(0);
-
             c.glEnable(c.GL_BLEND);
             c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 
             const bg = self.config.background_color;
-
             c.glUniform4f(
-                0,
+                c.glGetUniformLocation(self.egl.shader_program, "u_startcolor"),
                 bg.start_color[0] * bg.start_color[3],
                 bg.start_color[1] * bg.start_color[3],
                 bg.start_color[2] * bg.start_color[3],
                 bg.start_color[3],
             );
             c.glUniform4f(
-                1,
+                c.glGetUniformLocation(self.egl.shader_program, "u_endcolor"),
                 bg.end_color[0] * bg.end_color[3],
                 bg.end_color[1] * bg.end_color[3],
                 bg.end_color[2] * bg.end_color[3],
                 bg.end_color[3],
             );
-            c.glUniform1f(2, bg.deg);
+            c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program, "u_degrees"), bg.deg);
 
             const vertices = [_]f32{
                 1, 1,
@@ -238,22 +233,22 @@ pub const Seto = struct {
             const color = self.config.grid.color;
 
             c.glUniform4f(
-                0,
+                c.glGetUniformLocation(self.egl.shader_program, "u_startcolor"),
                 color.start_color[0] * color.start_color[3],
                 color.start_color[1] * color.start_color[3],
                 color.start_color[2] * color.start_color[3],
                 color.start_color[3],
             );
             c.glUniform4f(
-                1,
+                c.glGetUniformLocation(self.egl.shader_program, "u_endcolor"),
                 color.end_color[0] * color.end_color[3],
                 color.end_color[1] * color.end_color[3],
                 color.end_color[2] * color.end_color[3],
                 color.end_color[3],
             );
-            c.glUniform1f(2, color.deg);
+            c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program, "u_degrees"), color.deg);
             const result: [2]?i32 = if (new_line) .{ null, start_pos[1] } else .{ start_pos[0], null };
-            start_pos = surface.draw(result, self.mode, self.border_mode);
+            start_pos = surface.draw(result, self.mode, self.border_mode, self.egl.shader_program);
 
             try surface.egl.getEglError();
             c.glUseProgram(0);
