@@ -58,10 +58,12 @@ pub fn updateCoordinates(
         const info = surf.output_info;
 
         if (border_mode) {
-            intersections.append(position) catch unreachable;
-            intersections.append(.{ position[0], position[1] + info.height - 1 }) catch unreachable;
-            intersections.append(.{ position[0] + info.width - 1, position[1] }) catch unreachable;
-            intersections.append(.{ position[0] + info.width - 1, position[1] + info.height - 1 }) catch unreachable;
+            intersections.appendSlice(&[_][2]i32{
+                position,
+                .{ position[0], position[1] + info.height - 1 },
+                .{ position[0] + info.width - 1, position[1] },
+                .{ position[0] + info.width - 1, position[1] + info.height - 1 },
+            }) catch @panic("OOM");
             continue;
         }
 

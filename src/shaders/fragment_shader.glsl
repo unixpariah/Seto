@@ -1,16 +1,13 @@
 #version 330 core
 
-precision mediump float;
-
 uniform vec4 u_startcolor;
 uniform vec4 u_endcolor;
 uniform float u_degrees;
 
-varying vec2 v_pos;
+in vec2 v_pos;
 
 void main() {
     vec2 uv = v_pos.xy;
-
     uv -= 0.5;
 
     float angle = radians(90.0) - radians(u_degrees) + atan(uv.y, uv.x);

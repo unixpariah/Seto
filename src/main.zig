@@ -192,12 +192,18 @@ pub const Seto = struct {
 
         var start_pos: [2]?i32 = .{ null, null };
         var surf_iter = SurfaceIterator.new(&self.outputs.items);
+
         while (surf_iter.next()) |res| {
             var surface, _, const new_line = res;
             if (!surface.isConfigured()) continue;
 
             const result: [2]?i32 = if (new_line) .{ null, start_pos[1] } else .{ start_pos[0], null };
             start_pos = surface.draw(result, self.state.border_mode, self.state.mode);
+
+            surface.egl.getEglError() catch |err| {
+                std.log.err("{}\n", .{err});
+                std.process.exit(1);
+            };
 
             surface.egl.swapBuffers() catch {
                 std.log.err("Failed to swap buffers\n", .{});

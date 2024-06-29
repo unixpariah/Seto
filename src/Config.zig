@@ -53,11 +53,12 @@ pub fn load(alloc: std.mem.Allocator) Self {
 
     lua.pop(1);
 
+    const font = Font.new(lua, alloc);
     return .{
         .alloc = alloc,
         .grid = Grid.new(lua, alloc),
-        .font = Font.new(lua, alloc),
-        .keys = Keys.new(lua, alloc),
+        .font = font,
+        .keys = Keys.new(lua, alloc, font.family),
         .background_color = Color.parse(background_color, alloc) catch unreachable,
     };
 }

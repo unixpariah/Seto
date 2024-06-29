@@ -162,7 +162,6 @@ pub const Surface = struct {
         self.drawBackground();
 
         const color = self.config.grid.color;
-
         c.glUniform4f(
             c.glGetUniformLocation(self.egl.shader_program.*, "u_startcolor"),
             color.start_color[0] * color.start_color[3],
@@ -179,29 +178,21 @@ pub const Surface = struct {
         );
         c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), color.deg);
 
-        const info = self.output_info;
-        const grid = self.config.grid;
-
-        const width: f32 = @floatFromInt(info.width);
-        const height: f32 = @floatFromInt(info.height);
-
         var vertices = std.ArrayList(f32).init(self.alloc);
         defer vertices.deinit();
 
-        c.glLineWidth(self.config.grid.line_width);
+        const grid = self.config.grid;
+        c.glLineWidth(grid.line_width);
+
+        defer if (mode == .Region) self.drawSelection(mode);
 
         if (border_mode) {
-            vertices.append(1) catch @panic("OOM");
-            vertices.append(1) catch @panic("OOM");
-
-            vertices.append(1) catch @panic("OOM");
-            vertices.append(0) catch @panic("OOM");
-
-            vertices.append(0) catch @panic("OOM");
-            vertices.append(0) catch @panic("OOM");
-
-            vertices.append(0) catch @panic("OOM");
-            vertices.append(1) catch @panic("OOM");
+            vertices.appendSlice(&[_]f32{
+                1, 1,
+                1, 0,
+                0, 0,
+                0, 1,
+            }) catch @panic("OOM");
 
             c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
             c.glDrawArrays(c.GL_LINE_LOOP, 0, @intCast(vertices.items.len >> 1));
@@ -209,33 +200,97 @@ pub const Surface = struct {
             return .{ null, null };
         }
 
+        const info = self.output_info;
+        const width: f32 = @floatFromInt(info.width);
+        const height: f32 = @floatFromInt(info.height);
+
         var pos_x = if (start_pos[0]) |pos| pos else grid.offset[0];
         while (pos_x <= info.width) : (pos_x += grid.size[0]) {
-            vertices.append(@as(f32, @floatFromInt(pos_x)) / width) catch @panic("OOM");
-            vertices.append(1) catch @panic("OOM");
-            vertices.append(@as(f32, @floatFromInt(pos_x)) / width) catch @panic("OOM");
-            vertices.append(0) catch @panic("OOM");
+            vertices.appendSlice(&[_]f32{
+                @as(f32, @floatFromInt(pos_x)) / width, 0,
+                @as(f32, @floatFromInt(pos_x)) / width, 1,
+            }) catch @panic("OOM");
         }
 
         var pos_y = if (start_pos[1]) |pos| pos else grid.offset[1];
         while (pos_y <= info.height) : (pos_y += grid.size[1]) {
-            vertices.append(0) catch @panic("OOM");
-            vertices.append((height - @as(f32, @floatFromInt(pos_y))) / height) catch @panic("OOM");
-            vertices.append(1) catch @panic("OOM");
-            vertices.append((height - @as(f32, @floatFromInt(pos_y))) / height) catch @panic("OOM");
+            vertices.appendSlice(&[_]f32{
+                0, (height - @as(f32, @floatFromInt(pos_y))) / height,
+                1, (height - @as(f32, @floatFromInt(pos_y))) / height,
+            }) catch @panic("OOM");
         }
 
         c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
 
-        if (mode == .Region) self.drawSelection(mode);
-
-        self.egl.getEglError() catch |err| {
-            std.log.err("{}\n", .{err});
-            std.process.exit(1);
-        };
+        self.renderText("asdfghjkl", 1000, 0);
 
         return .{ pos_x - info.width, pos_y - info.height };
+    }
+
+    pub fn renderText(self: *Self, text: []const u8, x: f32, y: f32) void {
+        const info = self.output_info;
+
+        const width: f32 = @floatFromInt(info.width);
+        const height: f32 = @floatFromInt(info.height);
+
+        const x_norm = x / width;
+        const y_norm = y / height;
+
+        c.glActiveTexture(c.GL_TEXTURE0);
+
+        const color = self.config.font.color;
+        c.glUniform4f(
+            c.glGetUniformLocation(self.egl.shader_program.*, "u_startcolor"),
+            color.start_color[0],
+            color.start_color[1],
+            color.start_color[2],
+            color.start_color[3],
+        );
+        c.glUniform4f(
+            c.glGetUniformLocation(self.egl.shader_program.*, "u_endcolor"),
+            color.end_color[0],
+            color.end_color[1],
+            color.end_color[2],
+            color.end_color[3],
+        );
+        c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), color.deg);
+
+        for (text, 0..) |char, i| {
+            const ch = self.config.keys.char_info.get(char).?;
+
+            const size = .{
+                ch.size[0] / width,
+                ch.size[1] / height,
+            };
+            const bearing = .{
+                ch.bearing[0] / width,
+                ch.bearing[1] / height,
+            };
+            const advance = .{
+                ch.advance[0] / width / 64,
+                ch.advance[1] / height / 64,
+            };
+
+            const move = advance[0] * @as(f32, @floatFromInt(i));
+
+            const x_pos = x_norm + bearing[0] + move;
+            const y_pos = y_norm + (size[1] - bearing[1]);
+
+            const vertices = [_]f32{
+                x_pos,           y_pos,
+                x_pos + size[0], y_pos,
+                x_pos + size[0], y_pos + size[1],
+
+                x_pos,           y_pos,
+                x_pos,           y_pos + size[1],
+                x_pos + size[0], y_pos + size[1],
+            };
+
+            c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
+            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices));
+            c.glDrawArrays(c.GL_TRIANGLES, 0, @intCast(vertices.len >> 1));
+        }
     }
 
     pub fn isConfigured(self: *const Self) bool {

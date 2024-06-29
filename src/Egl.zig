@@ -97,7 +97,7 @@ pub fn new(display: *wl.Display) !Self {
     if (c.eglBindAPI(c.EGL_OPENGL_API) == 0) return error.EGLError;
     const egl_display = c.eglGetPlatformDisplay(
         c.EGL_PLATFORM_WAYLAND_EXT,
-        @ptrCast(display),
+        display,
         null,
     ) orelse return error.EGLError;
 
@@ -184,7 +184,7 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
     const egl_surface = c.eglCreatePlatformWindowSurface(
         self.display,
         self.config,
-        @ptrCast(egl_window),
+        egl_window,
         null,
     ) orelse return error.EGLError;
 

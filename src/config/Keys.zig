@@ -5,9 +5,9 @@ const Lua = @import("ziglua").Lua;
 
 pub const Character = struct {
     texture_id: u32,
-    size: [2]i32,
-    bearing: [2]i32,
-    advance: u32,
+    size: [2]f32,
+    bearing: [2]f32,
+    advance: [2]f32,
 
     fn new(face: c.FT_Face, key: u8) Character {
         if (c.FT_Load_Char(face, key, c.FT_LOAD_RENDER) == 1) {
@@ -37,9 +37,18 @@ pub const Character = struct {
 
         return .{
             .texture_id = texture,
-            .size = .{ @intCast(face.*.glyph.*.bitmap.width), @intCast(face.*.glyph.*.bitmap.rows) },
-            .bearing = .{ @intCast(face.*.glyph.*.bitmap_left), @intCast(face.*.glyph.*.bitmap_top) },
-            .advance = @intCast(face.*.glyph.*.advance.x),
+            .size = .{
+                @floatFromInt(face.*.glyph.*.bitmap.width),
+                @floatFromInt(face.*.glyph.*.bitmap.rows),
+            },
+            .bearing = .{
+                @floatFromInt(face.*.glyph.*.bitmap_top),
+                @floatFromInt(face.*.glyph.*.bitmap_left),
+            },
+            .advance = .{
+                @floatFromInt(face.*.glyph.*.advance.x),
+                @floatFromInt(face.*.glyph.*.advance.y),
+            },
         };
     }
 };
@@ -58,7 +67,7 @@ pub fn default(alloc: std.mem.Allocator) Self {
     };
 }
 
-pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
+pub fn new(lua: *Lua, alloc: std.mem.Allocator, font_name: []const u8) Self {
     var keys_s = Self.default(alloc);
 
     _ = lua.pushString("keys");
@@ -131,33 +140,56 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         std.log.err("Could not init FreeType Library\n", .{});
     }
 
+    const font_path = getFontPath(font_name) catch |err| {
+        switch (err) {
+            error.InitError => std.log.err("Failed to init FontConfig", .{}),
+            error.FontNotFound => std.log.err("Font {s} not found", .{font_name}),
+        }
+        std.process.exit(1);
+    };
+
     var face: c.FT_Face = undefined;
     defer _ = c.FT_Done_Face(face);
 
-    _ = c.FcInit();
-    const config = c.FcInitLoadConfigAndFonts();
-    const pattern = c.FcNameParse("Arial");
-    _ = c.FcConfigSubstitute(config, pattern, c.FcMatchPattern);
-    c.FcDefaultSubstitute(pattern);
-
-    if (c.FT_New_Face(ft, "/nix/store/09w34ps5vacfih6qn6rh3dkc29ax86fr-dejavu-fonts-minimal-2.37/share/fonts/truetype/DejaVuSans.ttf", 0, &face) == 1) {
+    if (c.FT_New_Face(ft, @ptrCast(font_path), 0, &face) == 1) {
         std.log.err("Failed to load font\n", .{});
+        std.process.exit(1);
     }
 
-    _ = c.FT_Set_Pixel_Sizes(face, 0, 48);
+    _ = c.FT_Set_Pixel_Sizes(face, 0, 16);
+    c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
 
     for (keys_s.search) |key| {
         keys_s.char_info.put(key, Character.new(face, key)) catch unreachable;
     }
 
-    var bind_iter = keys_s.bindings.iterator();
-    while (bind_iter.next()) |binding| {
-        keys_s.char_info.put(binding.key_ptr.*, Character.new(face, binding.key_ptr.*)) catch unreachable;
+    return keys_s;
+}
+
+fn getFontPath(font_name: []const u8) ![]c.FcChar8 {
+    if (c.FcInit() != c.FcTrue) return error.InitError;
+    defer c.FcFini();
+
+    const config = c.FcInitLoadConfigAndFonts();
+    defer c.FcConfigDestroy(config);
+
+    const pattern = c.FcNameParse(@ptrCast(font_name));
+    defer c.FcPatternDestroy(pattern);
+
+    _ = c.FcConfigSubstitute(config, pattern, c.FcMatchPattern);
+    c.FcDefaultSubstitute(pattern);
+
+    var result: c.FcResult = undefined;
+    const match = c.FcFontMatch(config, pattern, &result);
+
+    if (match) |m| {
+        var font_path: []c.FcChar8 = undefined;
+        if (c.FcPatternGetString(m, c.FC_FILE, 0, @ptrCast(&font_path)) == c.FcResultMatch) {
+            return font_path;
+        }
     }
 
-    c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
-
-    return keys_s;
+    return error.FontNotFound;
 }
 
 pub const Function = union(enum) {

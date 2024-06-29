@@ -1,8 +1,9 @@
 #version 330 core
 
 layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aTexCoord;
 
-varying vec2 v_pos;
+out vec2 v_pos;
 
 void main() {
     v_pos = aPos;
