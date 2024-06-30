@@ -34,7 +34,6 @@ pub fn build(b: *std.Build) void {
 
     const helpers = b.addModule("helpers", .{ .root_source_file = b.path("src/helpers.zig") });
 
-    exe.root_module.addImport("helpers", helpers);
     exe.root_module.addImport("wayland", wayland);
     exe.root_module.addImport("xkbcommon", xkbcommon);
     exe.root_module.addImport("ziglua", ziglua);

@@ -1,6 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const helpers = @import("helpers");
+const helpers = @import("helpers.zig");
 
 const Seto = @import("main.zig").Seto;
 const Function = @import("config/Keys.zig").Function;

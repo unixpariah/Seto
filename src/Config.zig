@@ -1,5 +1,5 @@
 const std = @import("std");
-const helpers = @import("helpers");
+const helpers = @import("./helpers.zig");
 const fs = std.fs;
 
 const hexToRgba = helpers.hexToRgba;
@@ -58,7 +58,7 @@ pub fn load(alloc: std.mem.Allocator) Self {
         .alloc = alloc,
         .grid = Grid.new(lua, alloc),
         .font = font,
-        .keys = Keys.new(lua, alloc, font.family),
+        .keys = Keys.new(lua, alloc, &font),
         .background_color = Color.parse(background_color, alloc) catch unreachable,
     };
 }

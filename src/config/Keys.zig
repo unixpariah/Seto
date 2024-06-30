@@ -2,6 +2,7 @@ const std = @import("std");
 const c = @import("../ffi.zig");
 
 const Lua = @import("ziglua").Lua;
+const Font = @import("Font.zig");
 
 pub const Character = struct {
     texture_id: u32,
@@ -11,7 +12,7 @@ pub const Character = struct {
 
     fn new(face: c.FT_Face, key: u8) Character {
         if (c.FT_Load_Char(face, key, c.FT_LOAD_RENDER) == 1) {
-            std.log.err("Failed to load glyph {s}\n", .{[_]u8{key}});
+            std.log.err("Failed to load glyph for character {s}\n", .{[_]u8{key}});
             std.process.exit(1);
         }
 
@@ -46,8 +47,8 @@ pub const Character = struct {
                 @floatFromInt(face.*.glyph.*.bitmap_left),
             },
             .advance = .{
-                @floatFromInt(face.*.glyph.*.advance.x),
-                @floatFromInt(face.*.glyph.*.advance.y),
+                @floatFromInt(face.*.glyph.*.advance.x >> 6),
+                @floatFromInt(face.*.glyph.*.advance.y >> 6),
             },
         };
     }
@@ -67,7 +68,7 @@ pub fn default(alloc: std.mem.Allocator) Self {
     };
 }
 
-pub fn new(lua: *Lua, alloc: std.mem.Allocator, font_name: []const u8) Self {
+pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     var keys_s = Self.default(alloc);
 
     _ = lua.pushString("keys");
@@ -140,23 +141,23 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font_name: []const u8) Self {
         std.log.err("Could not init FreeType Library\n", .{});
     }
 
-    const font_path = getFontPath(font_name) catch |err| {
+    var face: c.FT_Face = undefined;
+    defer _ = c.FT_Done_Face(face);
+
+    const font_path = getFontPath(font.family) catch |err| {
         switch (err) {
             error.InitError => std.log.err("Failed to init FontConfig", .{}),
-            error.FontNotFound => std.log.err("Font {s} not found", .{font_name}),
+            error.FontNotFound => std.log.err("Font {s} not found", .{font.family}),
         }
         std.process.exit(1);
     };
-
-    var face: c.FT_Face = undefined;
-    defer _ = c.FT_Done_Face(face);
 
     if (c.FT_New_Face(ft, @ptrCast(font_path), 0, &face) == 1) {
         std.log.err("Failed to load font\n", .{});
         std.process.exit(1);
     }
 
-    _ = c.FT_Set_Pixel_Sizes(face, 0, 16);
+    _ = c.FT_Set_Pixel_Sizes(face, 0, @intFromFloat(font.size));
     c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
 
     for (keys_s.search) |key| {

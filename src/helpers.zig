@@ -1,5 +1,6 @@
 const std = @import("std");
 const Lua = @import("ziglua").Lua;
+const c = @import("ffi.zig");
 
 pub const Color = struct {
     deg: f32,
@@ -49,6 +50,24 @@ pub const Color = struct {
             .deg = deg,
         };
     }
+
+    pub fn setColor(self: *const Self, shader_program: c_uint) void {
+        c.glUniform4f(
+            c.glGetUniformLocation(shader_program, "u_startcolor"),
+            self.start_color[0] * self.start_color[3],
+            self.start_color[1] * self.start_color[3],
+            self.start_color[2] * self.start_color[3],
+            self.start_color[3],
+        );
+        c.glUniform4f(
+            c.glGetUniformLocation(shader_program, "u_endcolor"),
+            self.end_color[0] * self.end_color[3],
+            self.end_color[1] * self.end_color[3],
+            self.end_color[2] * self.end_color[3],
+            self.end_color[3],
+        );
+        c.glUniform1f(c.glGetUniformLocation(shader_program, "u_degrees"), self.deg);
+    }
 };
 
 test "errors" {
@@ -82,12 +101,12 @@ test "single color" {
     const alloc = std.heap.page_allocator;
 
     const color = try Color.parse("#FFFFFF", alloc);
-    for (color.start_color) |c| {
-        assert(c == 1);
+    for (color.start_color) |col| {
+        assert(col == 1);
     }
 
-    for (color.end_color) |c| {
-        assert(c == 1);
+    for (color.end_color) |col| {
+        assert(col == 1);
     }
 
     assert(color.deg == 0);
@@ -98,24 +117,24 @@ test "gradient" {
     const alloc = std.heap.page_allocator;
 
     var color = try Color.parse("#FFFFFF #5D5D5D5D", alloc);
-    for (color.start_color) |c| {
-        assert(c == 1);
+    for (color.start_color) |col| {
+        assert(col == 1);
     }
 
-    for (color.end_color) |c| {
-        assert(c == 93.0 / 255.0);
+    for (color.end_color) |col| {
+        assert(col == 93.0 / 255.0);
     }
 
     assert(color.deg == 0);
 
     color = try Color.parse("#9C9C9C9C #ECECECEC 90deg", alloc);
 
-    for (color.start_color) |c| {
-        assert(c == 156.0 / 255.0);
+    for (color.start_color) |col| {
+        assert(col == 156.0 / 255.0);
     }
 
-    for (color.end_color) |c| {
-        assert(c == 236.0 / 255.0);
+    for (color.end_color) |col| {
+        assert(col == 236.0 / 255.0);
     }
 
     assert(color.deg == 90);

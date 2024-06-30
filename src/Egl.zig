@@ -13,20 +13,6 @@ pub const EglSurface = struct {
     context: *c.EGLContext,
     shader_program: *c_uint,
 
-    pub fn drawLine(self: *EglSurface, line: [4]i32) void {
-        const vertices = [_]f32{
-            2 * (@as(f32, @floatFromInt(line[0])) / self.width) - 1,
-            2 * ((self.height - @as(f32, @floatFromInt(line[1]))) / self.height) - 1,
-            2 * (@as(f32, @floatFromInt(line[2])) / self.width) - 1,
-            2 * ((self.height - @as(f32, @floatFromInt(line[3]))) / self.height) - 1,
-        };
-
-        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 2 * @sizeOf(f32), @ptrCast(&vertices));
-        c.glEnableVertexAttribArray(0);
-
-        c.glDrawArrays(c.GL_LINES, 0, 2);
-    }
-
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
         self.width = @floatFromInt(new_dimensions[0]);
         self.height = @floatFromInt(new_dimensions[1]);
@@ -110,10 +96,10 @@ pub fn new(display: *wl.Display) !Self {
             egl_display,
             &[_]i32{
                 c.EGL_SURFACE_TYPE,    c.EGL_WINDOW_BIT,
-                c.EGL_RED_SIZE,        8,
-                c.EGL_GREEN_SIZE,      8,
-                c.EGL_BLUE_SIZE,       8,
-                c.EGL_ALPHA_SIZE,      8,
+                c.EGL_RED_SIZE,        1,
+                c.EGL_GREEN_SIZE,      1,
+                c.EGL_BLUE_SIZE,       1,
+                c.EGL_ALPHA_SIZE,      1,
                 c.EGL_RENDERABLE_TYPE, c.EGL_OPENGL_ES2_BIT,
                 c.EGL_NONE,
             },

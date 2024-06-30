@@ -21,7 +21,7 @@ const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
-const inPlaceReplace = @import("helpers").inPlaceReplace;
+const inPlaceReplace = @import("helpers.zig").inPlaceReplace;
 
 const EventInterfaces = enum {
     wl_compositor,

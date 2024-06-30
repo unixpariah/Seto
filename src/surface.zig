@@ -97,89 +97,55 @@ pub const Surface = struct {
         );
         c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), bg.deg);
 
-        const bg_vertices = [_]f32{
-            1, 1,
-            1, 0,
-            0, 0,
-            0, 1,
+        const info = self.output_info;
+        const bg_vertices = [_]i32{
+            info.width, info.height,
+            info.width, 0,
+            0,          0,
+            0,          info.height,
         };
 
-        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&bg_vertices));
+        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, &bg_vertices);
         c.glDrawArrays(c.GL_POLYGON, 0, @intCast(bg_vertices.len >> 1));
     }
 
     fn drawSelection(self: *Self, mode: Mode) void {
         if (mode.Region) |pos| {
             const info = self.output_info;
-            const width: f32 = @floatFromInt(info.width);
-            const height: f32 = @floatFromInt(info.height);
 
-            const f_position: [2]f32 = .{ @floatFromInt(pos[0]), @floatFromInt(pos[1]) };
-            const f_p: [2]f32 = .{ @floatFromInt(info.x), @floatFromInt(info.y) };
-
-            var selected_vertices: [8]f32 =
+            var selected_vertices: [8]i32 =
                 if (mode.withinBounds(&info)) .{
-                (f_position[0] - f_p[0]) / width, 0,
-                (f_position[0] - f_p[0]) / width, 1,
-                0,                                (f_position[1] - f_p[1]) / height,
-                1,                                (f_position[1] - f_p[1]) / height,
+                (pos[0] - info.x), 0,
+                (pos[0] - info.x), info.height,
+                0,                 (pos[1] - info.y),
+                info.width,        (pos[1] - info.y),
             } else if (mode.horWithinBounds(&info)) .{
-                0, (f_position[1] - f_p[1]) / height,
-                1, (f_position[1] - f_p[1]) / height,
-                0, 0,
-                0, 0,
+                0,          (pos[1] - info.y),
+                info.width, (pos[1] - info.y),
+                0,          0,
+                0,          0,
             } else if (mode.verWithinBounds(&info)) .{
-                (f_position[0] - f_p[0]) / width, 0,
-                (f_position[0] - f_p[0]) / width, 1,
-                0,                                0,
-                0,                                0,
+                (pos[0] - info.x), 0,
+                (pos[0] - info.x), info.height,
+                0,                 0,
+                0,                 0,
             } else unreachable;
 
-            const selected_color = self.config.grid.selected_color;
-            c.glUniform4f(
-                c.glGetUniformLocation(self.egl.shader_program.*, "u_startcolor"),
-                selected_color.start_color[0] * selected_color.start_color[3],
-                selected_color.start_color[1] * selected_color.start_color[3],
-                selected_color.start_color[2] * selected_color.start_color[3],
-                selected_color.start_color[3],
-            );
-            c.glUniform4f(
-                c.glGetUniformLocation(self.egl.shader_program.*, "u_endcolor"),
-                selected_color.end_color[0] * selected_color.end_color[3],
-                selected_color.end_color[1] * selected_color.end_color[3],
-                selected_color.end_color[2] * selected_color.end_color[3],
-                selected_color.end_color[3],
-            );
-            c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), selected_color.deg);
+            self.config.grid.selected_color.setColor(self.egl.shader_program.*);
+
             c.glLineWidth(self.config.grid.selected_line_width);
 
-            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&selected_vertices));
+            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, &selected_vertices);
             c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
         }
     }
 
     pub fn draw(self: *Self, start_pos: [2]?i32, border_mode: bool, mode: Mode) [2]?i32 {
+        const info = self.output_info;
+
         self.drawBackground();
 
-        const color = self.config.grid.color;
-        c.glUniform4f(
-            c.glGetUniformLocation(self.egl.shader_program.*, "u_startcolor"),
-            color.start_color[0] * color.start_color[3],
-            color.start_color[1] * color.start_color[3],
-            color.start_color[2] * color.start_color[3],
-            color.start_color[3],
-        );
-        c.glUniform4f(
-            c.glGetUniformLocation(self.egl.shader_program.*, "u_endcolor"),
-            color.end_color[0] * color.end_color[3],
-            color.end_color[1] * color.end_color[3],
-            color.end_color[2] * color.end_color[3],
-            color.end_color[3],
-        );
-        c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), color.deg);
-
-        var vertices = std.ArrayList(f32).init(self.alloc);
-        defer vertices.deinit();
+        self.config.grid.color.setColor(self.egl.shader_program.*);
 
         const grid = self.config.grid;
         c.glLineWidth(grid.line_width);
@@ -187,43 +153,40 @@ pub const Surface = struct {
         defer if (mode == .Region) self.drawSelection(mode);
 
         if (border_mode) {
-            vertices.appendSlice(&[_]f32{
-                1, 1,
-                1, 0,
-                0, 0,
-                0, 1,
-            }) catch @panic("OOM");
+            const vertices = [_]i32{
+                info.width, info.height,
+                info.width, 0,
+                0,          0,
+                0,          info.height,
+            };
 
-            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
-            c.glDrawArrays(c.GL_LINE_LOOP, 0, @intCast(vertices.items.len >> 1));
+            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, &vertices);
+            c.glDrawArrays(c.GL_LINE_LOOP, 0, @intCast(vertices.len >> 1));
 
             return .{ null, null };
         }
 
-        const info = self.output_info;
-        const width: f32 = @floatFromInt(info.width);
-        const height: f32 = @floatFromInt(info.height);
+        var vertices = std.ArrayList(i32).init(self.alloc);
+        defer vertices.deinit();
 
         var pos_x = if (start_pos[0]) |pos| pos else grid.offset[0];
         while (pos_x <= info.width) : (pos_x += grid.size[0]) {
-            vertices.appendSlice(&[_]f32{
-                @as(f32, @floatFromInt(pos_x)) / width, 0,
-                @as(f32, @floatFromInt(pos_x)) / width, 1,
+            vertices.appendSlice(&[_]i32{
+                pos_x, 0,
+                pos_x, info.height,
             }) catch @panic("OOM");
         }
 
         var pos_y = if (start_pos[1]) |pos| pos else grid.offset[1];
         while (pos_y <= info.height) : (pos_y += grid.size[1]) {
-            vertices.appendSlice(&[_]f32{
-                0, (height - @as(f32, @floatFromInt(pos_y))) / height,
-                1, (height - @as(f32, @floatFromInt(pos_y))) / height,
+            vertices.appendSlice(&[_]i32{
+                0,          info.height - pos_y,
+                info.width, info.height - pos_y,
             }) catch @panic("OOM");
         }
 
-        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(vertices.items));
+        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, @ptrCast(vertices.items));
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
-
-        self.renderText("asdfghjkl", 1000, 0);
 
         return .{ pos_x - info.width, pos_y - info.height };
     }
@@ -237,24 +200,9 @@ pub const Surface = struct {
         const x_norm = x / width;
         const y_norm = y / height;
 
-        c.glActiveTexture(c.GL_TEXTURE0);
+        self.config.font.color.setColor(self.egl.shader_program.*);
 
-        const color = self.config.font.color;
-        c.glUniform4f(
-            c.glGetUniformLocation(self.egl.shader_program.*, "u_startcolor"),
-            color.start_color[0],
-            color.start_color[1],
-            color.start_color[2],
-            color.start_color[3],
-        );
-        c.glUniform4f(
-            c.glGetUniformLocation(self.egl.shader_program.*, "u_endcolor"),
-            color.end_color[0],
-            color.end_color[1],
-            color.end_color[2],
-            color.end_color[3],
-        );
-        c.glUniform1f(c.glGetUniformLocation(self.egl.shader_program.*, "u_degrees"), color.deg);
+        c.glActiveTexture(c.GL_TEXTURE0);
 
         for (text, 0..) |char, i| {
             const ch = self.config.keys.char_info.get(char).?;
@@ -268,8 +216,8 @@ pub const Surface = struct {
                 ch.bearing[1] / height,
             };
             const advance = .{
-                ch.advance[0] / width / 64,
-                ch.advance[1] / height / 64,
+                ch.advance[0] / width,
+                ch.advance[1] / height,
             };
 
             const move = advance[0] * @as(f32, @floatFromInt(i));
@@ -277,19 +225,19 @@ pub const Surface = struct {
             const x_pos = x_norm + bearing[0] + move;
             const y_pos = y_norm + (size[1] - bearing[1]);
 
-            const vertices = [_]f32{
-                x_pos,           y_pos,
-                x_pos + size[0], y_pos,
-                x_pos + size[0], y_pos + size[1],
+            const vertices = [_][4]f32{
+                .{ x_pos, y_pos, 0, 0 },
+                .{ x_pos + size[0], y_pos, 0, 1 },
+                .{ x_pos + size[0], y_pos + size[1], 1, 1 },
 
-                x_pos,           y_pos,
-                x_pos,           y_pos + size[1],
-                x_pos + size[0], y_pos + size[1],
+                .{ x_pos, y_pos, 0, 0 },
+                .{ x_pos, y_pos + size[1], 1, 1 },
+                .{ x_pos + size[0], y_pos + size[1], 1, 0 },
             };
 
             c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
-            c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, @ptrCast(&vertices));
-            c.glDrawArrays(c.GL_TRIANGLES, 0, @intCast(vertices.len >> 1));
+            c.glVertexAttribPointer(0, 4, c.GL_FLOAT, c.GL_FALSE, 0, &vertices);
+            c.glDrawArrays(c.GL_TRIANGLES, 0, 6);
         }
     }
 
