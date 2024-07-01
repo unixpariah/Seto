@@ -75,7 +75,7 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    fn drawBackground(self: *Self) void {
+    fn drawBackground(self: *Self, VAO: u32, VBO: u32) void {
         self.config.background_color.setColor(self.egl.shader_program.*);
 
         const info = self.output_info;
@@ -86,11 +86,21 @@ pub const Surface = struct {
             info.x,              info.y + info.height,
         };
 
-        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, &bg_vertices);
+        c.glBindVertexArray(VAO);
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+
+        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * bg_vertices.len, &bg_vertices, c.GL_STATIC_DRAW);
+
+        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+        c.glEnableVertexAttribArray(0);
+
         c.glDrawArrays(c.GL_POLYGON, 0, @intCast(bg_vertices.len >> 1));
+
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+        c.glBindVertexArray(0);
     }
 
-    fn drawSelection(self: *Self, mode: Mode) void {
+    fn drawSelection(self: *Self, mode: Mode, VAO: u32, VBO: u32) void {
         if (mode.Region) |pos| {
             const info = self.output_info;
 
@@ -103,54 +113,65 @@ pub const Surface = struct {
             } else if (mode.horWithinBounds(&info)) .{
                 info.x,              pos[1],
                 info.x + info.width, pos[1],
-                info.x,              info.y,
-                info.x,              info.y,
+                0,                   0,
+                0,                   0,
             } else if (mode.verWithinBounds(&info)) .{
                 pos[0], info.y,
                 pos[0], info.y + info.height,
-                info.x, info.y,
-                info.x, info.y,
+                0,      0,
+                0,      0,
             } else unreachable;
 
             self.config.grid.selected_color.setColor(self.egl.shader_program.*);
 
             c.glLineWidth(self.config.grid.selected_line_width);
 
-            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, &selected_vertices);
+            c.glBindVertexArray(VAO);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+
+            c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * selected_vertices.len, &selected_vertices, c.GL_STATIC_DRAW);
+
+            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+            c.glEnableVertexAttribArray(0);
+
             c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+            c.glBindVertexArray(0);
         }
     }
 
-    pub fn draw(self: *Self, start_pos: [2]?i32, border_mode: bool, mode: Mode) [2]?i32 {
-        c.glClear(c.GL_COLOR_BUFFER_BIT);
-        self.egl.makeCurrent() catch unreachable;
+    fn drawGrid(self: *Self, border_mode: bool, start_pos: [2]?i32, VAO: u32, VBO: u32) [2]?i32 {
+        //c.glBindVertexArray(VAO);
+        //c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
 
         const info = self.output_info;
-        c.glUniform4f(
-            c.glGetUniformLocation(self.egl.shader_program.*, "u_surface"),
-            @floatFromInt(info.x),
-            @floatFromInt(info.y),
-            @floatFromInt(info.x + info.width),
-            @floatFromInt(info.y + info.height),
-        );
-
-        self.drawBackground();
-
-        defer if (mode == .Region) self.drawSelection(mode);
-
         const grid = self.config.grid;
-        c.glLineWidth(grid.line_width);
 
-        self.config.grid.color.setColor(self.egl.shader_program.*);
+        c.glLineWidth(grid.line_width);
+        grid.color.setColor(self.egl.shader_program.*);
+
+        c.glBindVertexArray(VAO);
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+
+        defer {
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+            c.glBindVertexArray(0);
+        }
+
         if (border_mode) {
             const vertices = [_]i32{
-                info.x + info.width, info.y + info.height,
-                info.x + info.width, info.y,
                 info.x,              info.y,
+                info.x + info.width, info.y,
+                info.x + info.width, info.y + info.height,
                 info.x,              info.y + info.height,
             };
 
-            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, &vertices);
+            c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+
+            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+            c.glEnableVertexAttribArray(0);
+
             c.glDrawArrays(c.GL_LINE_LOOP, 0, @intCast(vertices.len >> 1));
 
             return .{ null, null };
@@ -175,15 +196,44 @@ pub const Surface = struct {
             }) catch @panic("OOM");
         }
 
-        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, @ptrCast(vertices.items));
+        c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(@sizeOf(i32) * vertices.items.len), @ptrCast(vertices.items), c.GL_STATIC_DRAW);
+
+        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+        c.glEnableVertexAttribArray(0);
+
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
 
         return .{ pos_x, pos_y };
     }
 
+    pub fn draw(self: *Self, start_pos: [2]?i32, border_mode: bool, mode: Mode) [2]?i32 {
+        self.egl.makeCurrent() catch unreachable;
+        c.glClear(c.GL_COLOR_BUFFER_BIT);
+
+        var VAO: u32 = undefined;
+        c.glGenVertexArrays(1, &VAO);
+        defer c.glDeleteVertexArrays(1, &VAO);
+
+        var VBO: u32 = undefined;
+        c.glGenBuffers(1, &VBO);
+        defer c.glDeleteBuffers(1, &VBO);
+
+        const info = self.output_info;
+        c.glUniform4f(
+            c.glGetUniformLocation(self.egl.shader_program.*, "u_surface"),
+            @floatFromInt(info.x),
+            @floatFromInt(info.y),
+            @floatFromInt(info.x + info.width),
+            @floatFromInt(info.y + info.height),
+        );
+
+        defer if (mode == .Region) self.drawSelection(mode, VAO, VBO);
+        self.drawBackground(VAO, VBO);
+        return self.drawGrid(border_mode, start_pos, VAO, VBO);
+    }
+
     pub fn renderText(self: *Self, text: []const u8, x: i32, y: i32) void {
         self.config.font.color.setColor(self.egl.shader_program.*);
-
         c.glActiveTexture(c.GL_TEXTURE0);
 
         for (text, 0..) |char, i| {

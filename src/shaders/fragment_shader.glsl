@@ -4,15 +4,13 @@ uniform vec4 u_startcolor;
 uniform vec4 u_endcolor;
 uniform float u_degrees;
 
-in vec2 v_pos;
+in vec2 in_pos;
 
 void main() {
-    vec2 uv = v_pos;
-    uv -= 0.5;
+  vec2 uv = in_pos - 0.5;
 
-    float angle = radians(90.0) - radians(u_degrees) + atan(uv.y, uv.x);
-    uv = vec2(cos(angle) * length(uv), sin(angle) * length(uv)) + 0.5;
+  float angle = radians(90.0) - radians(u_degrees) + atan(uv.y, uv.x);
+  uv = vec2(cos(angle) * length(uv), sin(angle) * length(uv)) + 0.5;
 
-    vec4 color = mix(u_startcolor, u_endcolor, smoothstep(0.0, 1.0, uv.x));
-    gl_FragColor = color;
+  gl_FragColor = mix(u_startcolor, u_endcolor, smoothstep(0.0, 1.0, uv.x));
 }

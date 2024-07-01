@@ -92,6 +92,7 @@
           ydotool
           shfmt
           fontconfig
+          clang-tools
           zls.packages.${system}.default
         ];
       };

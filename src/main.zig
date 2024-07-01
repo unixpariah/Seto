@@ -246,6 +246,7 @@ pub fn main() !void {
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
     var seto = try Seto.new(alloc, display);
+    defer seto.destroy() catch unreachable;
 
     parseArgs(&seto);
 
@@ -271,7 +272,6 @@ pub fn main() !void {
         try surface.egl.swapBuffers();
     }
 
-    try seto.destroy();
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 }
 
