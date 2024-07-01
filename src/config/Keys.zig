@@ -6,9 +6,9 @@ const Font = @import("Font.zig");
 
 pub const Character = struct {
     texture_id: u32,
-    size: [2]f32,
-    bearing: [2]f32,
-    advance: [2]f32,
+    size: [2]i32,
+    bearing: [2]i32,
+    advance: [2]u32,
 
     fn new(face: c.FT_Face, key: u8) Character {
         if (c.FT_Load_Char(face, key, c.FT_LOAD_RENDER) == 1) {
@@ -39,16 +39,16 @@ pub const Character = struct {
         return .{
             .texture_id = texture,
             .size = .{
-                @floatFromInt(face.*.glyph.*.bitmap.width),
-                @floatFromInt(face.*.glyph.*.bitmap.rows),
+                @intCast(face.*.glyph.*.bitmap.width),
+                @intCast(face.*.glyph.*.bitmap.rows),
             },
             .bearing = .{
-                @floatFromInt(face.*.glyph.*.bitmap_top),
-                @floatFromInt(face.*.glyph.*.bitmap_left),
+                @intCast(face.*.glyph.*.bitmap_top),
+                @intCast(face.*.glyph.*.bitmap_left),
             },
             .advance = .{
-                @floatFromInt(face.*.glyph.*.advance.x >> 6),
-                @floatFromInt(face.*.glyph.*.advance.y >> 6),
+                @intCast(face.*.glyph.*.advance.x >> 6),
+                @intCast(face.*.glyph.*.advance.y >> 6),
             },
         };
     }
