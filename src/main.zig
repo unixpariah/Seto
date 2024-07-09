@@ -34,34 +34,6 @@ const EventInterfaces = enum {
 pub const Mode = union(enum) {
     Region: ?[2]i32,
     Single,
-
-    const Self = @This();
-
-    pub fn withinBounds(self: *const Self, info: *const OutputInfo) bool {
-        return self.horWithinBounds(info) and self.verWithinBounds(info);
-    }
-
-    pub fn verWithinBounds(self: *const Self, info: *const OutputInfo) bool {
-        switch (self.*) {
-            .Region => |position| if (position) |pos| {
-                return pos[0] >= info.x and pos[0] <= info.x + info.width;
-            },
-            .Single => {},
-        }
-
-        return false;
-    }
-
-    pub fn horWithinBounds(self: *const Self, info: *const OutputInfo) bool {
-        switch (self.*) {
-            .Region => |position| if (position) |pos| {
-                return pos[1] >= info.y and pos[1] <= info.y + info.height;
-            },
-            .Single => {},
-        }
-
-        return false;
-    }
 };
 
 pub const State = struct {
@@ -181,15 +153,13 @@ pub const Seto = struct {
             }
         };
 
-        var start_pos: [2]?i32 = .{ null, null };
         var surf_iter = SurfaceIterator.new(&self.outputs.items);
 
         while (surf_iter.next()) |res| {
-            var surface, _, const new_line = res;
+            var surface, _, _ = res;
             if (!surface.isConfigured()) continue;
 
-            const result: [2]?i32 = if (new_line) .{ null, start_pos[1] } else .{ start_pos[0], null };
-            start_pos = surface.draw(result, self.state.border_mode, self.state.mode);
+            surface.draw(self.state.border_mode, self.state.mode);
 
             surface.egl.getEglError() catch |err| {
                 std.log.err("{}\n", .{err});

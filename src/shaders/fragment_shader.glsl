@@ -8,7 +8,7 @@ uniform float u_degrees;
 uniform sampler2D tex;
 
 in vec2 v_pos;
-// in vec2 v_texcoords;
+in vec2 v_texcoords;
 
 void main() {
   vec2 uv = v_pos - 0.5;

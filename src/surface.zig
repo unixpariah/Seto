@@ -77,67 +77,51 @@ pub const Surface = struct {
     }
 
     fn drawBackground(self: *Self, VBO: u32) void {
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
-
         setColor(self.config.background_color, self.egl.shader_program.*);
 
         const info = self.output_info;
-        const bg_vertices = [_]i32{
+        const vertices = [_]i32{
             info.x,              info.y,
             info.x + info.width, info.y,
-            info.x + info.width, info.y + info.height,
-
-            info.x + info.width, info.y + info.height,
             info.x,              info.y + info.height,
-            info.x,              info.y,
+            info.x + info.width, info.y + info.height,
         };
 
-        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * bg_vertices.len, &bg_vertices, c.GL_STATIC_DRAW);
-        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
-        c.glDrawArrays(c.GL_TRIANGLES, 0, @intCast(bg_vertices.len >> 1));
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+
+        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 2 * @sizeOf(i32), null);
+        c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
     }
 
     fn drawSelection(self: *Self, mode: Mode, VBO: u32) void {
         if (mode.Region) |pos| {
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+            setColor(self.config.grid.selected_color, self.egl.shader_program.*);
 
             const info = self.output_info;
 
-            var selected_vertices: [8]i32 =
-                if (mode.withinBounds(&info)) .{
+            var vertices: [8]i32 = .{
                 pos[0],              info.y,
                 pos[0],              info.y + info.height,
                 info.x,              pos[1],
                 info.x + info.width, pos[1],
-            } else if (mode.horWithinBounds(&info)) .{
-                info.x,              pos[1],
-                info.x + info.width, pos[1],
-                0,                   0,
-                0,                   0,
-            } else if (mode.verWithinBounds(&info)) .{
-                pos[0], info.y,
-                pos[0], info.y + info.height,
-                0,      0,
-                0,      0,
-            } else unreachable;
+            };
+            c.glLineWidth(self.config.grid.line_width);
 
-            setColor(self.config.grid.selected_color, self.egl.shader_program.*);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+            c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
 
-            c.glLineWidth(self.config.grid.selected_line_width);
-            c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * selected_vertices.len, &selected_vertices, c.GL_STATIC_DRAW);
             c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
-            c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
+            c.glDrawArrays(c.GL_LINES, 0, vertices.len >> 1);
         }
     }
 
-    fn drawGrid(self: *Self, border_mode: bool, start_pos: [2]?i32, VBO: u32) [2]?i32 {
+    fn drawGrid(self: *Self, border_mode: bool, start_pos: [2]i32, VBO: u32) void {
         const info = self.output_info;
         const grid = self.config.grid;
 
         c.glLineWidth(grid.line_width);
         setColor(grid.color, self.egl.shader_program.*);
-
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
 
         if (border_mode) {
             const vertices = [_]i32{
@@ -147,17 +131,18 @@ pub const Surface = struct {
                 info.x,              info.y + info.height,
             };
 
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
             c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
-            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+
             c.glDrawArrays(c.GL_LINE_LOOP, 0, vertices.len >> 1);
 
-            return .{ null, null };
+            return;
         }
 
         var vertices = std.ArrayList(i32).init(self.alloc);
         defer vertices.deinit();
 
-        var pos_x = start_pos[0] orelse grid.offset[0];
+        var pos_x = start_pos[0];
         while (pos_x <= info.x + info.width) : (pos_x += grid.size[0]) {
             vertices.appendSlice(&[_]i32{
                 pos_x, info.y,
@@ -165,7 +150,7 @@ pub const Surface = struct {
             }) catch @panic("OOM");
         }
 
-        var pos_y = start_pos[1] orelse grid.offset[1];
+        var pos_y = start_pos[1];
         while (pos_y <= info.y + info.height) : (pos_y += grid.size[1]) {
             vertices.appendSlice(&[_]i32{
                 info.x,              info.y + info.height - pos_y,
@@ -181,11 +166,9 @@ pub const Surface = struct {
         );
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
-
-        return .{ pos_x, pos_y };
     }
 
-    pub fn draw(self: *Self, start_pos: [2]?i32, border_mode: bool, mode: Mode) [2]?i32 {
+    pub fn draw(self: *Self, border_mode: bool, mode: Mode) void {
         self.egl.makeCurrent() catch {
             std.log.err("Failed to make current\n", .{});
             std.process.exit(1);
@@ -197,11 +180,22 @@ pub const Surface = struct {
         defer c.glDeleteVertexArrays(1, &VAO);
 
         c.glBindVertexArray(VAO);
-        defer c.glBindVertexArray(0);
 
         var VBO: u32 = undefined;
         c.glGenBuffers(1, &VBO);
         defer c.glDeleteBuffers(1, &VBO);
+
+        var EBO: u32 = undefined;
+        c.glGenBuffers(1, &EBO);
+        defer c.glDeleteBuffers(1, &EBO);
+
+        const indices = [_]i32{
+            0, 1, 3,
+            0, 2, 3,
+        };
+
+        c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
+        c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
 
         const info = self.output_info;
         c.glUniform4f(
@@ -214,10 +208,19 @@ pub const Surface = struct {
 
         c.glEnableVertexAttribArray(0);
 
-        defer if (mode == .Region) self.drawSelection(mode, VBO);
+        const vert_line_count = std.math.divCeil(i32, info.x, self.config.grid.size[0]) catch @panic("");
+        const hor_line_count = std.math.divCeil(i32, info.y, self.config.grid.size[1]) catch @panic("");
+
+        const start_pos: [2]i32 = .{
+            vert_line_count * self.config.grid.size[0] + self.config.grid.offset[0],
+            hor_line_count * self.config.grid.size[1] + self.config.grid.offset[1],
+        };
+
         self.drawBackground(VBO);
-        //self.renderText("asdfghjkl", 500, 500, VBO);
-        return self.drawGrid(border_mode, start_pos, VBO);
+        self.drawGrid(border_mode, start_pos, VBO);
+        if (mode == .Region) self.drawSelection(mode, VBO);
+        self.renderText("asdfghjkl", 500, 500, VBO);
+        self.renderText("lkjhgfdsa", 550, 550, VBO);
     }
 
     pub fn renderText(self: *Self, text: []const u8, x: i32, y: i32, VBO: u32) void {
@@ -232,21 +235,21 @@ pub const Surface = struct {
             const x_pos = x + ch.bearing[0] + move;
             const y_pos = y + (ch.size[1] - ch.bearing[1]);
 
-            const vertices = [_][4]i32{
-                .{ x_pos, y_pos + ch.size[1], 0, 0 },
-                .{ x_pos, y_pos, 0, 1 },
-                .{ x_pos + ch.size[0], y_pos, 1, 1 },
-
-                .{ x_pos, y_pos + ch.size[1], 0, 0 },
-                .{ x_pos + ch.size[0], y_pos, 1, 1 },
-                .{ x_pos + ch.size[0], y_pos + ch.size[1], 1, 0 },
+            const vertices = [_]i32{
+                x_pos,              y_pos,              0, 1,
+                x_pos + ch.size[0], y_pos,              1, 1,
+                x_pos,              y_pos + ch.size[1], 0, 0,
+                x_pos + ch.size[0], y_pos + ch.size[1], 1, 0,
             };
 
             c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
+
             c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
-            c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len * vertices[0].len, &vertices);
+            c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+
+            c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 4 * @sizeOf(i32), null);
             c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
-            c.glDrawArrays(c.GL_TRIANGLES, 0, vertices.len);
+            c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
         }
     }
 
