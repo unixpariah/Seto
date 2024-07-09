@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("../ffi.zig");
+const c = @import("ffi");
 
 const Lua = @import("ziglua").Lua;
 const Font = @import("Font.zig");

@@ -1,6 +1,5 @@
 const std = @import("std");
 const Lua = @import("ziglua").Lua;
-const c = @import("ffi.zig");
 
 pub const Color = struct {
     deg: f32,
@@ -49,24 +48,6 @@ pub const Color = struct {
             .end_color = end_color.?,
             .deg = deg,
         };
-    }
-
-    pub fn setColor(self: *const Self, shader_program: c_uint) void {
-        c.glUniform4f(
-            c.glGetUniformLocation(shader_program, "u_startcolor"),
-            self.start_color[0] * self.start_color[3],
-            self.start_color[1] * self.start_color[3],
-            self.start_color[2] * self.start_color[3],
-            self.start_color[3],
-        );
-        c.glUniform4f(
-            c.glGetUniformLocation(shader_program, "u_endcolor"),
-            self.end_color[0] * self.end_color[3],
-            self.end_color[1] * self.end_color[3],
-            self.end_color[2] * self.end_color[3],
-            self.end_color[3],
-        );
-        c.glUniform1f(c.glGetUniformLocation(shader_program, "u_degrees"), self.deg);
     }
 };
 

@@ -2,7 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const posix = std.posix;
 
-const c = @import("ffi.zig");
+const c = @import("ffi");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
@@ -21,7 +21,7 @@ const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
-const inPlaceReplace = @import("helpers.zig").inPlaceReplace;
+const inPlaceReplace = @import("helpers").inPlaceReplace;
 
 const EventInterfaces = enum {
     wl_compositor,
@@ -101,19 +101,10 @@ pub const Seto = struct {
         // Sort outputs from left to right row by row
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
 
-        var x: [2]i32 = .{ 0, 0 };
-        var y: [2]i32 = .{ 0, 0 };
-        for (self.outputs.items) |output| {
-            if (!output.isConfigured()) continue;
-            const info = output.output_info;
+        const first = self.outputs.items[0].output_info;
+        const last = self.outputs.getLast().output_info;
 
-            if (info.x < x[0]) x[0] = info.x;
-            if (info.y < y[0]) y[0] = info.y;
-            if (info.x + info.width > x[1]) x[1] = info.x + info.width;
-            if (info.y + info.height > y[1]) y[1] = info.y + info.height;
-        }
-
-        self.total_dimensions = .{ x[1] - x[0], y[1] - y[0] };
+        self.total_dimensions = .{ (last.x + last.width) - first.x, (last.y + last.height) - first.y };
     }
 
     fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
@@ -222,13 +213,13 @@ pub const Seto = struct {
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
         for (self.outputs.items) |*output| {
-            try output.destroy();
+            output.destroy();
         }
         self.outputs.deinit();
         self.seat.destroy();
         self.config.destroy();
         self.tree.?.arena.deinit();
-        try self.egl.destroy();
+        self.egl.destroy();
     }
 };
 
@@ -323,7 +314,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 
-                    seto.outputs.append(output) catch |err| @panic(@errorName(err));
+                    seto.outputs.append(output) catch @panic("OOM");
                 },
                 .wl_seat => {
                     seto.seat.wl_seat = registry.bind(global.name, wl.Seat, wl.Seat.generated_version) catch |err| @panic(@errorName(err));
@@ -341,7 +332,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
         .global_remove => |global| {
             for (seto.outputs.items, 0..) |*output, i| {
                 if (output.output_info.id == global.name) {
-                    output.destroy() catch return;
+                    output.destroy();
                     _ = seto.outputs.swapRemove(i);
                     seto.updateDimensions();
                     return;

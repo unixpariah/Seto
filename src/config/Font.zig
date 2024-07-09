@@ -1,5 +1,5 @@
 const std = @import("std");
-const helpers = @import("../helpers.zig");
+const helpers = @import("helpers");
 
 const hexToRgba = helpers.hexToRgba;
 

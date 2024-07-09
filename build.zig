@@ -12,10 +12,10 @@ pub fn build(b: *std.Build) void {
     scanner.addCustomProtocol("protocols/wlr-layer-shell-unstable-v1.xml");
     scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
     scanner.addSystemProtocol("unstable/xdg-output/xdg-output-unstable-v1.xml");
-    scanner.generate("wl_compositor", 1);
+    scanner.generate("wl_compositor", 6);
     scanner.generate("wl_shm", 1);
     scanner.generate("wl_output", 4);
-    scanner.generate("wl_seat", 5);
+    scanner.generate("wl_seat", 8);
     scanner.generate("zwlr_layer_shell_v1", 4);
     scanner.generate("zxdg_output_manager_v1", 3);
 
@@ -34,16 +34,21 @@ pub fn build(b: *std.Build) void {
 
     const helpers = b.addModule("helpers", .{ .root_source_file = b.path("src/helpers.zig") });
 
+    const ffi_libs = [_][]const u8{ "egl", "gl", "freetype2", "fontconfig" };
+    const ffi = b.addModule("ffi", .{ .root_source_file = b.path("src/ffi.zig"), .target = target, .optimize = optimize });
+    for (ffi_libs) |lib| {
+        ffi.linkSystemLibrary(lib, .{});
+    }
+
+    exe.root_module.addImport("ffi", ffi);
+    exe.root_module.addImport("helpers", helpers);
+
     exe.root_module.addImport("wayland", wayland);
     exe.root_module.addImport("xkbcommon", xkbcommon);
     exe.root_module.addImport("ziglua", ziglua);
     exe.linkSystemLibrary("wayland-protocols");
-    exe.linkSystemLibrary("wayland-egl");
     exe.linkSystemLibrary("xkbcommon");
-    exe.linkSystemLibrary("egl");
-    exe.linkSystemLibrary("gl");
-    exe.linkSystemLibrary("freetype2");
-    exe.linkSystemLibrary("fontconfig");
+    exe.linkSystemLibrary("wayland-egl");
 
     // TODO: remove when https://github.com/ziglang/zig/issues/131 is implemented
     scanner.addCSource(exe);

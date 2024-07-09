@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("ffi.zig");
+const c = @import("ffi");
 const wl = @import("wayland").client.wl;
 
 pub const EglSurface = struct {
@@ -44,8 +44,8 @@ pub const EglSurface = struct {
         if (c.eglSwapBuffers(self.display.*, self.surface) != c.EGL_TRUE) return error.EGLError;
     }
 
-    pub fn destroy(self: *EglSurface) !void {
-        if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) return error.DestroyError;
+    pub fn destroy(self: *EglSurface) void {
+        if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) @panic("Failed to destroy egl surface");
         self.window.destroy();
     }
 };
@@ -115,7 +115,10 @@ pub fn new(display: *wl.Display) !Self {
         config,
         c.EGL_NO_CONTEXT,
         &[_]i32{
-            c.EGL_CONTEXT_CLIENT_VERSION, 3,
+            c.EGL_CONTEXT_MAJOR_VERSION,       4,
+            c.EGL_CONTEXT_MINOR_VERSION,       4,
+            c.EGL_CONTEXT_OPENGL_DEBUG,        c.EGL_TRUE,
+            c.EGL_CONTEXT_OPENGL_PROFILE_MASK, c.EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
             c.EGL_NONE,
         },
     ) orelse return error.EGLError;
@@ -186,7 +189,7 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
     };
 }
 
-pub fn destroy(self: *Self) !void {
-    if (c.eglDestroyContext(self.display, self.context) != c.EGL_TRUE) return error.DestroyError;
-    if (c.eglTerminate(self.display) != c.EGL_TRUE) return error.TerminateError;
+pub fn destroy(self: *Self) void {
+    if (c.eglDestroyContext(self.display, self.context) != c.EGL_TRUE) @panic("Failed to destroy egl context");
+    if (c.eglTerminate(self.display) != c.EGL_TRUE) @panic("Failed to terminate egl");
 }

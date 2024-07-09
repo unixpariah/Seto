@@ -6,13 +6,14 @@ const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
 const wayland = @import("wayland");
-const c = @import("ffi.zig");
+const c = @import("ffi");
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("Config.zig");
 const EglSurface = @import("Egl.zig").EglSurface;
 const Tree = @import("Tree.zig");
+const Color = @import("helpers").Color;
 
 pub const OutputInfo = struct {
     id: u32,
@@ -75,33 +76,31 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    fn drawBackground(self: *Self, VAO: u32, VBO: u32) void {
-        self.config.background_color.setColor(self.egl.shader_program.*);
+    fn drawBackground(self: *Self, VBO: u32) void {
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+
+        setColor(self.config.background_color, self.egl.shader_program.*);
 
         const info = self.output_info;
         const bg_vertices = [_]i32{
-            info.x + info.width, info.y + info.height,
-            info.x + info.width, info.y,
             info.x,              info.y,
+            info.x + info.width, info.y,
+            info.x + info.width, info.y + info.height,
+
+            info.x + info.width, info.y + info.height,
             info.x,              info.y + info.height,
+            info.x,              info.y,
         };
 
-        c.glBindVertexArray(VAO);
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
-
         c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * bg_vertices.len, &bg_vertices, c.GL_STATIC_DRAW);
-
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
-        c.glEnableVertexAttribArray(0);
-
-        c.glDrawArrays(c.GL_POLYGON, 0, @intCast(bg_vertices.len >> 1));
-
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
-        c.glBindVertexArray(0);
+        c.glDrawArrays(c.GL_TRIANGLES, 0, @intCast(bg_vertices.len >> 1));
     }
 
-    fn drawSelection(self: *Self, mode: Mode, VAO: u32, VBO: u32) void {
+    fn drawSelection(self: *Self, mode: Mode, VBO: u32) void {
         if (mode.Region) |pos| {
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+
             const info = self.output_info;
 
             var selected_vertices: [8]i32 =
@@ -122,42 +121,23 @@ pub const Surface = struct {
                 0,      0,
             } else unreachable;
 
-            self.config.grid.selected_color.setColor(self.egl.shader_program.*);
+            setColor(self.config.grid.selected_color, self.egl.shader_program.*);
 
             c.glLineWidth(self.config.grid.selected_line_width);
-
-            c.glBindVertexArray(VAO);
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
-
             c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * selected_vertices.len, &selected_vertices, c.GL_STATIC_DRAW);
-
             c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
-            c.glEnableVertexAttribArray(0);
-
             c.glDrawArrays(c.GL_LINES, 0, @intCast(selected_vertices.len >> 1));
-
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
-            c.glBindVertexArray(0);
         }
     }
 
-    fn drawGrid(self: *Self, border_mode: bool, start_pos: [2]?i32, VAO: u32, VBO: u32) [2]?i32 {
-        //c.glBindVertexArray(VAO);
-        //c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
-
+    fn drawGrid(self: *Self, border_mode: bool, start_pos: [2]?i32, VBO: u32) [2]?i32 {
         const info = self.output_info;
         const grid = self.config.grid;
 
         c.glLineWidth(grid.line_width);
-        grid.color.setColor(self.egl.shader_program.*);
+        setColor(grid.color, self.egl.shader_program.*);
 
-        c.glBindVertexArray(VAO);
         c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
-
-        defer {
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
-            c.glBindVertexArray(0);
-        }
 
         if (border_mode) {
             const vertices = [_]i32{
@@ -168,11 +148,8 @@ pub const Surface = struct {
             };
 
             c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
-
             c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
-            c.glEnableVertexAttribArray(0);
-
-            c.glDrawArrays(c.GL_LINE_LOOP, 0, @intCast(vertices.len >> 1));
+            c.glDrawArrays(c.GL_LINE_LOOP, 0, vertices.len >> 1);
 
             return .{ null, null };
         }
@@ -180,7 +157,7 @@ pub const Surface = struct {
         var vertices = std.ArrayList(i32).init(self.alloc);
         defer vertices.deinit();
 
-        var pos_x = if (start_pos[0]) |pos| pos else grid.offset[0];
+        var pos_x = start_pos[0] orelse grid.offset[0];
         while (pos_x <= info.x + info.width) : (pos_x += grid.size[0]) {
             vertices.appendSlice(&[_]i32{
                 pos_x, info.y,
@@ -188,7 +165,7 @@ pub const Surface = struct {
             }) catch @panic("OOM");
         }
 
-        var pos_y = if (start_pos[1]) |pos| pos else grid.offset[1];
+        var pos_y = start_pos[1] orelse grid.offset[1];
         while (pos_y <= info.y + info.height) : (pos_y += grid.size[1]) {
             vertices.appendSlice(&[_]i32{
                 info.x,              info.y + info.height - pos_y,
@@ -196,23 +173,31 @@ pub const Surface = struct {
             }) catch @panic("OOM");
         }
 
-        c.glBufferData(c.GL_ARRAY_BUFFER, @intCast(@sizeOf(i32) * vertices.items.len), @ptrCast(vertices.items), c.GL_STATIC_DRAW);
-
+        c.glBufferData(
+            c.GL_ARRAY_BUFFER,
+            @intCast(@sizeOf(i32) * vertices.items.len),
+            @ptrCast(vertices.items),
+            c.GL_STATIC_DRAW,
+        );
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
-        c.glEnableVertexAttribArray(0);
-
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
 
         return .{ pos_x, pos_y };
     }
 
     pub fn draw(self: *Self, start_pos: [2]?i32, border_mode: bool, mode: Mode) [2]?i32 {
-        self.egl.makeCurrent() catch unreachable;
+        self.egl.makeCurrent() catch {
+            std.log.err("Failed to make current\n", .{});
+            std.process.exit(1);
+        };
         c.glClear(c.GL_COLOR_BUFFER_BIT);
 
         var VAO: u32 = undefined;
         c.glGenVertexArrays(1, &VAO);
         defer c.glDeleteVertexArrays(1, &VAO);
+
+        c.glBindVertexArray(VAO);
+        defer c.glBindVertexArray(0);
 
         var VBO: u32 = undefined;
         c.glGenBuffers(1, &VBO);
@@ -227,50 +212,41 @@ pub const Surface = struct {
             @floatFromInt(info.y + info.height),
         );
 
-        defer if (mode == .Region) self.drawSelection(mode, VAO, VBO);
-        self.drawBackground(VAO, VBO);
-        return self.drawGrid(border_mode, start_pos, VAO, VBO);
+        c.glEnableVertexAttribArray(0);
+
+        defer if (mode == .Region) self.drawSelection(mode, VBO);
+        self.drawBackground(VBO);
+        //self.renderText("asdfghjkl", 500, 500, VBO);
+        return self.drawGrid(border_mode, start_pos, VBO);
     }
 
-    pub fn renderText(self: *Self, text: []const u8, x: i32, y: i32) void {
-        self.config.font.color.setColor(self.egl.shader_program.*);
+    pub fn renderText(self: *Self, text: []const u8, x: i32, y: i32, VBO: u32) void {
+        setColor(self.config.font.color, self.egl.shader_program.*);
         c.glActiveTexture(c.GL_TEXTURE0);
 
         for (text, 0..) |char, i| {
             const ch = self.config.keys.char_info.get(char).?;
 
-            const size = .{
-                ch.size[0],
-                ch.size[1],
-            };
-            const bearing = .{
-                ch.bearing[0],
-                ch.bearing[1],
-            };
-            const advance = .{
-                ch.advance[0],
-                ch.advance[1],
-            };
+            const move: i32 = @intCast(ch.advance[0] * i);
 
-            const move: i32 = @intCast(advance[0] * i);
+            const x_pos = x + ch.bearing[0] + move;
+            const y_pos = y + (ch.size[1] - ch.bearing[1]);
 
-            const x_pos = x + bearing[0] + move;
-            const y_pos = y + (size[1] - bearing[1]);
-
-            const info = self.output_info;
             const vertices = [_][4]i32{
-                .{ x_pos, y_pos, 0, 0 },
-                .{ x_pos + size[0], y_pos, 0, info.height },
-                .{ x_pos + size[0], y_pos + size[1], info.width, info.height },
+                .{ x_pos, y_pos + ch.size[1], 0, 0 },
+                .{ x_pos, y_pos, 0, 1 },
+                .{ x_pos + ch.size[0], y_pos, 1, 1 },
 
-                .{ x_pos, y_pos, 0, 0 },
-                .{ x_pos, y_pos + size[1], info.width, info.height },
-                .{ x_pos + size[0], y_pos + size[1], info.width, 0 },
+                .{ x_pos, y_pos + ch.size[1], 0, 0 },
+                .{ x_pos + ch.size[0], y_pos, 1, 1 },
+                .{ x_pos + ch.size[0], y_pos + ch.size[1], 1, 0 },
             };
 
             c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
-            c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, &vertices);
-            c.glDrawArrays(c.GL_TRIANGLES, 0, 6);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+            c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len * vertices[0].len, &vertices);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
+            c.glDrawArrays(c.GL_TRIANGLES, 0, vertices.len);
         }
     }
 
@@ -278,12 +254,12 @@ pub const Surface = struct {
         return self.output_info.width > 0 and self.output_info.height > 0;
     }
 
-    pub fn destroy(self: *Self) !void {
+    pub fn destroy(self: *Self) void {
         self.layer_surface.destroy();
         self.surface.destroy();
         self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
-        try self.egl.destroy();
+        self.egl.destroy();
     }
 };
 
@@ -369,4 +345,22 @@ pub fn xdgOutputListener(
             }
         }
     }
+}
+
+pub fn setColor(color: Color, shader_program: c_uint) void {
+    c.glUniform4f(
+        c.glGetUniformLocation(shader_program, "u_startcolor"),
+        color.start_color[0] * color.start_color[3],
+        color.start_color[1] * color.start_color[3],
+        color.start_color[2] * color.start_color[3],
+        color.start_color[3],
+    );
+    c.glUniform4f(
+        c.glGetUniformLocation(shader_program, "u_endcolor"),
+        color.end_color[0] * color.end_color[3],
+        color.end_color[1] * color.end_color[3],
+        color.end_color[2] * color.end_color[3],
+        color.end_color[3],
+    );
+    c.glUniform1f(c.glGetUniformLocation(shader_program, "u_degrees"), color.deg);
 }

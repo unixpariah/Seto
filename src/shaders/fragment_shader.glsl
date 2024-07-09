@@ -1,16 +1,27 @@
-#version 330 core
+#version 460 core
+
+layout(location = 0) out vec4 FragColor;
 
 uniform vec4 u_startcolor;
 uniform vec4 u_endcolor;
 uniform float u_degrees;
+uniform sampler2D tex;
 
-in vec2 in_pos;
+in vec2 v_pos;
+// in vec2 v_texcoords;
 
 void main() {
-  vec2 uv = in_pos - 0.5;
+  vec2 uv = v_pos - 0.5;
 
-  float angle = radians(90.0) - radians(u_degrees) + atan(uv.y, uv.x);
-  uv = vec2(cos(angle) * length(uv), sin(angle) * length(uv)) + 0.5;
+  float angle = radians(u_degrees);
+  vec2 rotatedUV = vec2(cos(angle) * uv.x - sin(angle) * uv.y,
+                        sin(angle) * uv.x + cos(angle) * uv.y) +
+                   0.5;
 
-  gl_FragColor = mix(u_startcolor, u_endcolor, smoothstep(0.0, 1.0, uv.x));
+  float gradientFactor = smoothstep(0.0, 1.0, rotatedUV.x);
+  vec4 color = mix(u_startcolor, u_endcolor, gradientFactor);
+
+  // vec4 sampled = vec4(1.0, 1.0, 1.0, texture(tex, v_texcoords).r);
+  // FragColor = u_startcolor * sampled;
+  FragColor = color;
 }
