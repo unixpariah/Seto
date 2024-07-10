@@ -30,6 +30,10 @@ pub fn new(keys: []const u8, alloc: std.mem.Allocator, grid: *const Grid, output
     return tree;
 }
 
+pub fn destroy(self: *const Self) void {
+    self.arena.deinit();
+}
+
 pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
     if (buffer.len == 0) return error.EndNotReached;
     for (self.children) |*child| {
@@ -52,36 +56,34 @@ pub fn updateCoordinates(
     defer intersections.deinit();
 
     var surf_iter = SurfaceIterator.new(outputs);
-    var start_pos: [2]?i32 = .{ null, null };
-    while (surf_iter.next()) |res| {
-        const surf, const position, const new_line = res;
-        const info = surf.output_info;
+    while (surf_iter.next()) |surface| {
+        const info = surface.output_info;
 
         if (border_mode) {
             intersections.appendSlice(&[_][2]i32{
-                position,
-                .{ position[0], position[1] + info.height - 1 },
-                .{ position[0] + info.width - 1, position[1] },
-                .{ position[0] + info.width - 1, position[1] + info.height - 1 },
+                .{ info.x, info.y },
+                .{ info.x, info.y + info.height - 1 },
+                .{ info.x + info.width - 1, info.y },
+                .{ info.x + info.width - 1, info.y + info.height - 1 },
             }) catch @panic("OOM");
             continue;
         }
 
-        var i = if (start_pos[0]) |pos| pos else info.x + grid.offset[0];
-        while (i <= position[0] + info.width) : (i += grid.size[0]) {
-            var j = if (start_pos[1]) |pos| pos else info.y + grid.offset[1];
-            while (j <= position[1] + info.height) : (j += grid.size[1]) {
-                intersections.append(.{ i, j }) catch unreachable;
+        const vert_line_count = std.math.divCeil(i32, info.x, surface.config.grid.size[0]) catch @panic("");
+        const hor_line_count = std.math.divCeil(i32, info.y, surface.config.grid.size[1]) catch @panic("");
+
+        const start_pos: [2]i32 = .{
+            vert_line_count * surface.config.grid.size[0] + surface.config.grid.offset[0],
+            hor_line_count * surface.config.grid.size[1] + surface.config.grid.offset[1],
+        };
+
+        var i = start_pos[0];
+        while (i <= info.x + info.width) : (i += grid.size[0]) {
+            var j = start_pos[1];
+            while (j <= info.y + info.height) : (j += grid.size[1]) {
+                intersections.append(.{ i, j }) catch @panic("OOM");
             }
         }
-
-        start_pos = if (new_line) .{
-            null,
-            intersections.items[intersections.items.len - 1][1],
-        } else .{
-            intersections.items[intersections.items.len - 1][0],
-            null,
-        };
     }
 
     const depth: u8 = depth: {

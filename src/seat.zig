@@ -177,7 +177,7 @@ pub fn handleKey(self: *Seto) void {
                 .quit => self.state.exit = true,
             }
 
-            if ((function == .move or function == .resize) and !self.state.border_mode or function == .border_select or function == .move_selection) {
+            if ((function == .move or function == .resize) and !self.state.border_mode) {
                 self.tree.?.updateCoordinates(
                     &self.config.grid,
                     self.state.border_mode,
@@ -186,6 +186,8 @@ pub fn handleKey(self: *Seto) void {
                 );
                 return;
             }
+
+            if (function == .border_select or function == .move_selection or function == .cancel_selection) return;
         }
 
         if (buffer[0] == 'c' and ctrl_active) self.state.exit = true;

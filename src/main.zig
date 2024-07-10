@@ -41,7 +41,6 @@ pub const State = struct {
     exit: bool = false,
     mode: Mode = .Single,
     border_mode: bool = false,
-    start_pos: [2]?i32 = .{ null, null },
 };
 
 pub const Seto = struct {
@@ -81,9 +80,7 @@ pub const Seto = struct {
 
     fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
         var surf_iter = SurfaceIterator.new(&self.outputs.items);
-        while (surf_iter.next()) |res| {
-            const surface = res.@"0";
-
+        while (surf_iter.next()) |surface| {
             if (!surface.isConfigured()) continue;
 
             const info = surface.output_info;
@@ -154,9 +151,7 @@ pub const Seto = struct {
         };
 
         var surf_iter = SurfaceIterator.new(&self.outputs.items);
-
-        while (surf_iter.next()) |res| {
-            var surface, _, _ = res;
+        while (surf_iter.next()) |surface| {
             if (!surface.isConfigured()) continue;
 
             surface.draw(self.state.border_mode, self.state.mode);
@@ -225,8 +220,7 @@ pub fn main() !void {
     }
 
     var surf_iter = SurfaceIterator.new(&seto.outputs.items);
-    while (surf_iter.next()) |res| {
-        const surface = res.@"0";
+    while (surf_iter.next()) |surface| {
         try surface.egl.makeCurrent();
         c.glClearColor(0, 0, 0, 0);
         c.glClear(c.GL_COLOR_BUFFER_BIT);

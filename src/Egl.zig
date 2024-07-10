@@ -11,7 +11,8 @@ pub const EglSurface = struct {
     display: *c.EGLDisplay,
     config: *c.EGLConfig,
     context: *c.EGLContext,
-    shader_program: *c_uint,
+    main_shader_program: *c_uint,
+    text_shader_program: *c_uint,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
         self.width = @floatFromInt(new_dimensions[0]);
@@ -19,7 +20,7 @@ pub const EglSurface = struct {
         self.window.resize(@intFromFloat(self.width), @intFromFloat(self.height), 0, 0);
     }
 
-    pub fn getEglError(_: *EglSurface) !void {
+    pub fn getEglError(_: *const EglSurface) !void {
         switch (c.eglGetError()) {
             c.EGL_SUCCESS => return,
             c.GL_INVALID_ENUM => return error.GLInvalidEnum,
@@ -55,7 +56,7 @@ fn compileShader(shader_source: []const u8, shader: c_uint, shader_program: c_ui
         shader,
         1,
         @ptrCast(&shader_source),
-        &[_]c_int{@as(c_int, @intCast(shader_source.len))},
+        &[_]c_int{@intCast(shader_source.len)},
     );
 
     c.glCompileShader(shader);
@@ -75,7 +76,8 @@ fn compileShader(shader_source: []const u8, shader: c_uint, shader_program: c_ui
 display: c.EGLDisplay,
 config: c.EGLConfig,
 context: c.EGLContext,
-shader_program: c_uint,
+main_shader_program: c_uint,
+text_shader_program: c_uint,
 
 const Self = @This();
 
@@ -130,40 +132,63 @@ pub fn new(display: *wl.Display) !Self {
         context,
     ) != c.EGL_TRUE) return error.EGLError;
 
-    const vertex_shader_source = @embedFile("shaders/vertex_shader.glsl");
-    const fragment_shader_source = @embedFile("shaders/fragment_shader.glsl");
+    const main_vertex_source = @embedFile("shaders/main.vert");
+    const main_fragment_source = @embedFile("shaders/main.frag");
 
-    const vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
-    const fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
+    const main_vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
+    const main_fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
 
-    defer c.glDeleteShader(vertex_shader);
-    defer c.glDeleteShader(fragment_shader);
+    defer c.glDeleteShader(main_vertex_shader);
+    defer c.glDeleteShader(main_fragment_shader);
 
-    const shader_program = c.glCreateProgram();
+    const main_shader_program = c.glCreateProgram();
 
-    try compileShader(vertex_shader_source, vertex_shader, shader_program);
-    try compileShader(fragment_shader_source, fragment_shader, shader_program);
+    try compileShader(main_vertex_source, main_vertex_shader, main_shader_program);
+    try compileShader(main_fragment_source, main_fragment_shader, main_shader_program);
 
-    c.glLinkProgram(shader_program);
+    c.glLinkProgram(main_shader_program);
 
     var link_success: u32 = undefined;
-    c.glGetProgramiv(shader_program, c.GL_LINK_STATUS, @ptrCast(&link_success));
+    c.glGetProgramiv(main_shader_program, c.GL_LINK_STATUS, @ptrCast(&link_success));
     if (link_success != c.GL_TRUE) {
         var info_log: [512]u8 = undefined;
-        c.glGetShaderInfoLog(shader_program, 512, null, @ptrCast(&info_log));
+        c.glGetShaderInfoLog(main_shader_program, 512, null, @ptrCast(&info_log));
+        return error.EGLError;
+    }
+
+    const text_vertex_source = @embedFile("shaders/text.vert");
+    const text_fragment_source = @embedFile("shaders/text.frag");
+
+    const text_vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
+    const text_fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
+
+    defer c.glDeleteShader(text_vertex_shader);
+    defer c.glDeleteShader(text_fragment_shader);
+
+    const text_shader_program = c.glCreateProgram();
+
+    try compileShader(text_vertex_source, text_vertex_shader, text_shader_program);
+    try compileShader(text_fragment_source, text_fragment_shader, text_shader_program);
+
+    c.glLinkProgram(text_shader_program);
+
+    link_success = undefined;
+    c.glGetProgramiv(text_shader_program, c.GL_LINK_STATUS, @ptrCast(&link_success));
+    if (link_success != c.GL_TRUE) {
+        var info_log: [512]u8 = undefined;
+        c.glGetShaderInfoLog(text_shader_program, 512, null, @ptrCast(&info_log));
         return error.EGLError;
     }
 
     c.glEnable(c.GL_BLEND);
     c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
-    c.glEnableVertexAttribArray(0);
-    c.glUseProgram(shader_program);
 
     return .{
         .display = egl_display,
         .config = config,
         .context = context,
-        .shader_program = shader_program,
+        .main_shader_program = main_shader_program,
+        .text_shader_program = text_shader_program,
     };
 }
 
@@ -185,7 +210,8 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         .display = &self.display,
         .config = &self.config,
         .context = &self.context,
-        .shader_program = &self.shader_program,
+        .main_shader_program = &self.main_shader_program,
+        .text_shader_program = &self.text_shader_program,
     };
 }
 

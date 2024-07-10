@@ -1,12 +1,12 @@
 const std = @import("std");
+const wayland = @import("wayland");
+const c = @import("ffi");
+
 const mem = std.mem;
 const posix = std.posix;
-
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
-const wayland = @import("wayland");
-const c = @import("ffi");
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
@@ -64,7 +64,7 @@ pub const Surface = struct {
         };
     }
 
-    pub fn posInSurface(self: Self, coordinates: [2]i32) bool {
+    pub fn posInSurface(self: *const Self, coordinates: [2]i32) bool {
         const info = self.output_info;
         return coordinates[0] < info.x + info.width and coordinates[0] >= info.x and coordinates[1] < info.y + info.height and coordinates[1] >= info.y;
     }
@@ -76,8 +76,8 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    fn drawBackground(self: *Self, VBO: u32) void {
-        setColor(self.config.background_color, self.egl.shader_program.*);
+    fn drawBackground(self: *const Self, VBO: u32) void {
+        setColor(self.config.background_color, self.egl.main_shader_program.*);
 
         const info = self.output_info;
         const vertices = [_]i32{
@@ -94,17 +94,17 @@ pub const Surface = struct {
         c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
     }
 
-    fn drawSelection(self: *Self, mode: Mode, VBO: u32) void {
+    fn drawSelection(self: *const Self, mode: *const Mode, VBO: u32) void {
         if (mode.Region) |pos| {
-            setColor(self.config.grid.selected_color, self.egl.shader_program.*);
+            setColor(self.config.grid.selected_color, self.egl.main_shader_program.*);
 
             const info = self.output_info;
 
             var vertices: [8]i32 = .{
+                info.x + info.width, pos[1],
+                info.x,              pos[1],
                 pos[0],              info.y,
                 pos[0],              info.y + info.height,
-                info.x,              pos[1],
-                info.x + info.width, pos[1],
             };
             c.glLineWidth(self.config.grid.line_width);
 
@@ -116,12 +116,12 @@ pub const Surface = struct {
         }
     }
 
-    fn drawGrid(self: *Self, border_mode: bool, start_pos: [2]i32, VBO: u32) void {
-        const info = self.output_info;
-        const grid = self.config.grid;
+    fn drawGrid(self: *const Self, border_mode: bool, VBO: u32) void {
+        const info = &self.output_info;
+        const grid = &self.config.grid;
 
         c.glLineWidth(grid.line_width);
-        setColor(grid.color, self.egl.shader_program.*);
+        setColor(grid.color, self.egl.main_shader_program.*);
 
         if (border_mode) {
             const vertices = [_]i32{
@@ -142,19 +142,26 @@ pub const Surface = struct {
         var vertices = std.ArrayList(i32).init(self.alloc);
         defer vertices.deinit();
 
-        var pos_x = start_pos[0];
-        while (pos_x <= info.x + info.width) : (pos_x += grid.size[0]) {
+        // grid.size can't be 0, and overflow will definetly not happen, so unwrap is safe
+        const vert_line_count = std.math.divCeil(i32, info.x, grid.size[0]) catch unreachable;
+        const hor_line_count = std.math.divCeil(i32, info.y, grid.size[1]) catch unreachable;
+
+        var start_pos: [2]i32 = .{
+            vert_line_count * grid.size[0] + grid.offset[0],
+            hor_line_count * grid.size[1] - grid.offset[1],
+        };
+
+        while (start_pos[0] <= info.x + info.width) : (start_pos[0] += grid.size[0]) {
             vertices.appendSlice(&[_]i32{
-                pos_x, info.y,
-                pos_x, info.y + info.height,
+                start_pos[0], info.y,
+                start_pos[0], info.y + info.height,
             }) catch @panic("OOM");
         }
 
-        var pos_y = start_pos[1];
-        while (pos_y <= info.y + info.height) : (pos_y += grid.size[1]) {
+        while (start_pos[1] <= info.y + info.height) : (start_pos[1] += grid.size[1]) {
             vertices.appendSlice(&[_]i32{
-                info.x,              info.y + info.height - pos_y,
-                info.x + info.width, info.y + info.height - pos_y,
+                info.x,              info.y + info.height - start_pos[1],
+                info.x + info.width, info.y + info.height - start_pos[1],
             }) catch @panic("OOM");
         }
 
@@ -168,7 +175,8 @@ pub const Surface = struct {
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
     }
 
-    pub fn draw(self: *Self, border_mode: bool, mode: Mode) void {
+    pub fn draw(self: *const Self, border_mode: bool, mode: Mode) void {
+        c.glUseProgram(self.egl.main_shader_program.*);
         self.egl.makeCurrent() catch {
             std.log.err("Failed to make current\n", .{});
             std.process.exit(1);
@@ -199,7 +207,7 @@ pub const Surface = struct {
 
         const info = self.output_info;
         c.glUniform4f(
-            c.glGetUniformLocation(self.egl.shader_program.*, "u_surface"),
+            c.glGetUniformLocation(self.egl.main_shader_program.*, "u_surface"),
             @floatFromInt(info.x),
             @floatFromInt(info.y),
             @floatFromInt(info.x + info.width),
@@ -208,23 +216,25 @@ pub const Surface = struct {
 
         c.glEnableVertexAttribArray(0);
 
-        const vert_line_count = std.math.divCeil(i32, info.x, self.config.grid.size[0]) catch @panic("");
-        const hor_line_count = std.math.divCeil(i32, info.y, self.config.grid.size[1]) catch @panic("");
-
-        const start_pos: [2]i32 = .{
-            vert_line_count * self.config.grid.size[0] + self.config.grid.offset[0],
-            hor_line_count * self.config.grid.size[1] + self.config.grid.offset[1],
-        };
-
         self.drawBackground(VBO);
-        self.drawGrid(border_mode, start_pos, VBO);
-        if (mode == .Region) self.drawSelection(mode, VBO);
+        self.drawGrid(border_mode, VBO);
+        if (mode == .Region) self.drawSelection(&mode, VBO);
+        c.glUseProgram(self.egl.text_shader_program.*);
+
+        c.glUniform4f(
+            c.glGetUniformLocation(self.egl.text_shader_program.*, "u_surface"),
+            @floatFromInt(info.x),
+            @floatFromInt(info.y),
+            @floatFromInt(info.x + info.width),
+            @floatFromInt(info.y + info.height),
+        );
+
         self.renderText("asdfghjkl", 500, 500, VBO);
         self.renderText("lkjhgfdsa", 550, 550, VBO);
     }
 
-    pub fn renderText(self: *Self, text: []const u8, x: i32, y: i32, VBO: u32) void {
-        setColor(self.config.font.color, self.egl.shader_program.*);
+    pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32, VBO: u32) void {
+        setColor(self.config.font.color, self.egl.text_shader_program.*);
         c.glActiveTexture(c.GL_TEXTURE0);
 
         for (text, 0..) |char, i| {
@@ -282,18 +292,13 @@ pub const SurfaceIterator = struct {
         return self.outputs.*[self.index].output_info.x <= self.outputs.*[self.index - 1].output_info.x;
     }
 
-    pub fn next(self: *Self) ?std.meta.Tuple(&.{ Surface, [2]i32, bool }) {
+    pub fn next(self: *Self) ?*const Surface {
         if (self.index >= self.outputs.len or !self.outputs.*[self.index].isConfigured()) return null;
-        const output = self.outputs.*[self.index];
+        const output = &self.outputs.*[self.index];
 
-        if (self.isNewline()) {
-            self.position = .{ 0, self.outputs.*[self.index - 1].output_info.height };
-        }
+        self.index += 1;
 
-        defer self.index += 1;
-        defer self.position[0] += output.output_info.width;
-
-        return .{ output, self.position, self.isNewline() };
+        return output;
     }
 };
 
@@ -336,7 +341,7 @@ pub fn xdgOutputListener(
 
                     seto.updateDimensions();
 
-                    if (seto.tree) |tree| tree.arena.deinit();
+                    if (seto.tree) |tree| tree.destroy();
                     seto.tree = Tree.new(
                         seto.config.keys.search,
                         seto.alloc,
