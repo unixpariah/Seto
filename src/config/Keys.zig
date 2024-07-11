@@ -144,16 +144,18 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     var face: c.FT_Face = undefined;
     defer _ = c.FT_Done_Face(face);
 
-    const font_path = getFontPath(font.family) catch |err| {
+    const font_path = getFontPath(alloc, font.family) catch |err| {
         switch (err) {
             error.InitError => std.log.err("Failed to init FontConfig", .{}),
             error.FontNotFound => std.log.err("Font {s} not found", .{font.family}),
+            else => @panic("OOM"),
         }
         std.process.exit(1);
     };
+    defer alloc.free(font_path);
 
-    if (c.FT_New_Face(ft, @ptrCast(font_path), 0, &face) == 1) {
-        std.log.err("Failed to load font\n", .{});
+    if (c.FT_New_Face(ft, font_path.ptr, 0, &face) == 1) {
+        std.log.err("Failed to load font {s}\n", .{font_path});
         std.process.exit(1);
     }
 
@@ -167,14 +169,14 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     return keys_s;
 }
 
-fn getFontPath(font_name: []const u8) ![]c.FcChar8 {
+fn getFontPath(alloc: std.mem.Allocator, font_name: [:0]const u8) ![]const u8 {
     if (c.FcInit() != c.FcTrue) return error.InitError;
     defer c.FcFini();
 
     const config = c.FcInitLoadConfigAndFonts();
     defer c.FcConfigDestroy(config);
 
-    const pattern = c.FcNameParse(@ptrCast(font_name));
+    const pattern = c.FcNameParse(font_name);
     defer c.FcPatternDestroy(pattern);
 
     _ = c.FcConfigSubstitute(config, pattern, c.FcMatchPattern);
@@ -182,11 +184,16 @@ fn getFontPath(font_name: []const u8) ![]c.FcChar8 {
 
     var result: c.FcResult = undefined;
     const match = c.FcFontMatch(config, pattern, &result);
+    defer c.FcPatternDestroy(match);
 
     if (match) |m| {
-        var font_path: []c.FcChar8 = undefined;
-        if (c.FcPatternGetString(m, c.FC_FILE, 0, @ptrCast(&font_path)) == c.FcResultMatch) {
-            return font_path;
+        var font_path: ?[*:0]u8 = undefined;
+        if (c.FcPatternGetString(m, c.FC_FILE, 0, &font_path) == c.FcResultMatch) {
+            if (font_path) |path| {
+                const buffer = try alloc.alloc(u8, std.mem.len(path) + 1);
+                @memcpy(buffer, font_path.?);
+                return buffer;
+            }
         }
     }
 
@@ -197,7 +204,7 @@ pub const Function = union(enum) {
     resize: [2]i32,
     move: [2]i32,
     move_selection: [2]i32,
-    border_select,
+    border_mode,
     cancel_selection,
     remove,
     quit,
@@ -209,14 +216,14 @@ pub const Function = union(enum) {
             return .quit;
         } else if (std.mem.eql(u8, string, "cancel_selection")) {
             return .cancel_selection;
+        } else if (std.mem.eql(u8, string, "border_mode")) {
+            return .border_mode;
         } else if (std.mem.eql(u8, string, "move")) {
             return .{ .move = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "resize")) {
             return .{ .resize = value orelse return error.NullValue };
         } else if (std.mem.eql(u8, string, "move_selection")) {
             return .{ .move_selection = value orelse return error.NullValue };
-        } else if (std.mem.eql(u8, string, "border_select")) {
-            return .border_select;
         }
 
         return error.UnkownFunction;

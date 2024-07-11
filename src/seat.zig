@@ -164,6 +164,7 @@ pub fn handleKey(self: *Seto) void {
         var buffer: [64]u8 = undefined;
         const keysym: xkb.Keysym = @enumFromInt(key);
         _ = keysym.toUTF8(&buffer, 64);
+        if (buffer[0] == 'c' and ctrl_active) self.state.exit = true;
         if (self.config.keys.bindings.get(buffer[0])) |function| {
             switch (function) {
                 .move => |value| grid.move(value),
@@ -173,24 +174,21 @@ pub fn handleKey(self: *Seto) void {
                     self.state.mode = Mode{ .Region = null };
                 },
                 .move_selection => |value| moveSelection(self, value),
-                .border_select => self.state.border_mode = !self.state.border_mode,
+                .border_mode => self.state.border_mode = !self.state.border_mode,
                 .quit => self.state.exit = true,
             }
 
-            if ((function == .move or function == .resize) and !self.state.border_mode) {
+            if (function == .move or function == .resize or function == .border_mode) {
                 self.tree.?.updateCoordinates(
                     &self.config.grid,
                     self.state.border_mode,
                     &self.outputs.items,
                     &self.seat.buffer,
                 );
-                return;
             }
 
-            if (function == .border_select or function == .move_selection or function == .cancel_selection) return;
+            return;
         }
-
-        if (buffer[0] == 'c' and ctrl_active) self.state.exit = true;
     }
 
     var buffer: [64]u8 = undefined;

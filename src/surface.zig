@@ -51,7 +51,7 @@ pub const Surface = struct {
         alloc: mem.Allocator,
         xdg_output: *zxdg.OutputV1,
         output_info: OutputInfo,
-        config_ptr: *Config,
+        config_ptr: *const Config,
     ) Self {
         return .{
             .config = config_ptr,
@@ -64,9 +64,18 @@ pub const Surface = struct {
         };
     }
 
-    pub fn posInSurface(self: *const Self, coordinates: [2]i32) bool {
+    fn posInY(self: *const Self, coordinates: [2]i32) bool {
         const info = self.output_info;
-        return coordinates[0] < info.x + info.width and coordinates[0] >= info.x and coordinates[1] < info.y + info.height and coordinates[1] >= info.y;
+        return coordinates[1] < info.y + info.height and coordinates[1] >= info.y;
+    }
+
+    fn posInX(self: *const Self, coordinates: [2]i32) bool {
+        const info = self.output_info;
+        return coordinates[0] < info.x + info.width and coordinates[0] >= info.x;
+    }
+
+    pub fn posInSurface(self: *const Self, coordinates: [2]i32) bool {
+        return self.posInX(coordinates) and self.posInY(coordinates);
     }
 
     pub fn cmp(_: Self, a: Self, b: Self) bool {
@@ -76,7 +85,7 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    fn drawBackground(self: *const Self, VBO: u32) void {
+    fn drawBackground(self: *const Self) void {
         setColor(self.config.background_color, self.egl.main_shader_program.*);
 
         const info = self.output_info;
@@ -87,14 +96,14 @@ pub const Surface = struct {
             info.x + info.width, info.y + info.height,
         };
 
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO.*);
         c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
 
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 2 * @sizeOf(i32), null);
         c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
     }
 
-    fn drawSelection(self: *const Self, mode: *const Mode, VBO: u32) void {
+    fn drawSelection(self: *const Self, mode: *const Mode) void {
         if (mode.Region) |pos| {
             setColor(self.config.grid.selected_color, self.egl.main_shader_program.*);
 
@@ -106,9 +115,9 @@ pub const Surface = struct {
                 pos[0],              info.y,
                 pos[0],              info.y + info.height,
             };
-            c.glLineWidth(self.config.grid.line_width);
+            c.glLineWidth(self.config.grid.selected_line_width);
 
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO.*);
             c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
 
             c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
@@ -116,7 +125,7 @@ pub const Surface = struct {
         }
     }
 
-    fn drawGrid(self: *const Self, border_mode: bool, VBO: u32) void {
+    fn drawGrid(self: *const Self, border_mode: bool) void {
         const info = &self.output_info;
         const grid = &self.config.grid;
 
@@ -131,7 +140,7 @@ pub const Surface = struct {
                 info.x,              info.y + info.height,
             };
 
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO.*);
             c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
 
             c.glDrawArrays(c.GL_LINE_LOOP, 0, vertices.len >> 1);
@@ -176,35 +185,13 @@ pub const Surface = struct {
     }
 
     pub fn draw(self: *const Self, border_mode: bool, mode: Mode) void {
-        c.glUseProgram(self.egl.main_shader_program.*);
         self.egl.makeCurrent() catch {
             std.log.err("Failed to make current\n", .{});
             std.process.exit(1);
         };
         c.glClear(c.GL_COLOR_BUFFER_BIT);
 
-        var VAO: u32 = undefined;
-        c.glGenVertexArrays(1, &VAO);
-        defer c.glDeleteVertexArrays(1, &VAO);
-
-        c.glBindVertexArray(VAO);
-
-        var VBO: u32 = undefined;
-        c.glGenBuffers(1, &VBO);
-        defer c.glDeleteBuffers(1, &VBO);
-
-        var EBO: u32 = undefined;
-        c.glGenBuffers(1, &EBO);
-        defer c.glDeleteBuffers(1, &EBO);
-
-        const indices = [_]i32{
-            0, 1, 3,
-            0, 2, 3,
-        };
-
-        c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
-        c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
-
+        c.glUseProgram(self.egl.main_shader_program.*);
         const info = self.output_info;
         c.glUniform4f(
             c.glGetUniformLocation(self.egl.main_shader_program.*, "u_surface"),
@@ -214,13 +201,11 @@ pub const Surface = struct {
             @floatFromInt(info.y + info.height),
         );
 
-        c.glEnableVertexAttribArray(0);
+        self.drawBackground();
+        self.drawGrid(border_mode);
+        if (mode == .Region) self.drawSelection(&mode);
 
-        self.drawBackground(VBO);
-        self.drawGrid(border_mode, VBO);
-        if (mode == .Region) self.drawSelection(&mode, VBO);
         c.glUseProgram(self.egl.text_shader_program.*);
-
         c.glUniform4f(
             c.glGetUniformLocation(self.egl.text_shader_program.*, "u_surface"),
             @floatFromInt(info.x),
@@ -229,14 +214,13 @@ pub const Surface = struct {
             @floatFromInt(info.y + info.height),
         );
 
-        self.renderText("asdfghjkl", 500, 500, VBO);
-        self.renderText("lkjhgfdsa", 550, 550, VBO);
-    }
-
-    pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32, VBO: u32) void {
         setColor(self.config.font.color, self.egl.text_shader_program.*);
         c.glActiveTexture(c.GL_TEXTURE0);
+        self.renderText("asdfghjkl", 500, 500);
+        self.renderText("lkjhgfdsa", 550, 550);
+    }
 
+    pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32) void {
         for (text, 0..) |char, i| {
             const ch = self.config.keys.char_info.get(char).?;
 
@@ -254,7 +238,7 @@ pub const Surface = struct {
 
             c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
 
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO.*);
             c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
 
             c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 4 * @sizeOf(i32), null);

@@ -172,7 +172,7 @@ Colors may be specified in #RRGGBB or #RRGGBBAA format. The # is optional.
 
 Available functions are:
 
-border_select		Outline all outputs and clear grid in the middle to
+border_mode		Outline all outputs and clear grid in the middle to
 make selecting entire screen easier
 
 move _x,y_				Move grid by specified amount.
@@ -228,7 +228,7 @@ return {
 			K = { move_selection = { 0, -5 } },
 			L = { move_selection = { 5, 0 } },
 			c = "cancel_selection",
-			o = "border_select",
+			o = "border_mode",
 			[8] = "remove",
 			q = "quit",
 		},

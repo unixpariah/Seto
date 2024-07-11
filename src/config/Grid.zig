@@ -115,9 +115,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
             std.process.exit(1);
         });
     }
-    lua.pop(1);
-
-    lua.pop(1);
+    lua.pop(2);
     return grid;
 }
 

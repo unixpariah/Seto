@@ -94,15 +94,11 @@ pub fn updateCoordinates(
     };
 
     if (depth < self.depth) {
-        for (depth..self.depth) |_| {
-            self.decreaseDepth();
-            buffer.clearAndFree();
-        }
+        for (depth..self.depth) |_| self.decreaseDepth();
+        buffer.clearAndFree();
     } else if (depth > self.depth) {
-        for (self.depth..depth) |_| {
-            self.increaseDepth();
-            buffer.clearAndFree();
-        }
+        for (self.depth..depth) |_| self.increaseDepth();
+        buffer.clearAndFree();
     }
 
     var index: usize = 0;

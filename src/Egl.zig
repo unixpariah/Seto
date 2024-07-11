@@ -13,6 +13,7 @@ pub const EglSurface = struct {
     context: *c.EGLContext,
     main_shader_program: *c_uint,
     text_shader_program: *c_uint,
+    VBO: *u32,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
         self.width = @floatFromInt(new_dimensions[0]);
@@ -78,6 +79,9 @@ config: c.EGLConfig,
 context: c.EGLContext,
 main_shader_program: c_uint,
 text_shader_program: c_uint,
+VAO: u32,
+VBO: u32,
+EBO: u32,
 
 const Self = @This();
 
@@ -183,12 +187,38 @@ pub fn new(display: *wl.Display) !Self {
     c.glEnable(c.GL_BLEND);
     c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 
+    c.glUseProgram(main_shader_program);
+
+    var VAO: u32 = undefined;
+    c.glGenVertexArrays(1, &VAO);
+
+    c.glBindVertexArray(VAO);
+
+    var VBO: u32 = undefined;
+    c.glGenBuffers(1, &VBO);
+
+    var EBO: u32 = undefined;
+    c.glGenBuffers(1, &EBO);
+
+    const indices = [_]i32{
+        0, 1, 3,
+        0, 2, 3,
+    };
+
+    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
+    c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
+
+    c.glEnableVertexAttribArray(0);
+
     return .{
         .display = egl_display,
         .config = config,
         .context = context,
         .main_shader_program = main_shader_program,
         .text_shader_program = text_shader_program,
+        .VAO = VAO,
+        .VBO = VBO,
+        .EBO = EBO,
     };
 }
 
@@ -212,6 +242,7 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         .context = &self.context,
         .main_shader_program = &self.main_shader_program,
         .text_shader_program = &self.text_shader_program,
+        .VBO = &self.VBO,
     };
 }
 

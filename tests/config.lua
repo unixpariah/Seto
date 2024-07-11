@@ -32,7 +32,7 @@ return {
 			K = { move_selection = { 0, -5 } },
 			L = { move_selection = { 5, 0 } },
 			c = "cancel_selection",
-			o = "border_select",
+			o = "border_mode",
 			[8] = "remove",
 			q = "quit",
 		},
