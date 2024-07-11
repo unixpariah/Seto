@@ -9,10 +9,9 @@ const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 
 const Repeat = struct {
-    delay: ?i32 = null,
-    rate: ?i32 = null,
-    key: ?u32 = null,
     timer: ?std.time.Timer = null,
+    delay: ?i32 = null,
+    key: ?u32 = null,
 };
 
 pub const Seat = struct {
@@ -37,6 +36,7 @@ pub const Seat = struct {
     pub fn repeatKey(self: *Self) bool {
         var timer = self.repeat.timer orelse return false;
         const delay = self.repeat.delay orelse return false;
+
         return timer.read() / std.time.ns_per_ms > delay;
     }
 
@@ -130,7 +130,6 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.delay = repeat_key.delay;
-            seto.seat.repeat.rate = repeat_key.delay;
         },
     }
 }

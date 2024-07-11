@@ -206,6 +206,9 @@ pub fn main() !void {
 
     parseArgs(&seto);
 
+    const version = c.glGetString(c.GL_VERSION);
+    std.debug.print("{s}\n", .{version});
+
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 

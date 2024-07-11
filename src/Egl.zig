@@ -13,7 +13,8 @@ pub const EglSurface = struct {
     context: *c.EGLContext,
     main_shader_program: *c_uint,
     text_shader_program: *c_uint,
-    VBO: *u32,
+    VBO: [5]u32,
+    EBO: [2]u32,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
         self.width = @floatFromInt(new_dimensions[0]);
@@ -80,8 +81,6 @@ context: c.EGLContext,
 main_shader_program: c_uint,
 text_shader_program: c_uint,
 VAO: u32,
-VBO: u32,
-EBO: u32,
 
 const Self = @This();
 
@@ -191,23 +190,7 @@ pub fn new(display: *wl.Display) !Self {
 
     var VAO: u32 = undefined;
     c.glGenVertexArrays(1, &VAO);
-
     c.glBindVertexArray(VAO);
-
-    var VBO: u32 = undefined;
-    c.glGenBuffers(1, &VBO);
-
-    var EBO: u32 = undefined;
-    c.glGenBuffers(1, &EBO);
-
-    const indices = [_]i32{
-        0, 1, 3,
-        0, 2, 3,
-    };
-
-    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
-    c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
-
     c.glEnableVertexAttribArray(0);
 
     return .{
@@ -217,8 +200,6 @@ pub fn new(display: *wl.Display) !Self {
         .main_shader_program = main_shader_program,
         .text_shader_program = text_shader_program,
         .VAO = VAO,
-        .VBO = VBO,
-        .EBO = EBO,
     };
 }
 
@@ -232,6 +213,34 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         null,
     ) orelse return error.EGLError;
 
+    var VBO: [5]u32 = undefined;
+    c.glGenBuffers(5, &VBO);
+
+    var EBO: [2]u32 = undefined;
+    c.glGenBuffers(2, &EBO);
+
+    {
+        const indices = [_]i32{
+            0, 1,
+            1, 2,
+            2, 3,
+            3, 0,
+        };
+
+        c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO[1]);
+        c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
+    }
+
+    {
+        const indices = [_]i32{
+            0, 1, 3,
+            0, 2, 3,
+        };
+
+        c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO[0]);
+        c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
+    }
+
     return .{
         .window = egl_window,
         .surface = egl_surface,
@@ -242,7 +251,8 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         .context = &self.context,
         .main_shader_program = &self.main_shader_program,
         .text_shader_program = &self.text_shader_program,
-        .VBO = &self.VBO,
+        .VBO = VBO,
+        .EBO = EBO,
     };
 }
 

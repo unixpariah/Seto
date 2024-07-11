@@ -43,8 +43,8 @@ pub const Character = struct {
                 @intCast(face.*.glyph.*.bitmap.rows),
             },
             .bearing = .{
-                @intCast(face.*.glyph.*.bitmap_top),
                 @intCast(face.*.glyph.*.bitmap_left),
+                @intCast(face.*.glyph.*.bitmap_top),
             },
             .advance = .{
                 @intCast(face.*.glyph.*.advance.x >> 6),
@@ -146,9 +146,9 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
 
     const font_path = getFontPath(alloc, font.family) catch |err| {
         switch (err) {
-            error.InitError => std.log.err("Failed to init FontConfig", .{}),
-            error.FontNotFound => std.log.err("Font {s} not found", .{font.family}),
-            else => @panic("OOM"),
+            error.InitError => std.log.err("Failed to init FontConfig\n", .{}),
+            error.FontNotFound => std.log.err("Font {s} not found\n", .{font.family}),
+            else => std.log.err("OOM\n", .{}),
         }
         std.process.exit(1);
     };
