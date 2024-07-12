@@ -78,7 +78,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     _ = lua.getTable(2);
     if (lua.isString(3)) {
         alloc.free(keys_s.search);
-        const keys = lua.toString(3) catch unreachable;
+        const keys = lua.toString(3) catch unreachable; // Already checked if string
         keys_s.search = alloc.dupe(u8, keys) catch @panic("OOM");
     }
     lua.pop(1);
@@ -137,16 +137,14 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     var ft: c.FT_Library = undefined;
     defer _ = c.FT_Done_FreeType(ft);
 
-    if (c.FT_Init_FreeType(&ft) == 1) {
-        std.log.err("Could not init FreeType Library\n", .{});
-    }
+    if (c.FT_Init_FreeType(&ft) == 1) @panic("Failed to initialize FreeType");
 
     var face: c.FT_Face = undefined;
     defer _ = c.FT_Done_Face(face);
 
     const font_path = getFontPath(alloc, font.family) catch |err| {
         switch (err) {
-            error.InitError => std.log.err("Failed to init FontConfig\n", .{}),
+            error.InitError => std.log.err("Failed to initialize FontConfig\n", .{}),
             error.FontNotFound => std.log.err("Font {s} not found\n", .{font.family}),
             else => std.log.err("OOM\n", .{}),
         }

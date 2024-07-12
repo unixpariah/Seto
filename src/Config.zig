@@ -28,7 +28,7 @@ pub fn load(alloc: std.mem.Allocator) Self {
             .font = Font.default(alloc),
             .keys = Keys.default(alloc),
             .grid = Grid.default(alloc),
-            .background_color = Color.parse("#FFFFFF66", alloc) catch unreachable,
+            .background_color = Color.parse("#FFFFFF66", alloc) catch unreachable, // Hardcoded so unwrap is safe
         };
     };
     defer alloc.free(config_dir);
@@ -39,17 +39,11 @@ pub fn load(alloc: std.mem.Allocator) Self {
     const config_file = fs.path.joinZ(alloc, &[_][]const u8{ config_dir, "config.lua" }) catch @panic("OOM");
     defer alloc.free(config_file);
 
-    lua.doFile(config_file) catch {
-        std.log.err("File {s} couldn't be executed by lua interpreter\n", .{config_file});
-        std.process.exit(1);
-    };
+    lua.doFile(config_file) catch @panic("Lua failed to interpret config file");
 
     _ = lua.pushString("background_color");
     _ = lua.getTable(1);
-    const background_color = lua.toString(2) catch {
-        std.log.err("Background color expected hex value\n", .{});
-        std.process.exit(1);
-    };
+    const background_color = lua.toString(2) catch @panic("Expected hex value");
 
     lua.pop(1);
 
@@ -59,7 +53,7 @@ pub fn load(alloc: std.mem.Allocator) Self {
         .grid = Grid.new(lua, alloc),
         .font = font,
         .keys = Keys.new(lua, alloc, &font),
-        .background_color = Color.parse(background_color, alloc) catch unreachable,
+        .background_color = Color.parse(background_color, alloc) catch @panic("Failed to parse color"),
     };
 }
 
@@ -101,7 +95,7 @@ fn getPath(alloc: std.mem.Allocator) ![]const u8 {
         }
     }
 
-    const home = std.posix.getenv("HOME") orelse return error.HomeNotFound;
+    const home = std.posix.getenv("HOME") orelse @panic("HOME env var not set");
     const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
     const config_path = fs.path.join(alloc, &[_][]const u8{ config_dir, "config.lua" }) catch |err| {
         alloc.free(config_dir);

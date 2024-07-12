@@ -170,10 +170,7 @@ pub const Surface = struct {
     }
 
     pub fn draw(self: *const Self, border_mode: bool, mode: Mode) void {
-        self.egl.makeCurrent() catch {
-            std.log.err("Failed to make current\n", .{});
-            std.process.exit(1);
-        };
+        self.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
 
         c.glClear(c.GL_COLOR_BUFFER_BIT);
 
@@ -229,7 +226,6 @@ pub const Surface = struct {
             c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
 
             c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, 0);
             c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
         }
     }

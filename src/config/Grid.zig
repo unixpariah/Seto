@@ -34,27 +34,15 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
 
     _ = lua.pushString("color");
     _ = lua.getTable(2);
-    const grid_color = lua.toString(3) catch {
-        std.log.err("Grid color expected hex value\n", .{});
-        std.process.exit(1);
-    };
+    const grid_color = lua.toString(3) catch @panic("grid.color expected string");
     lua.pop(1);
 
-    grid.color = Color.parse(grid_color, alloc) catch {
-        std.log.err("Failed to parse grid color\n", .{});
-        std.process.exit(1);
-    };
+    grid.color = Color.parse(grid_color, alloc) catch @panic("Failed to parse grid.color");
 
     _ = lua.pushString("selected_color");
     _ = lua.getTable(2);
-    const grid_selected_color = lua.toString(3) catch {
-        std.log.err("Grid selected color expected hex value\n", .{});
-        std.process.exit(1);
-    };
-    grid.selected_color = Color.parse(grid_selected_color, alloc) catch {
-        std.log.err("Failed to parse selected grid color\n", .{});
-        std.process.exit(1);
-    };
+    const grid_selected_color = lua.toString(3) catch @panic("grid.selected_color expected string");
+    grid.selected_color = Color.parse(grid_selected_color, alloc) catch @panic("Failed to parse grid.selected_color");
     lua.pop(1);
 
     _ = lua.pushString("size");
@@ -63,17 +51,11 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         lua.pushNil();
         var index: u8 = 0;
         while (lua.next(3)) : (index += 1) {
-            if (!lua.isNumber(5) or index > 1) {
-                std.log.err("Grid size should be in a {{ width, height }} format\n", .{});
-                std.process.exit(1);
-            }
-            grid.size[index] = @intFromFloat(lua.toNumber(5) catch unreachable);
+            if (index > 1) @panic("Grid size should be in a {{ width, height }} format\n");
+            grid.size[index] = @intFromFloat(lua.toNumber(5) catch @panic("grid.size expected list of numbers"));
             lua.pop(1);
         }
-        if (index < 2) {
-            std.log.err("Grid size should be in a {{ width, height }} format\n", .{});
-            std.process.exit(1);
-        }
+        if (index < 2) @panic("Grid size should be in a {{ width, height }} format\n");
     }
     lua.pop(1);
 
@@ -110,10 +92,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     _ = lua.pushString("selected_line_width");
     _ = lua.getTable(2);
     if (!lua.isNil(3)) {
-        grid.selected_line_width = @floatCast(lua.toNumber(3) catch {
-            std.log.err("Selected line width should be a float\n", .{});
-            std.process.exit(1);
-        });
+        grid.selected_line_width = @floatCast(lua.toNumber(3) catch @panic("grid.selected_line_width expected number"));
     }
     lua.pop(2);
     return grid;

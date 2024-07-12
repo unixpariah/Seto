@@ -15,7 +15,7 @@ family: [:0]const u8,
 const Self = @This();
 
 pub fn default(alloc: std.mem.Allocator) Self {
-    return .{
+    return .{ // These are hardcoded so no way for error
         .color = Color.parse("#FFFFFF", alloc) catch unreachable,
         .highlight_color = Color.parse("#FFFF00", alloc) catch unreachable,
         .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM"),
@@ -31,35 +31,20 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
 
     _ = lua.pushString("color");
     _ = lua.getTable(2);
-    const font_color = lua.toString(3) catch {
-        std.log.err("Font color expected hex value\n", .{});
-        std.process.exit(1);
-    };
-    font.color = Color.parse(font_color, alloc) catch {
-        std.log.err("Failed to parse font color\n", .{});
-        std.process.exit(1);
-    };
+    const font_color = lua.toString(3) catch @panic("font.color expected string");
+    font.color = Color.parse(font_color, alloc) catch @panic("Failed to parse font.color");
     lua.pop(1);
 
     _ = lua.pushString("highlight_color");
     _ = lua.getTable(2);
-    const font_highlight_color = lua.toString(3) catch {
-        std.log.err("Font highlight color expected hex value\n", .{});
-        std.process.exit(1);
-    };
-    font.highlight_color = Color.parse(font_highlight_color, alloc) catch {
-        std.log.err("Failed to parse highlight color\n", .{});
-        std.process.exit(1);
-    };
+    const font_highlight_color = lua.toString(3) catch @panic("font.hightlight_color expected string");
+    font.highlight_color = Color.parse(font_highlight_color, alloc) catch @panic("Failed to parse font.highlight_color");
     lua.pop(1);
 
     _ = lua.pushString("size");
     _ = lua.getTable(2);
     if (!lua.isNil(3)) {
-        font.size = lua.toNumber(3) catch {
-            std.log.err("Font size should be a number\n", .{});
-            std.process.exit(1);
-        };
+        font.size = lua.toNumber(3) catch @panic("font.size expected number");
     }
     lua.pop(1);
 
@@ -67,10 +52,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     _ = lua.getTable(2);
     if (!lua.isNil(3)) {
         alloc.free(font.family);
-        const font_family = lua.toString(3) catch {
-            std.log.err("Font family should be a string\n", .{});
-            std.process.exit(1);
-        };
+        const font_family = lua.toString(3) catch @panic("font.family expected string");
         font.family = alloc.dupeZ(u8, font_family) catch @panic("OOM");
     }
     lua.pop(1);
@@ -81,17 +63,12 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         lua.pushNil();
         var index: u8 = 0;
         while (lua.next(3)) : (index += 1) {
-            if (!lua.isNumber(5) or index > 1) {
-                std.log.err("Text offset should be in a {{ x, y }} format\n", .{});
-                std.process.exit(1);
-            }
-            font.offset[index] = @intFromFloat(lua.toNumber(5) catch unreachable);
+            if (index > 1) @panic("font.offset expected {{ x, y }} format");
+            const coordinate = lua.toNumber(5) catch @panic("font.offset expected list of numbers");
+            font.offset[index] = @intFromFloat(coordinate);
             lua.pop(1);
         }
-        if (index < 2) {
-            std.log.err("Text offset should be in a {{ x, y }} format\n", .{});
-            std.process.exit(1);
-        }
+        if (index < 2) @panic("font.offset expected {{ x, y }} format");
     }
     lua.pop(1);
 

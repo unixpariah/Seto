@@ -8,23 +8,12 @@ const Color = helpers.Color;
 
 const hexToRgba = helpers.hexToRgba;
 
-fn printAndExit(comptime message: []const u8, arg: []const u8) noreturn {
-    std.log.debug(message, .{arg});
-    std.log.debug("{s}\n", .{help_message});
-    std.process.exit(1);
-}
-
-fn getNextArg(args: *std.process.ArgIterator, current_arg: []const u8) []const u8 {
-    return args.next() orelse {
-        printAndExit("Argument missing after: \"{s}\"\n", current_arg);
-    };
-}
-
 fn parseIntArray(arg: ?[]const u8, separator: []const u8) ![2]i32 {
-    if (arg == null) {
-        return error.ArgumentMissing;
-    }
-    var iter = std.mem.split(u8, arg.?, separator);
+    var iter = std.mem.split(
+        u8,
+        arg orelse return error.ArgumentMissing,
+        separator,
+    );
     var result: [2]i32 = undefined;
     var i: usize = 0;
     while (iter.next()) |value| {
@@ -35,84 +24,184 @@ fn parseIntArray(arg: ?[]const u8, separator: []const u8) ![2]i32 {
     return result;
 }
 
+const Arguments = enum {
+    @"--region",
+    @"-r",
+    @"--config",
+    @"-c",
+    @"--format",
+    @"-f",
+
+    @"--help",
+    @"-h",
+    @"--version",
+    @"-v",
+
+    @"--background-color",
+
+    @"--highlight-color",
+    @"--font-color",
+    @"--font-size",
+    @"--font-family",
+    @"--font-offset",
+
+    @"--grid-color",
+    @"--grid-size",
+    @"--grid-offset",
+    @"--grid-selected-color",
+    @"--line-width",
+    @"--selected-line-width",
+
+    @"--search-keys",
+    @"-s",
+    @"--function",
+    @"-F",
+};
+
 pub fn parseArgs(seto: *Seto) void {
     var args = std.process.args();
     var index: u8 = 0;
-
     while (args.next()) |arg| : (index += 1) {
         if (index == 0) continue;
 
-        if (std.mem.eql(u8, arg, "-r") or std.mem.eql(u8, arg, "--region")) {
-            seto.state.mode = .{ .Region = null };
-        } else if (std.mem.eql(u8, arg, "-c") or std.mem.eql(u8, arg, "--config")) {
-            _ = getNextArg(&args, arg);
-        } else if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
-            std.log.debug("{s}\n", .{help_message});
-            std.process.exit(0);
-        } else if (std.mem.eql(u8, arg, "-v") or std.mem.eql(u8, arg, "--version")) {
-            std.log.debug("Seto v0.1.0 \nBuild type: {}\nZig {}\n", .{ builtin.mode, builtin.zig_version });
-            std.process.exit(0);
-        } else if (std.mem.eql(u8, arg, "--background-color")) {
-            seto.config.background_color = Color.parse(getNextArg(&args, arg), seto.alloc) catch unreachable;
-        } else if (std.mem.eql(u8, arg, "--font-size")) {
-            const font_size = getNextArg(&args, arg);
-            seto.config.font.size = std.fmt.parseFloat(f64, font_size) catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
-        } else if (std.mem.eql(u8, arg, "--font-family")) {
-            seto.alloc.free(seto.config.font.family);
-            seto.config.font.family = seto.alloc.dupeZ(u8, getNextArg(&args, arg)) catch @panic("OOM");
-        } else if (std.mem.eql(u8, arg, "--font-offset")) {
-            seto.config.font.offset = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
-        } else if (std.mem.eql(u8, arg, "--grid-size")) {
-            seto.config.grid.size = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
-        } else if (std.mem.eql(u8, arg, "--grid-offset")) {
-            seto.config.grid.offset = parseIntArray(getNextArg(&args, arg), ",") catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
-        } else if (std.mem.eql(u8, arg, "--line-width")) {
-            const line_width = getNextArg(&args, arg);
-            seto.config.grid.line_width = std.fmt.parseFloat(f32, line_width) catch printAndExit("Incorrect argument for \"{s}\"\n", arg);
-        } else if (std.mem.eql(u8, arg, "--selected-line-width")) {
-            const line_width = getNextArg(&args, arg);
-            seto.config.grid.selected_line_width = std.fmt.parseFloat(f32, line_width) catch printAndExit("Incorrect argument for --line-width {s}\n", line_width);
-        } else if (std.mem.eql(u8, arg, "--search-keys") or std.mem.eql(u8, arg, "-s")) {
-            seto.alloc.free(seto.config.keys.search);
-            seto.config.keys.search = seto.alloc.dupe(u8, getNextArg(&args, arg)) catch @panic("OOM");
-        } else if (std.mem.eql(u8, arg, "--font-color")) {
-            seto.config.font.color = Color.parse(getNextArg(&args, arg), seto.alloc) catch printAndExit("Failed to parse hex value {s}\n", arg);
-        } else if (std.mem.eql(u8, arg, "--highlight-color")) {
-            seto.config.font.highlight_color = Color.parse(getNextArg(&args, arg), seto.alloc) catch printAndExit("Failed to parse hex value {s}\n", arg);
-        } else if (std.mem.eql(u8, arg, "--grid-color")) {
-            seto.config.grid.color = Color.parse(getNextArg(&args, arg), seto.alloc) catch printAndExit("Failed to parse hex value {s}\n", arg);
-        } else if (std.mem.eql(u8, arg, "--grid-selected-color")) {
-            seto.config.grid.selected_color = Color.parse(getNextArg(&args, arg), seto.alloc) catch printAndExit("Failed to parse hex value {s}\n", arg);
-        } else if (std.mem.eql(u8, arg, "--format") or std.mem.eql(u8, arg, "-f")) {
-            const format = getNextArg(&args, arg);
-            seto.config.output_format = format;
-        } else if (std.mem.eql(u8, arg, "--function") or std.mem.eql(u8, arg, "-F")) {
-            const key = getNextArg(&args, arg);
-            const function = getNextArg(&args, arg);
-            const values = args.next();
-            const func = if (values) |nn_values|
-                Function.stringToFunction(function, parseIntArray(nn_values, ",") catch printAndExit("Failed to parse values for function {s}\n", nn_values)) catch printAndExit("Failed to parse function {s}\n", function)
-            else
-                Function.stringToFunction(function, null) catch printAndExit("Failed to parse function {s}\n", function);
+        const argument = std.meta.stringToEnum(Arguments, arg) orelse {
+            std.log.err("Argument {s} not found", .{arg});
+            std.process.exit(1);
+        };
+        switch (argument) {
+            .@"--region", .@"-r" => seto.state.mode = .{ .Region = null },
+            .@"--config", .@"-c" => _ = args.skip(), // Just skip it as its handled somewhere else
+            .@"--format", .@"-f" => {
+                seto.config.output_format = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+            },
 
-            seto.config.keys.bindings.put(key[0], func) catch printAndExit("Failed to store function binding: \"{s}\"\n", key);
-        } else {
-            printAndExit("Unknown option argument \"{s}\"\n", arg);
+            .@"--help", .@"-h" => {
+                std.log.info("{s}\n", .{help_message});
+                std.process.exit(0);
+            },
+            .@"--version", .@"-v" => {
+                std.log.info("Seto v0.1.0 \nBuild type: {}\nZig {}\n", .{ builtin.mode, builtin.zig_version });
+                std.process.exit(0);
+            },
+
+            .@"--background-color" => {
+                const color = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.background_color = Color.parse(color, seto.alloc) catch @panic("Failed to parse background-color");
+            },
+
+            .@"--highlight-color" => {
+                const color = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.font.highlight_color = Color.parse(color, seto.alloc) catch @panic("Failed to parse highlight-color");
+            },
+            .@"--font-color" => {
+                const color = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.font.color = Color.parse(color, seto.alloc) catch @panic("Failed to parse font-color");
+            },
+            .@"--font-size" => {
+                const font_size = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.font.size = std.fmt.parseFloat(f64, font_size) catch @panic("Failed to parse font-size");
+            },
+            .@"--font-family" => {
+                seto.alloc.free(seto.config.font.family);
+                const font_family = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.font.family = seto.alloc.dupeZ(u8, font_family) catch @panic("OOM");
+            },
+            .@"--font-offset" => {
+                const font_offset = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.font.offset = parseIntArray(font_offset, ",") catch @panic("Failed to parse font-offset");
+            },
+
+            .@"--grid-color" => {
+                const grid_color = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.grid.color = Color.parse(grid_color, seto.alloc) catch @panic("Failed to parse grid-color");
+            },
+            .@"--grid-size" => {
+                const grid_size = args.next();
+                seto.config.grid.size = parseIntArray(grid_size, ",") catch @panic("Failed to parse grid-size");
+            },
+            .@"--grid-offset" => {
+                const grid_offset = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.grid.offset = parseIntArray(grid_offset, ",") catch @panic("Failed to parse grid-offset");
+            },
+            .@"--grid-selected-color" => {
+                const grid_selected_color = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.grid.selected_color = Color.parse(grid_selected_color, seto.alloc) catch @panic("Failed to parse grid-selected-color");
+            },
+            .@"--line-width" => {
+                const line_width = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.grid.line_width = std.fmt.parseFloat(f32, line_width) catch @panic("Failed to parse line-width");
+            },
+            .@"--selected-line-width" => {
+                const line_width = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.grid.selected_line_width = std.fmt.parseFloat(f32, line_width) catch @panic("Failed to parse line-width");
+            },
+
+            .@"--search-keys", .@"-s" => {
+                seto.alloc.free(seto.config.keys.search);
+                const keys_search = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.keys.search = seto.alloc.dupe(u8, keys_search) catch @panic("OOM");
+            },
+            .@"--function", .@"-F" => {
+                const key = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                const function = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                const values = args.next();
+                const func = if (values) |nn_values|
+                    Function.stringToFunction(
+                        function,
+                        parseIntArray(nn_values, ",") catch @panic("Failed to parse"),
+                    ) catch |err| switch (err) {}
+                else
+                    Function.stringToFunction(function, null) catch unreachable;
+
+                seto.config.keys.bindings.put(key[0], func) catch unreachable;
+            },
         }
     }
-}
-
-fn getStyle(comptime T: type, arg: ?[]const u8) T {
-    const c_arg = arg orelse {
-        std.log.debug("Missing Argument\n", .{});
-        std.log.debug("{s}\n", .{help_message});
-        std.process.exit(1);
-    };
-    return std.meta.stringToEnum(T, c_arg) orelse {
-        std.log.debug("Option \"{s}\" does not exist\n", .{c_arg});
-        std.log.debug("{s}\n", .{help_message});
-        std.process.exit(1);
-    };
 }
 
 const help_message =
@@ -144,7 +233,7 @@ const help_message =
     \\  --grid-offset <INT,INT>                    Change default position of grid
     \\  --grid-selected-color <HEX>                Change color of selected position in region mode
     \\  --line-width <FLOAT>                       Set width of grid lines
-    \\  --selected-line-width <FLOAT>                Change line width of selected position in region mode
+    \\  --selected-line-width <FLOAT>              Change line width of selected position in region mode
     \\
     \\Keybindings:
     \\  -s, --search-keys <STRING>                 Set keys used to search

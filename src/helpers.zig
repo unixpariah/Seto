@@ -97,28 +97,32 @@ test "gradient" {
     const assert = std.debug.assert;
     const alloc = std.heap.page_allocator;
 
-    var color = try Color.parse("#FFFFFF #5D5D5D5D", alloc);
-    for (color.start_color) |col| {
-        assert(col == 1);
+    {
+        const color = try Color.parse("#FFFFFF #5D5D5D5D", alloc);
+        for (color.start_color) |col| {
+            assert(col == 1);
+        }
+
+        for (color.end_color) |col| {
+            assert(col == 93.0 / 255.0);
+        }
+
+        assert(color.deg == 0);
     }
 
-    for (color.end_color) |col| {
-        assert(col == 93.0 / 255.0);
+    {
+        const color = try Color.parse("#9C9C9C9C #ECECECEC 90deg", alloc);
+
+        for (color.start_color) |col| {
+            assert(col == 156.0 / 255.0);
+        }
+
+        for (color.end_color) |col| {
+            assert(col == 236.0 / 255.0);
+        }
+
+        assert(color.deg == 90);
     }
-
-    assert(color.deg == 0);
-
-    color = try Color.parse("#9C9C9C9C #ECECECEC 90deg", alloc);
-
-    for (color.start_color) |col| {
-        assert(col == 156.0 / 255.0);
-    }
-
-    for (color.end_color) |col| {
-        assert(col == 236.0 / 255.0);
-    }
-
-    assert(color.deg == 90);
 }
 
 pub fn hexToRgba(hex: ?[]const u8) ![4]f32 {
@@ -148,26 +152,34 @@ pub fn hexToRgba(hex: ?[]const u8) ![4]f32 {
 test "hex_to_rgba" {
     const assert = std.debug.assert;
 
-    var rgba = try hexToRgba("#FFFFFFFF");
-    for (rgba) |color| {
-        assert(color == 1);
+    {
+        const rgba = try hexToRgba("#FFFFFFFF");
+        for (rgba) |color| {
+            assert(color == 1);
+        }
     }
 
-    rgba = try hexToRgba("FFFFFFFF");
-    for (rgba) |color| {
-        assert(color == 1);
+    {
+        const rgba = try hexToRgba("FFFFFFFF");
+        for (rgba) |color| {
+            assert(color == 1);
+        }
     }
 
-    rgba = try hexToRgba("FFFFFF");
-    for (rgba) |color| {
-        assert(color == 1);
+    {
+        const rgba = try hexToRgba("FFFFFF");
+        for (rgba) |color| {
+            assert(color == 1);
+        }
     }
 
-    rgba = try hexToRgba("7FABE3");
-    assert(rgba[0] == 127.0 / 255.0);
-    assert(rgba[1] == 171.0 / 255.0);
-    assert(rgba[2] == 227.0 / 255.0);
-    assert(rgba[3] == 1);
+    {
+        const rgba = try hexToRgba("7FABE3");
+        assert(rgba[0] == 127.0 / 255.0);
+        assert(rgba[1] == 171.0 / 255.0);
+        assert(rgba[2] == 227.0 / 255.0);
+        assert(rgba[3] == 1);
+    }
 
     const too_short = hexToRgba("FFFF");
     assert(too_short == error.InvalidColor);
@@ -175,8 +187,8 @@ test "hex_to_rgba" {
     const too_long = hexToRgba("FFFFFFFFFF");
     assert(too_long == error.InvalidColor);
 
-    const n_hex = hexToRgba(null);
-    assert(n_hex == error.ArgumentMissing);
+    const empty = hexToRgba(null);
+    assert(empty == error.ArgumentMissing);
 }
 
 pub fn inPlaceReplace(comptime T: type, alloc: std.mem.Allocator, input: *[]const u8, needle: []const u8, replacement: T) void {

@@ -155,16 +155,8 @@ pub const Seto = struct {
             if (!surface.isConfigured()) continue;
 
             surface.draw(self.state.border_mode, self.state.mode);
-
-            surface.egl.getEglError() catch |err| {
-                std.log.err("{}\n", .{err});
-                std.process.exit(1);
-            };
-
-            surface.egl.swapBuffers() catch {
-                std.log.err("Failed to swap buffers\n", .{});
-                std.process.exit(1);
-            };
+            surface.egl.getEglError() catch |err| @panic(@errorName(err));
+            surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }
     }
 
@@ -173,7 +165,7 @@ pub const Seto = struct {
         return self.seat.repeat.key != null or self.state.first_draw;
     }
 
-    fn destroy(self: *Self) !void {
+    fn destroy(self: *Self) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
@@ -202,20 +194,14 @@ pub fn main() !void {
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
     var seto = try Seto.new(alloc, display);
-    defer seto.destroy() catch unreachable;
+    defer seto.destroy();
 
     parseArgs(&seto);
-
-    const version = c.glGetString(c.GL_VERSION);
-    std.debug.print("{s}\n", .{version});
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 
-    if (seto.compositor == null or seto.layer_shell == null) {
-        std.log.err("Compositor, layer_shell or shm not bound", .{});
-        std.process.exit(1);
-    }
+    if (seto.compositor == null or seto.layer_shell == null) @panic("Compositor or layer shell not bound");
 
     while (display.dispatch() == .SUCCESS and !seto.state.exit) {
         if (seto.seat.repeatKey()) handleKey(&seto);
@@ -224,10 +210,10 @@ pub fn main() !void {
 
     var surf_iter = SurfaceIterator.new(&seto.outputs.items);
     while (surf_iter.next()) |surface| {
-        try surface.egl.makeCurrent();
+        surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
         c.glClearColor(0, 0, 0, 0);
         c.glClear(c.GL_COLOR_BUFFER_BIT);
-        try surface.egl.swapBuffers();
+        surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
     }
 
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
@@ -239,21 +225,34 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
             const event_str = std.meta.stringToEnum(EventInterfaces, mem.span(global.interface)) orelse return;
             switch (event_str) {
                 .wl_compositor => {
-                    seto.compositor = registry.bind(global.name, wl.Compositor, wl.Compositor.generated_version) catch |err| @panic(@errorName(err));
+                    seto.compositor = registry.bind(
+                        global.name,
+                        wl.Compositor,
+                        wl.Compositor.generated_version,
+                    ) catch @panic("Failed to bind compositor global");
                 },
                 .zwlr_layer_shell_v1 => {
-                    seto.layer_shell = registry.bind(global.name, zwlr.LayerShellV1, zwlr.LayerShellV1.generated_version) catch |err| @panic(@errorName(err));
+                    seto.layer_shell = registry.bind(
+                        global.name,
+                        zwlr.LayerShellV1,
+                        zwlr.LayerShellV1.generated_version,
+                    ) catch @panic("Failed to bind layer shell global");
                 },
                 .wl_output => {
                     const global_output = registry.bind(
                         global.name,
                         wl.Output,
                         wl.Output.generated_version,
-                    ) catch |err| @panic(@errorName(err));
+                    ) catch @panic("Failed to bind output global");
 
-                    const surface = seto.compositor.?.createSurface() catch |err| @panic(@errorName(err));
+                    const surface = seto.compositor.?.createSurface() catch @panic("Failed to create surface");
 
-                    const layer_surface = seto.layer_shell.?.getLayerSurface(surface, global_output, .overlay, "seto") catch |err| @panic(@errorName(err));
+                    const layer_surface = seto.layer_shell.?.getLayerSurface(
+                        surface,
+                        global_output,
+                        .overlay,
+                        "seto",
+                    ) catch @panic("Failed to get layer surface");
                     layer_surface.setListener(*Seto, layerSurfaceListener, seto);
                     layer_surface.setAnchor(.{
                         .top = true,
@@ -265,9 +264,9 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     layer_surface.setKeyboardInteractivity(.exclusive);
                     surface.commit();
 
-                    const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
+                    const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch @panic("Failed to get xdg output global");
 
-                    const egl_surface = seto.egl.newSurface(surface, .{ 1, 1 }) catch return;
+                    const egl_surface = seto.egl.newSurface(surface, .{ 1, 1 }) catch @panic("Failed to create egl surface");
 
                     const output = Surface.new(
                         egl_surface,
@@ -284,7 +283,11 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     seto.outputs.append(output) catch @panic("OOM");
                 },
                 .wl_seat => {
-                    seto.seat.wl_seat = registry.bind(global.name, wl.Seat, wl.Seat.generated_version) catch |err| @panic(@errorName(err));
+                    seto.seat.wl_seat = registry.bind(
+                        global.name,
+                        wl.Seat,
+                        wl.Seat.generated_version,
+                    ) catch @panic("Failed to bind seat global");
                     seto.seat.wl_seat.?.setListener(*Seto, seatListener, seto);
                 },
                 .zxdg_output_manager_v1 => {
@@ -292,7 +295,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         global.name,
                         zxdg.OutputManagerV1,
                         zxdg.OutputManagerV1.generated_version,
-                    ) catch |err| @panic(@errorName(err));
+                    ) catch @panic("Failed to bind output manager global");
                 },
             }
         },

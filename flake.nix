@@ -93,6 +93,7 @@
           shfmt
           fontconfig
           clang-tools
+          egl-wayland
           zls.packages.${system}.default
         ];
       };
