@@ -1,6 +1,15 @@
 const std = @import("std");
 const Lua = @import("ziglua").Lua;
 
+pub fn orthographicProjection(left: f32, right: f32, top: f32, bottom: f32) [4][4]f32 {
+    return .{
+        .{ 2 / (right - left), 0.0, 0.0, 0.0 },
+        .{ 0.0, 2 / (top - bottom), 0.0, 0.0 },
+        .{ 0.0, 0.0, 2, 0.0 },
+        .{ -(right + left) / (right - left), -(top + bottom) / (top - bottom), (1 + 0) / -1, 1.0 },
+    };
+}
+
 pub const Color = struct {
     deg: f32,
     start_color: [4]f32,

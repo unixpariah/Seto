@@ -181,24 +181,24 @@ pub fn parseArgs(seto: *Seto) void {
                 seto.config.keys.search = seto.alloc.dupe(u8, keys_search) catch @panic("OOM");
             },
             .@"--function", .@"-F" => {
-                const key = args.next() orelse {
-                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
-                    std.process.exit(1);
-                };
-                const function = args.next() orelse {
-                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
-                    std.process.exit(1);
-                };
-                const values = args.next();
-                const func = if (values) |nn_values|
-                    Function.stringToFunction(
-                        function,
-                        parseIntArray(nn_values, ",") catch @panic("Failed to parse"),
-                    ) catch |err| switch (err) {}
-                else
-                    Function.stringToFunction(function, null) catch unreachable;
+                // TODO: this is gonna be annoying
+                //const key = args.next() orelse {
+                //    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                //    std.process.exit(1);
+                //};
+                //const function = args.next() orelse {
+                //    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                //    std.process.exit(1);
+                //};
+                //const func = Function.stringToFunction(function, null) catch |err| {
+                //    switch (err) {
+                //        error.NullValue => std.log.err("Function {s} is missing an argument\n", .{function}),
+                //        error.UnkownFunction => std.log.err("Unkown function {s}\n", .{function}),
+                //    }
+                //    std.process.exit(1);
+                //};
 
-                seto.config.keys.bindings.put(key[0], func) catch unreachable;
+                //seto.config.keys.bindings.put(key[0], func) catch unreachable;
             },
         }
     }

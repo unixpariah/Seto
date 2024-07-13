@@ -31,6 +31,7 @@
               libxkbcommon
               freetype
               fontconfig
+              cglm
             ];
 
             buildInputs = with env.pkgsForTarget target; [
@@ -94,6 +95,7 @@
           fontconfig
           clang-tools
           egl-wayland
+          cglm
           zls.packages.${system}.default
         ];
       };

@@ -1,19 +1,21 @@
 const std = @import("std");
 const wayland = @import("wayland");
 const c = @import("ffi");
+const zm = @import("zmath");
 
 const mem = std.mem;
 const posix = std.posix;
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
+const helpers = @import("helpers");
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("Config.zig");
 const EglSurface = @import("Egl.zig").EglSurface;
 const Tree = @import("Tree.zig");
-const Color = @import("helpers").Color;
+const Color = helpers.Color;
 
 pub const OutputInfo = struct {
     id: u32,
@@ -176,12 +178,19 @@ pub const Surface = struct {
 
         c.glUseProgram(self.egl.main_shader_program.*);
         const info = self.output_info;
-        c.glUniform4f(
-            c.glGetUniformLocation(self.egl.main_shader_program.*, "u_surface"),
+
+        const projection = helpers.orthographicProjection(
             @floatFromInt(info.x),
-            @floatFromInt(info.y),
             @floatFromInt(info.x + info.width),
+            @floatFromInt(info.y),
             @floatFromInt(info.y + info.height),
+        );
+
+        c.glUniformMatrix4fv(
+            c.glGetUniformLocation(self.egl.text_shader_program.*, "projection"),
+            1,
+            c.GL_FALSE,
+            @ptrCast(&projection),
         );
 
         self.drawBackground();
@@ -189,12 +198,11 @@ pub const Surface = struct {
         if (mode == .Region) self.drawSelection(&mode);
 
         c.glUseProgram(self.egl.text_shader_program.*);
-        c.glUniform4f(
-            c.glGetUniformLocation(self.egl.text_shader_program.*, "u_surface"),
-            @floatFromInt(info.x),
-            @floatFromInt(info.y),
-            @floatFromInt(info.x + info.width),
-            @floatFromInt(info.y + info.height),
+        c.glUniformMatrix4fv(
+            c.glGetUniformLocation(self.egl.text_shader_program.*, "projection"),
+            1,
+            c.GL_FALSE,
+            @ptrCast(&projection),
         );
 
         self.renderText("asdfghjkl", 80, 80);
