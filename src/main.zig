@@ -63,8 +63,8 @@ pub const Seto = struct {
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
-            .config = Config.load(alloc),
             .egl = try Egl.new(display),
+            .config = Config.load(alloc),
         };
     }
 
@@ -155,7 +155,6 @@ pub const Seto = struct {
             if (!surface.isConfigured()) continue;
 
             surface.draw(self.state.border_mode, self.state.mode);
-            surface.egl.getEglError() catch |err| @panic(@errorName(err));
             surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }
     }

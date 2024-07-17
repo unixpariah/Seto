@@ -19,6 +19,7 @@ pub const Character = struct {
         var texture: u32 = undefined;
         c.glGenTextures(1, &texture);
         c.glBindTexture(c.GL_TEXTURE_2D, texture);
+
         c.glTexImage2D(
             c.GL_TEXTURE_2D,
             0,
@@ -161,7 +162,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
 
     for (keys_s.search) |key| {
-        keys_s.char_info.put(key, Character.new(face, key)) catch unreachable;
+        keys_s.char_info.put(key, Character.new(face, key)) catch @panic("OOM");
     }
 
     return keys_s;

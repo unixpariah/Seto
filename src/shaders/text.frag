@@ -22,5 +22,5 @@ void main() {
   vec4 color = mix(u_startcolor, u_endcolor, gradientFactor);
 
   vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, v_texcoords).r);
-  FragColor = color;
+  FragColor = color * sampled;
 }

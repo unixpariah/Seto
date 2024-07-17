@@ -2,6 +2,11 @@ const std = @import("std");
 const c = @import("ffi");
 const wl = @import("wayland").client.wl;
 
+fn glMessageCallback(source: u32, err_type: u32, id: u32, severity: u32, length: i32, message: [*c]const u8, a: ?*const anyopaque) callconv(.C) void {
+    _ = a;
+    std.debug.print("{} {} {} {} {} {s}\n", .{ source, err_type, id, severity, length, message });
+}
+
 pub const EglSurface = struct {
     window: *wl.EglWindow,
     surface: c.EGLSurface,
@@ -22,18 +27,6 @@ pub const EglSurface = struct {
         self.window.resize(@intFromFloat(self.width), @intFromFloat(self.height), 0, 0);
     }
 
-    pub fn getEglError(_: *const EglSurface) !void {
-        switch (c.eglGetError()) {
-            c.EGL_SUCCESS => return,
-            c.GL_INVALID_ENUM => return error.GLInvalidEnum,
-            c.GL_INVALID_VALUE => return error.GLInvalidValue,
-            c.GL_INVALID_OPERATION => return error.GLInvalidOperation,
-            c.GL_INVALID_FRAMEBUFFER_OPERATION => return error.GLInvalidFramebufferOperation,
-            c.GL_OUT_OF_MEMORY => return error.OutOfMemory,
-            else => return error.UnknownEglError,
-        }
-    }
-
     pub fn makeCurrent(self: *const EglSurface) !void {
         if (c.eglMakeCurrent(
             self.display.*,
@@ -48,6 +41,8 @@ pub const EglSurface = struct {
     }
 
     pub fn destroy(self: *EglSurface) void {
+        c.glDeleteBuffers(5, &self.VBO);
+        c.glDeleteBuffers(2, &self.EBO);
         if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) @panic("Failed to destroy egl surface");
         self.window.destroy();
     }
@@ -121,7 +116,7 @@ pub fn new(display: *wl.Display) !Self {
         c.EGL_NO_CONTEXT,
         &[_]i32{
             c.EGL_CONTEXT_MAJOR_VERSION,       4,
-            c.EGL_CONTEXT_MINOR_VERSION,       4,
+            c.EGL_CONTEXT_MINOR_VERSION,       3,
             c.EGL_CONTEXT_OPENGL_DEBUG,        c.EGL_TRUE,
             c.EGL_CONTEXT_OPENGL_PROFILE_MASK, c.EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
             c.EGL_NONE,
@@ -183,7 +178,9 @@ pub fn new(display: *wl.Display) !Self {
         return error.EGLError;
     }
 
+    c.glEnable(c.GL_DEBUG_OUTPUT);
     c.glEnable(c.GL_BLEND);
+    c.glDebugMessageCallback(glMessageCallback, null);
     c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
 
     c.glUseProgram(main_shader_program);
@@ -257,6 +254,7 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
 }
 
 pub fn destroy(self: *Self) void {
+    c.glDeleteBuffers(1, &self.VAO);
     if (c.eglDestroyContext(self.display, self.context) != c.EGL_TRUE) @panic("Failed to destroy egl context");
     if (c.eglTerminate(self.display) != c.EGL_TRUE) @panic("Failed to terminate egl");
 }

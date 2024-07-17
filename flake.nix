@@ -31,7 +31,6 @@
               libxkbcommon
               freetype
               fontconfig
-              cglm
             ];
 
             buildInputs = with env.pkgsForTarget target; [
@@ -41,7 +40,6 @@
             ];
 
             zigPreferMusl = true;
-
             zigDisableWrap = true;
           }
           // optionalAttrs (!pathExists ./build.zig.zon) {
@@ -95,7 +93,6 @@
           fontconfig
           clang-tools
           egl-wayland
-          cglm
           zls.packages.${system}.default
         ];
       };

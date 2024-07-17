@@ -1,7 +1,6 @@
 const std = @import("std");
 const wayland = @import("wayland");
 const c = @import("ffi");
-const zm = @import("zmath");
 
 const mem = std.mem;
 const posix = std.posix;
@@ -134,7 +133,7 @@ pub const Surface = struct {
             return;
         }
 
-        // grid.size can't be 0, and overflow will definetly not happen, so unwrap is safe
+        // grid.size can't be 0, and overflow is very 'unlikely', so unwrap is safe
         const vert_line_count = std.math.divCeil(i32, info.x, grid.size[0]) catch unreachable;
         const hor_line_count = std.math.divCeil(i32, info.y, grid.size[1]) catch unreachable;
 
@@ -187,7 +186,7 @@ pub const Surface = struct {
         );
 
         c.glUniformMatrix4fv(
-            c.glGetUniformLocation(self.egl.text_shader_program.*, "projection"),
+            c.glGetUniformLocation(self.egl.main_shader_program.*, "projection"),
             1,
             c.GL_FALSE,
             @ptrCast(&projection),
@@ -206,7 +205,7 @@ pub const Surface = struct {
         );
 
         self.renderText("asdfghjkl", 80, 80);
-        self.renderText("jakdhfa", 800, 80);
+        self.renderText("jakdhfa", 3000, 800);
     }
 
     pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32) void {
@@ -222,10 +221,10 @@ pub const Surface = struct {
             const y_pos = y - ch.bearing[1];
 
             const vertices = [_]i32{
-                x_pos,              y_pos,              0, 1,
-                x_pos + ch.size[0], y_pos,              1, 1,
-                x_pos,              y_pos + ch.size[1], 0, 0,
-                x_pos + ch.size[0], y_pos + ch.size[1], 1, 0,
+                x_pos,              y_pos,              0, 0,
+                x_pos + ch.size[0], y_pos,              1, 0,
+                x_pos,              y_pos + ch.size[1], 0, 1,
+                x_pos + ch.size[0], y_pos + ch.size[1], 1, 1,
             };
 
             c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
@@ -327,7 +326,7 @@ pub fn xdgOutputListener(
                         };
 
                         c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[1]);
-                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_DYNAMIC_DRAW);
                     }
 
                     { // Border VBO
@@ -339,16 +338,16 @@ pub fn xdgOutputListener(
                         };
 
                         c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[2]);
-                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_DYNAMIC_DRAW);
                     }
 
                     // Selection VBO
                     c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[3]);
-                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_STATIC_DRAW);
+                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_DYNAMIC_DRAW);
 
                     // Text VBO
                     c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[4]);
-                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_STATIC_DRAW);
+                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_DYNAMIC_DRAW);
 
                     if (seto.tree) |tree| tree.destroy();
                     seto.tree = Tree.new(
