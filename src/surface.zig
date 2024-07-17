@@ -133,9 +133,8 @@ pub const Surface = struct {
             return;
         }
 
-        // grid.size can't be 0, and overflow is very 'unlikely', so unwrap is safe
-        const vert_line_count = std.math.divCeil(i32, info.x, grid.size[0]) catch unreachable;
-        const hor_line_count = std.math.divCeil(i32, info.y, grid.size[1]) catch unreachable;
+        const vert_line_count = @divFloor(info.x, grid.size[0]);
+        const hor_line_count = @divFloor(info.y, grid.size[1]);
 
         var start_pos: [2]i32 = .{
             vert_line_count * grid.size[0] + grid.offset[0],
@@ -195,21 +194,17 @@ pub const Surface = struct {
         self.drawBackground();
         self.drawGrid(border_mode);
         if (mode == .Region) self.drawSelection(&mode);
-
-        c.glUseProgram(self.egl.text_shader_program.*);
-        c.glUniformMatrix4fv(
-            c.glGetUniformLocation(self.egl.text_shader_program.*, "projection"),
-            1,
-            c.GL_FALSE,
-            @ptrCast(&projection),
-        );
     }
 
-    pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32) void {
+    pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32, matches: u8) void {
         setColor(self.config.font.color, self.egl.text_shader_program.*);
         c.glActiveTexture(c.GL_TEXTURE0);
 
         for (text, 0..) |char, i| {
+            if (matches > i) {
+                setColor(self.config.font.highlight_color, self.egl.text_shader_program.*);
+            }
+
             const ch = self.config.keys.char_info.get(char) orelse continue;
 
             const move: i32 = @intCast(ch.advance[0] * i);
@@ -231,6 +226,10 @@ pub const Surface = struct {
 
             c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
             c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
+
+            if (matches > i) {
+                setColor(self.config.font.color, self.egl.text_shader_program.*);
+            }
         }
     }
 

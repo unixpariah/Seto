@@ -1,6 +1,6 @@
 # Seto
 
-Hardware accelerated keyboard based screen selection tool with all the eye candy
+Hardware accelerated keyboard based screen selection tool with all the eye candy you could ever ask for.
 
 ## Building
 

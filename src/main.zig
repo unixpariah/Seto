@@ -155,7 +155,10 @@ pub const Seto = struct {
             if (!surface.isConfigured()) continue;
 
             surface.draw(self.state.border_mode, self.state.mode);
-            self.tree.?.drawText(surface);
+            switch (self.state.border_mode) {
+                true => {},
+                false => self.tree.?.drawText(surface, self.seat.buffer.items),
+            }
             surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }
     }

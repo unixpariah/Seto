@@ -1,4 +1,6 @@
 const std = @import("std");
+const c = @import("ffi");
+const helpers = @import("helpers");
 
 const Seto = @import("main.zig").Seto;
 const Surface = @import("surface.zig").Surface;
@@ -45,16 +47,37 @@ pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, surface: *const Surface) void {
+pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8) void {
+    const info = surface.output_info;
+    const projection = helpers.orthographicProjection(
+        @floatFromInt(info.x),
+        @floatFromInt(info.x + info.width),
+        @floatFromInt(info.y),
+        @floatFromInt(info.y + info.height),
+    );
+
+    c.glUseProgram(surface.egl.text_shader_program.*);
+    c.glUniformMatrix4fv(
+        c.glGetUniformLocation(surface.egl.text_shader_program.*, "projection"),
+        1,
+        c.GL_FALSE,
+        @ptrCast(&projection),
+    );
+
     const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");
 
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.traverseAndDraw(path, 1, surface);
+            child.traverseAndDraw(path, 1, surface, buffer);
         } else {
             if (child.coordinates) |coordinates| {
-                surface.renderText(path, coordinates[0], coordinates[1]);
+                var matches: u8 = 0;
+                for (buffer, 0..) |char, i| {
+                    if (path[i] == char[0]) matches += 1 else break;
+                }
+                if (buffer.len > matches) matches = 0;
+                surface.renderText(path, coordinates[0], coordinates[1], matches);
             }
         }
     }
@@ -167,15 +190,25 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn traverseAndDraw(self: *Node, path: []u8, index: u8, surface: *const Surface) void {
+    fn traverseAndDraw(self: *Node, path: []u8, index: u8, surface: *const Surface, buffer: [][64]u8) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
 
                 if (child.coordinates) |coordinates| {
-                    surface.renderText(path, coordinates[0], coordinates[1] + 20);
+                    var matches: u8 = 0;
+                    for (buffer, 0..) |char, i| {
+                        if (path[i] == char[0]) matches += 1 else break;
+                    }
+                    if (buffer.len > matches) matches = 0;
+                    surface.renderText(
+                        path,
+                        coordinates[0] + surface.config.font.offset[0],
+                        coordinates[1] + 20 + surface.config.font.offset[1],
+                        matches,
+                    );
                 } else {
-                    child.traverseAndDraw(path, index + 1, surface);
+                    child.traverseAndDraw(path, index + 1, surface, buffer);
                 }
             }
         }
