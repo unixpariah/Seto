@@ -21,6 +21,5 @@ void main() {
   float gradientFactor = smoothstep(0.0, 1.0, rotatedUV.x);
   vec4 color = mix(u_startcolor, u_endcolor, gradientFactor);
 
-  vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, v_texcoords).r);
-  FragColor = color * sampled;
+  FragColor = color * texture(text, v_texcoords).r;
 }

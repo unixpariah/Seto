@@ -139,7 +139,7 @@ pub const Surface = struct {
 
         var start_pos: [2]i32 = .{
             vert_line_count * grid.size[0] + grid.offset[0],
-            hor_line_count * grid.size[1] - grid.offset[1],
+            hor_line_count * grid.size[1] + grid.offset[1],
         };
 
         var vertices = std.ArrayList(i32).init(self.alloc);
@@ -154,8 +154,8 @@ pub const Surface = struct {
 
         while (start_pos[1] <= info.y + info.height) : (start_pos[1] += grid.size[1]) {
             vertices.appendSlice(&[_]i32{
-                info.x,              info.y + info.height - start_pos[1],
-                info.x + info.width, info.y + info.height - start_pos[1],
+                info.x,              start_pos[1],
+                info.x + info.width, start_pos[1],
             }) catch @panic("OOM");
         }
 
@@ -203,9 +203,6 @@ pub const Surface = struct {
             c.GL_FALSE,
             @ptrCast(&projection),
         );
-
-        self.renderText("asdfghjkl", 80, 80);
-        self.renderText("jakdhfa", 3000, 800);
     }
 
     pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32) void {
@@ -213,7 +210,7 @@ pub const Surface = struct {
         c.glActiveTexture(c.GL_TEXTURE0);
 
         for (text, 0..) |char, i| {
-            const ch = self.config.keys.char_info.get(char).?;
+            const ch = self.config.keys.char_info.get(char) orelse continue;
 
             const move: i32 = @intCast(ch.advance[0] * i);
 

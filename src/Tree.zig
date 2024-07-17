@@ -45,6 +45,21 @@ pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
     return error.KeyNotFound;
 }
 
+pub fn drawText(self: *Self, surface: *const Surface) void {
+    const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");
+
+    for (self.children) |*child| {
+        path[0] = child.key;
+        if (child.children) |_| {
+            child.traverseAndDraw(path, 1, surface);
+        } else {
+            if (child.coordinates) |coordinates| {
+                surface.renderText(path, coordinates[0], coordinates[1]);
+            }
+        }
+    }
+}
+
 pub fn updateCoordinates(
     self: *Self,
     grid: *const Grid,
@@ -150,6 +165,20 @@ const Node = struct {
         }
 
         return error.KeyNotFound;
+    }
+
+    fn traverseAndDraw(self: *Node, path: []u8, index: u8, surface: *const Surface) void {
+        if (self.children) |children| {
+            for (children) |*child| {
+                path[index] = child.key;
+
+                if (child.coordinates) |coordinates| {
+                    surface.renderText(path, coordinates[0], coordinates[1] + 20);
+                } else {
+                    child.traverseAndDraw(path, index + 1, surface);
+                }
+            }
+        }
     }
 
     fn traverseAndPutCoords(self: *Node, intersections: [][2]i32, index: *usize) void {
