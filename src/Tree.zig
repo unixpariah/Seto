@@ -47,7 +47,7 @@ pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8) void {
+pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8, border_mode: bool) void {
     const info = surface.output_info;
     const projection = helpers.orthographicProjection(
         @floatFromInt(info.x),
@@ -69,7 +69,7 @@ pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8) void {
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.traverseAndDraw(path, 1, surface, buffer);
+            child.traverseAndDraw(path, 1, surface, buffer, border_mode);
         } else {
             if (child.coordinates) |coordinates| {
                 var matches: u8 = 0;
@@ -77,7 +77,28 @@ pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8) void {
                     if (path[i] == char[0]) matches += 1 else break;
                 }
                 if (buffer.len > matches) matches = 0;
-                surface.renderText(path, coordinates[0], coordinates[1], matches);
+
+                const coords = blk: {
+                    if (border_mode) {
+                        break :blk if (coordinates[0] == info.x and coordinates[1] == info.y)
+                            .{ coordinates[0] + 5, coordinates[1] + 25 }
+                        else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1)
+                            .{ coordinates[0] + 5, coordinates[1] - 15 }
+                        else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y)
+                            break :blk .{ coordinates[0] - 25, coordinates[1] + 25 }
+                        else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1)
+                            break :blk .{ coordinates[0] - 25, coordinates[1] - 15 }
+                        else
+                            continue;
+                    } else {
+                        break :blk .{
+                            coordinates[0] + surface.config.font.offset[0],
+                            coordinates[1] + 20 + surface.config.font.offset[1],
+                        };
+                    }
+                };
+
+                surface.renderText(path, coords[0], coords[1], matches);
             }
         }
     }
@@ -190,7 +211,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn traverseAndDraw(self: *Node, path: []u8, index: u8, surface: *const Surface, buffer: [][64]u8) void {
+    fn traverseAndDraw(self: *Node, path: []u8, index: u8, surface: *const Surface, buffer: [][64]u8, border_mode: bool) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
@@ -201,14 +222,30 @@ const Node = struct {
                         if (path[i] == char[0]) matches += 1 else break;
                     }
                     if (buffer.len > matches) matches = 0;
-                    surface.renderText(
-                        path,
-                        coordinates[0] + surface.config.font.offset[0],
-                        coordinates[1] + 20 + surface.config.font.offset[1],
-                        matches,
-                    );
+
+                    const coords = blk: {
+                        if (border_mode) {
+                            const info = surface.output_info;
+                            if (coordinates[0] == info.x and coordinates[1] == info.y) {
+                                break :blk .{ coordinates[0] + 5, coordinates[1] + 25 };
+                            } else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1) {
+                                break :blk .{ coordinates[0] + 5, coordinates[1] - 15 };
+                            } else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y) {
+                                break :blk .{ coordinates[0] - 25, coordinates[1] + 25 };
+                            } else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1) {
+                                break :blk .{ coordinates[0] - 25, coordinates[1] - 15 };
+                            } else continue;
+                        } else {
+                            break :blk .{
+                                coordinates[0] + surface.config.font.offset[0],
+                                coordinates[1] + 20 + surface.config.font.offset[1],
+                            };
+                        }
+                    };
+
+                    surface.renderText(path, coords[0], coords[1], matches);
                 } else {
-                    child.traverseAndDraw(path, index + 1, surface, buffer);
+                    child.traverseAndDraw(path, index + 1, surface, buffer, border_mode);
                 }
             }
         }
