@@ -1,46 +1,62 @@
 const std = @import("std");
+const wayland = @import("wayland");
+const c = @import("ffi");
+
 const mem = std.mem;
 const posix = std.posix;
-
-const wayland = @import("wayland");
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
-const cairo = @import("cairo");
+const helpers = @import("helpers");
 
+const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
+const Config = @import("Config.zig");
+const EglSurface = @import("Egl.zig").EglSurface;
+const Tree = @import("Tree.zig");
+const Color = helpers.Color;
 
 pub const OutputInfo = struct {
+    id: u32,
     name: ?[]const u8 = null,
     description: ?[]const u8 = null,
     height: i32 = 0,
     width: i32 = 0,
     x: i32 = 0,
     y: i32 = 0,
-    wl_output: *wl.Output,
 
     const Self = @This();
 
     fn destroy(self: *Self, alloc: mem.Allocator) void {
-        self.wl_output.destroy();
         alloc.free(self.name.?);
         alloc.free(self.description.?);
     }
 };
 
 pub const Surface = struct {
+    egl: EglSurface,
     layer_surface: *zwlr.LayerSurfaceV1,
     surface: *wl.Surface,
     alloc: mem.Allocator,
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
-    mmap: ?[]align(mem.page_size) u8 = null,
-    buffer: ?*wl.Buffer = null,
+
+    config: *const Config,
 
     const Self = @This();
 
-    pub fn new(surface: *wl.Surface, layer_surface: *zwlr.LayerSurfaceV1, alloc: mem.Allocator, xdg_output: *zxdg.OutputV1, output_info: OutputInfo) Self {
+    pub fn new(
+        egl: EglSurface,
+        surface: *wl.Surface,
+        layer_surface: *zwlr.LayerSurfaceV1,
+        alloc: mem.Allocator,
+        xdg_output: *zxdg.OutputV1,
+        output_info: OutputInfo,
+        config_ptr: *const Config,
+    ) Self {
         return .{
+            .config = config_ptr,
+            .egl = egl,
             .surface = surface,
             .layer_surface = layer_surface,
             .alloc = alloc,
@@ -49,28 +65,173 @@ pub const Surface = struct {
         };
     }
 
-    pub fn posInSurface(self: Self, coordinates: [2]i32) bool {
+    fn posInY(self: *const Self, coordinates: [2]i32) bool {
         const info = self.output_info;
-        return coordinates[0] < info.x + info.width and coordinates[0] >= info.x and coordinates[1] < info.y + info.height and coordinates[1] >= info.y;
+        return coordinates[1] < info.y + info.height and coordinates[1] >= info.y;
     }
 
-    pub fn cmp(self: Self, a: Self, b: Self) bool {
-        _ = self;
+    fn posInX(self: *const Self, coordinates: [2]i32) bool {
+        const info = self.output_info;
+        return coordinates[0] < info.x + info.width and coordinates[0] >= info.x;
+    }
+
+    pub fn posInSurface(self: *const Self, coordinates: [2]i32) bool {
+        return self.posInX(coordinates) and self.posInY(coordinates);
+    }
+
+    pub fn cmp(_: Self, a: Self, b: Self) bool {
         if (a.output_info.x != b.output_info.x)
             return a.output_info.x < b.output_info.x
         else
             return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *Self) !void {
-        const width = self.output_info.width;
-        const height = self.output_info.height;
+    fn drawBackground(self: *const Self) void {
+        setColor(self.config.background_color, self.egl.main_shader_program.*);
 
-        self.surface.damage(0, 0, width, height);
-        const callback = try self.surface.frame();
-        callback.setListener(*Self, frameListener, self);
-        self.surface.attach(self.buffer, 0, 0);
-        self.surface.commit();
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
+        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 2 * @sizeOf(i32), null);
+        c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
+    }
+
+    fn drawSelection(self: *const Self, mode: *const Mode) void {
+        if (mode.Region) |pos| {
+            setColor(self.config.grid.selected_color, self.egl.main_shader_program.*);
+
+            const info = self.output_info;
+            var vertices: [8]i32 = .{
+                info.x + info.width, pos[1],
+                info.x,              pos[1],
+                pos[0],              info.y,
+                pos[0],              info.y + info.height,
+            };
+            c.glLineWidth(self.config.grid.selected_line_width);
+
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[3]);
+            c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
+
+            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+            c.glDrawArrays(c.GL_LINES, 0, vertices.len >> 1);
+        }
+    }
+
+    fn drawGrid(self: *const Self, border_mode: bool) void {
+        const info = &self.output_info;
+        const grid = &self.config.grid;
+
+        c.glLineWidth(grid.line_width);
+        setColor(grid.color, self.egl.main_shader_program.*);
+
+        if (border_mode) {
+            c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, self.egl.EBO[1]);
+            defer c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, self.egl.EBO[0]);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[2]);
+
+            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 2 * @sizeOf(i32), null);
+            c.glDrawElements(c.GL_LINES, 8, c.GL_UNSIGNED_INT, null);
+
+            return;
+        }
+
+        const vert_line_count = @divFloor(info.x, grid.size[0]);
+        const hor_line_count = @divFloor(info.y, grid.size[1]);
+
+        var start_pos: [2]i32 = .{
+            vert_line_count * grid.size[0] + grid.offset[0],
+            hor_line_count * grid.size[1] + grid.offset[1],
+        };
+
+        var vertices = std.ArrayList(i32).init(self.alloc);
+        defer vertices.deinit();
+
+        while (start_pos[0] <= info.x + info.width) : (start_pos[0] += grid.size[0]) {
+            vertices.appendSlice(&[_]i32{
+                start_pos[0], info.y,
+                start_pos[0], info.y + info.height,
+            }) catch @panic("OOM");
+        }
+
+        while (start_pos[1] <= info.y + info.height) : (start_pos[1] += grid.size[1]) {
+            vertices.appendSlice(&[_]i32{
+                info.x,              start_pos[1],
+                info.x + info.width, start_pos[1],
+            }) catch @panic("OOM");
+        }
+
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[0]);
+        c.glBufferData(
+            c.GL_ARRAY_BUFFER,
+            @intCast(@sizeOf(i32) * vertices.items.len),
+            @ptrCast(vertices.items),
+            c.GL_STATIC_DRAW,
+        );
+        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+        c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
+    }
+
+    pub fn draw(self: *const Self, border_mode: bool, mode: Mode) void {
+        self.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
+
+        c.glClear(c.GL_COLOR_BUFFER_BIT);
+
+        c.glUseProgram(self.egl.main_shader_program.*);
+        const info = self.output_info;
+
+        const projection = helpers.orthographicProjection(
+            @floatFromInt(info.x),
+            @floatFromInt(info.x + info.width),
+            @floatFromInt(info.y),
+            @floatFromInt(info.y + info.height),
+        );
+
+        c.glUniformMatrix4fv(
+            c.glGetUniformLocation(self.egl.main_shader_program.*, "projection"),
+            1,
+            c.GL_FALSE,
+            @ptrCast(&projection),
+        );
+
+        self.drawBackground();
+        self.drawGrid(border_mode);
+        if (mode == .Region) self.drawSelection(&mode);
+    }
+
+    pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32, matches: u8) void {
+        c.glActiveTexture(c.GL_TEXTURE0);
+
+        if (matches > 0) {
+            setColor(self.config.font.highlight_color, self.egl.text_shader_program.*);
+        } else {
+            setColor(self.config.font.color, self.egl.text_shader_program.*);
+        }
+
+        for (text, 0..) |char, i| {
+            if (matches == i and matches > 0) {
+                setColor(self.config.font.color, self.egl.text_shader_program.*);
+            }
+
+            const ch = self.config.keys.char_info.get(char) orelse continue;
+
+            const move: i32 = @intCast(ch.advance[0] * i);
+
+            const x_pos = x + ch.size[0] + move;
+            const y_pos = y - ch.bearing[1];
+
+            const vertices = [_]i32{
+                x_pos,              y_pos,              0, 0,
+                x_pos + ch.size[0], y_pos,              1, 0,
+                x_pos,              y_pos + ch.size[1], 0, 1,
+                x_pos + ch.size[0], y_pos + ch.size[1], 1, 1,
+            };
+
+            c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
+
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[4]);
+            c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
+
+            c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
+            c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
+        }
     }
 
     pub fn isConfigured(self: *const Self) bool {
@@ -82,45 +243,35 @@ pub const Surface = struct {
         self.surface.destroy();
         self.output_info.destroy(self.alloc);
         self.xdg_output.destroy();
-        self.buffer.?.destroy();
-        if (self.mmap) |mmap| {
-            posix.munmap(mmap);
-        }
+        self.egl.destroy();
     }
 };
 
 pub const SurfaceIterator = struct {
-    position: [2]i32 = .{ 0, 0 },
-    outputs: []Surface,
+    position: [2]i32,
+    outputs: *const []Surface,
     index: u8 = 0,
 
     const Self = @This();
 
-    pub fn new(outputs: []Surface) Self {
-        return Self{ .outputs = outputs };
+    pub fn new(outputs: *const []Surface) Self {
+        return Self{ .outputs = outputs, .position = .{ outputs.*[0].output_info.x, outputs.*[0].output_info.y } };
     }
 
-    pub fn next(self: *Self) ?std.meta.Tuple(&.{ Surface, [2]i32 }) {
-        if (self.index >= self.outputs.len) return null;
-        const output = self.outputs[self.index];
-        const info = output.output_info;
-        if (!output.isConfigured()) return self.next();
+    fn isNewline(self: *Self) bool {
+        if (self.index == 0) return false;
+        return self.outputs.*[self.index].output_info.x <= self.outputs.*[self.index - 1].output_info.x;
+    }
 
-        if (self.index > 0) {
-            if (info.x <= self.outputs[self.index - 1].output_info.x) self.position = .{ 0, self.outputs[self.index - 1].output_info.height };
-        }
+    pub fn next(self: *Self) ?*const Surface {
+        if (self.index >= self.outputs.len or !self.outputs.*[self.index].isConfigured()) return null;
+        const output = &self.outputs.*[self.index];
 
-        defer self.index += 1;
-        defer self.position[0] += info.width;
+        self.index += 1;
 
-        return .{ output, self.position };
+        return output;
     }
 };
-
-pub fn frameListener(callback: *wl.Callback, event: wl.Callback.Event, surface: *Surface) void {
-    if (event == .done) surface.draw() catch return;
-    callback.destroy();
-}
 
 pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, seto: *Seto) void {
     switch (event) {
@@ -129,23 +280,7 @@ pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfac
                 if (surface.layer_surface == lsurf) {
                     surface.layer_surface.setSize(configure.width, configure.height);
                     surface.layer_surface.ackConfigure(configure.serial);
-
-                    const total_size = configure.width * configure.height * 4;
-
-                    const fd = posix.memfd_create("seto", 0) catch |err| @panic(@errorName(err));
-                    defer std.posix.close(fd);
-                    posix.ftruncate(fd, @intCast(total_size)) catch @panic("OOM");
-
-                    const pool = seto.shm.?.createPool(fd, @intCast(total_size)) catch |err| @panic(@errorName(err));
-                    defer pool.destroy();
-
-                    if (surface.mmap) |mmap| posix.munmap(mmap);
-                    surface.mmap = posix.mmap(null, total_size, posix.PROT.READ | posix.PROT.WRITE, posix.MAP{ .TYPE = .SHARED }, fd, 0) catch @panic("OOM");
-
-                    if (surface.buffer) |buffer| buffer.destroy();
-                    surface.buffer = pool.createBuffer(0, @intCast(configure.width), @intCast(configure.height), @intCast(configure.width * 4), wl.Shm.Format.argb8888) catch unreachable;
-
-                    if (!surface.isConfigured()) surface.draw() catch return;
+                    surface.egl.resize(.{ configure.width, configure.height });
                 }
             }
         },
@@ -176,10 +311,69 @@ pub fn xdgOutputListener(
                     surface.output_info.width = size.width;
 
                     seto.updateDimensions();
-                    seto.sortOutputs();
+
+                    const info = surface.output_info;
+
+                    { // Background VBO
+                        const vertices = [_]i32{
+                            info.x,              info.y,
+                            info.x + info.width, info.y,
+                            info.x,              info.y + info.height,
+                            info.x + info.width, info.y + info.height,
+                        };
+
+                        c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[1]);
+                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_DYNAMIC_DRAW);
+                    }
+
+                    { // Border VBO
+                        const vertices = [_]i32{
+                            info.x,              info.y,
+                            info.x + info.width, info.y,
+                            info.x + info.width, info.y + info.height,
+                            info.x,              info.y + info.height,
+                        };
+
+                        c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[2]);
+                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_DYNAMIC_DRAW);
+                    }
+
+                    // Selection VBO
+                    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[3]);
+                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_DYNAMIC_DRAW);
+
+                    // Text VBO
+                    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[4]);
+                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_DYNAMIC_DRAW);
+
+                    if (seto.tree) |tree| tree.destroy();
+                    seto.tree = Tree.new(
+                        seto.config.keys.search,
+                        seto.alloc,
+                        &seto.config.grid,
+                        &seto.outputs.items,
+                    );
                 },
                 .done => {},
             }
         }
     }
+}
+
+pub fn setColor(color: Color, shader_program: c_uint) void {
+    c.glUniform4f(
+        c.glGetUniformLocation(shader_program, "u_startcolor"),
+        color.start_color[0] * color.start_color[3],
+        color.start_color[1] * color.start_color[3],
+        color.start_color[2] * color.start_color[3],
+        color.start_color[3],
+    );
+    c.glUniform4f(
+        c.glGetUniformLocation(shader_program, "u_endcolor"),
+        color.end_color[0] * color.end_color[3],
+        color.end_color[1] * color.end_color[3],
+        color.end_color[2] * color.end_color[3],
+        color.end_color[3],
+    );
+    c.glUniform1f(c.glGetUniformLocation(shader_program, "u_degrees"), color.deg);
 }

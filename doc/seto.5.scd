@@ -19,7 +19,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FFFFFF66 \
 
-	_Example:_ #FF000066 \
+	_Example:_ #FF000066 #00FFFF66 45deg \
 
 *Font Settings* \
 
@@ -30,7 +30,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FFFFFFFF \
 
-	_Example:_ #0000FFFF \
+	_Example:_ #0000FFFF #FF00FFFF 45deg \
 
 *font.highlight_color*
 	Color of highlighted characters. \
@@ -39,7 +39,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FFFF00FF \
 
-	_Example:_ #FF0000FF \
+	_Example:_ #FF0000FF #00FFFFFF 90deg \
 
 *font.size*
 	Size of font. \
@@ -59,51 +59,6 @@ following sections describe the configurable options.
 
 	_Example:_ "JetBrainsMono Nerd Font" \
 
-*font.style*
-	Style of font \
-
-	_Type:_ String \
-
-	_Default:_ "Normal" \
-
-	_Example:_ "Italic" \
-
-*font.weight*
-	Weight of font. \
-
-	_Type:_ Number \
-
-	_Default:_ 400 \
-
-	_Example:_ 1000 \
-
-*font.variant*
-	Variant of font. \
-
-	_Type:_ String \
-
-	_Default:_ "Normal" \
-
-	_Example:_ "AllPetiteCaps" \
-
-*font.gravity*
-	Gravity of font. \
-
-	_Type_: String \
-
-	_Default:_ "Auto" \
-
-	_Example:_ "South" \
-
-*font.stretch*
-	Stretch of font \
-
-	_Type:_ String \
-
-	_Default:_ "Normal" \
-
-	_Example:_ "UltraCondensed" \
-
 *font.offset*
 	Relative position of font on grid. \
 
@@ -122,7 +77,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FFFFFFFF \
 
-	_Example:_ #FF0000FF \
+	_Example:_ #FF0000FF #00FFFFFF 90deg \
 
 *grid.line_width*
 	Width of grid lines. \
@@ -158,7 +113,7 @@ following sections describe the configurable options.
 
 	_Default:_ #FF0000FF \
 
-	_Example:_ #FFFF00FF \
+	_Example:_ #FFFF00FF #0000FFFF 180deg \
 
 *grid.selected_line_width:*
 	Width of selected position (Applies only when using *--region* option).
@@ -191,10 +146,10 @@ following sections describe the configurable options.
 
 	```
 	{
-		z = { move = { -5, 0 } },
-		x = { move = { 0, 5 } },
-		n = { move = { 0, -5 } },
-		m = { move = { 5, 0 } },
+        ["Left"] = { move = { -5, 0 } },
+        ["Down"] = { move = { 0, 5 } },
+        ["Up"] = { move = { 0, -5 } },
+        ["Right"] = { move = { 5, 0 } },
 		Z = { resize = { -5, 0 } },
 		X = { resize = { 0, 5 } },
 		N = { resize = { 0, -5 } },
@@ -204,6 +159,7 @@ following sections describe the configurable options.
 		K = { move_selection = { 0, -5 } },
 		L = { move_selection = { 5, 0 } },
 		c = "cancel_selection",
+		o = "border_mode",
 		[8] = "remove",
 		q = "quit",
 	}
@@ -213,45 +169,11 @@ following sections describe the configurable options.
 
 Colors may be specified in #RRGGBB or #RRGGBBAA format. The # is optional.
 
-# FONT STYLING
-
-*FONT STYLE*
-	- Normal
-	- Italic
-	- Oblique
-
-*FONT VARIANT*
-	- Normal
-	- Unicase
-	- SmallCaps
-	- TitleCaps
-	- PetiteCaps
-	- AllSmallCaps
-	- AllPetiteCaps
-
-*FONT GRAVITY*
-	- Auto
-	- East
-	- West
-	- South
-	- North
-
-*FONT STRETCH*
-	- Normal
-	- Expanded
-	- Condensed
-	- SemiExpanded
-	- SemiCondensed
-	- ExtraExpanded
-	- ExtraCondensed
-	- UltraExpanded
-	- UltraCondensed
-
 # FUNCTIONS
 
 Available functions are:
 
-border_select		Outline all outputs and clear grid in the middle to
+border_mode		Outline all outputs and clear grid in the middle to
 make selecting entire screen easier
 
 move _x,y_				Move grid by specified amount.
@@ -267,8 +189,10 @@ remove				Remove last character from buffer.
 quit					Cancel the selection and exit seto.
 
 By default only function that is bound is quit on *Ctrl+c* which cannot be
-overwritten or unbound. Keys to be bound can be specified in xkb keycode or
-plain string.
+overwritten or unbound. Keys to be bound can be:
+- Single character
+- xkb keycode
+- String representing name of key
 
 # EXAMPLE CONFIGURATION
 
@@ -279,12 +203,8 @@ return {
 		color = "#FFFFFF",
 		highlight_color = "#FFFF00FF",
 		size = 16,
-		family = "JetBrainsMono Nerd Font",
-		style = "Normal",
 		weight = 1000,
-		variant = "Normal",
-		gravity = "Auto",
-		stretch = "Normal",
+		family = "JetBrainsMono Nerd Font",
 		offset = { 5, 5 },
 	},
 	grid = {
@@ -298,10 +218,10 @@ return {
 	keys = {
 		search = "asdfghjkl",
 		bindings = {
-			z = { move = { -5, 0 } },
-			x = { move = { 0, 5 } },
-			n = { move = { 0, -5 } },
-			m = { move = { 5, 0 } },
+        	["Left"] = { move = { -5, 0 } },
+        	["Down"] = { move = { 0, 5 } },
+        	["Up"] = { move = { 0, -5 } },
+        	["Right"] = { move = { 5, 0 } },
 			Z = { resize = { -5, 0 } },
 			X = { resize = { 0, 5 } },
 			N = { resize = { 0, -5 } },
@@ -311,7 +231,7 @@ return {
 			K = { move_selection = { 0, -5 } },
 			L = { move_selection = { 5, 0 } },
 			c = "cancel_selection",
-			o = "border_select",
+			o = "border_mode",
 			[8] = "remove",
 			q = "quit",
 		},

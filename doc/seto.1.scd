@@ -29,7 +29,7 @@ compositors implementing layer-shell protocol.
 	Select region of screen.
 
 *-c, --config* _path_
-	Specifies path to config file. Pass *null* as argument to use default
+	Specifies path to config directory. Pass *null* as argument to use default
 	config.
 
 *-f, --format* _format_
@@ -50,21 +50,6 @@ compositors implementing layer-shell protocol.
 
 *--font-family* _family_
 	Set font family.
-
-*--font-weight* _weight_
-	Set weight of font.
-
-*--font-style* _style_
-	Set font style. See *FONT STYLING* for more details.
-
-*--font-variant* _variant_
-	Set font variant. See *FONT STYLING* for more details.
-
-*--font-gravity* _gravity_
-	Set font gravity. See *FONT STYLING* for more details.
-
-*--font-stretch* _stretch_
-	Set font stretch. See *FONT STYLING* for more details.
 
 *--font-offset* _x_,_y_
 	Relatively move text on grid.
@@ -132,52 +117,16 @@ Interpreted sequences are:
 %H	The height of the selection cropped to the output containing the top left
 	corner.
 
-%l	Label included with region from stdin (This is a TODO)
-
 %o	The name of the output containing the top left corner, or "<unknown>" if
 	not known
 
 The default format is "%x,%y %wx%h\n".
 
-# FONT STYLING
-
-*FONT STYLE*
-	- Normal
-	- Italic
-	- Oblique
-
-*FONT VARIANT*
-	- Normal
-	- Unicase
-	- SmallCaps
-	- TitleCaps
-	- PetiteCaps
-	- AllSmallCaps
-	- AllPetiteCaps
-
-*FONT GRAVITY*
-	- Auto
-	- East
-	- West
-	- South
-	- North
-
-*FONT STRETCH*
-	- Normal
-	- Expanded
-	- Condensed
-	- SemiExpanded
-	- SemiCondensed
-	- ExtraExpanded
-	- ExtraCondensed
-	- UltraExpanded
-	- UltraCondensed
-
 # FUNCTIONS
 
 Available functions are:
 
-border_selection		Outline all outputs and clear grid in the middle to
+border_mode		Outline all outputs and clear grid in the middle to
 make selecting entire screen easier
 
 move _x,y_				Move grid by specified amount.
@@ -193,8 +142,10 @@ remove				Remove last character from buffer.
 quit					Cancel the selection and exit seto.
 
 By default only function that is bound is quit on *Ctrl+c* which cannot be
-overwritten or unbound. Keys to be bound can be specified in xkb keycode or
-plain string.
+overwritten or unbound. Keys to be bound can be:
+- Single character
+- xkb keycode
+- String representing name of key
 
 # AUTHORS
 unixpariah <_https://github.com/unixpariah_>.

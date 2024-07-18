@@ -2,30 +2,28 @@ const std = @import("std");
 const mem = std.mem;
 const posix = std.posix;
 
-const cairo = @import("cairo");
-const pango = @import("pango");
+const c = @import("ffi");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
 
-const Tree = @import("tree.zig").Tree;
+const Tree = @import("Tree.zig");
 const OutputInfo = @import("surface.zig").OutputInfo;
 const Surface = @import("surface.zig").Surface;
 const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 const Seat = @import("seat.zig").Seat;
-const Result = @import("tree.zig").Result;
-const Config = @import("config.zig").Config;
+const Config = @import("Config.zig");
+const Egl = @import("Egl.zig");
 
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("surface.zig").xdgOutputListener;
 const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
-const frameListener = @import("surface.zig").frameListener;
+const inPlaceReplace = @import("helpers").inPlaceReplace;
 
 const EventInterfaces = enum {
-    wl_shm,
     wl_compositor,
     zwlr_layer_shell_v1,
     wl_output,
@@ -38,193 +36,110 @@ pub const Mode = union(enum) {
     Single,
 };
 
-pub const Seto = struct {
-    compositor: ?*wl.Compositor = null,
-    layer_shell: ?*zwlr.LayerShellV1 = null,
-    output_manager: ?*zxdg.OutputManagerV1 = null,
-    shm: ?*wl.Shm = null,
-    seat: Seat,
-    outputs: std.ArrayList(Surface),
-    config: ?Config = null,
-    alloc: mem.Allocator,
-    tree: ?Tree = null,
-    total_dimensions: [2]i32 = .{ 0, 0 },
-
+pub const State = struct {
     first_draw: bool = true,
     exit: bool = false,
     mode: Mode = .Single,
     border_mode: bool = false,
+};
+
+pub const Seto = struct {
+    egl: Egl,
+    compositor: ?*wl.Compositor = null,
+    layer_shell: ?*zwlr.LayerShellV1 = null,
+    output_manager: ?*zxdg.OutputManagerV1 = null,
+    seat: Seat,
+    outputs: std.ArrayList(Surface),
+    config: Config,
+    alloc: mem.Allocator,
+    tree: ?Tree = null,
+    total_dimensions: [2]i32 = .{ 0, 0 },
+    state: State = State{},
 
     const Self = @This();
 
-    fn new(alloc: mem.Allocator) Self {
+    fn new(alloc: mem.Allocator, display: *wl.Display) !Self {
         return .{
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
+            .egl = try Egl.new(display),
+            .config = Config.load(alloc),
         };
     }
 
     pub fn updateDimensions(self: *Self) void {
-        var x: [2]i32 = .{ 0, 0 };
-        var y: [2]i32 = .{ 0, 0 };
-        for (self.outputs.items) |output| {
-            if (!output.isConfigured()) continue;
-            const info = output.output_info;
-
-            if (info.x < x[0]) x[0] = info.x;
-            if (info.y < y[0]) y[0] = info.y;
-            if (info.x + info.width > x[1]) x[1] = info.x + info.width;
-            if (info.y + info.height > y[1]) y[1] = info.y + info.height;
-        }
-
-        self.total_dimensions = .{ x[1] - x[0], y[1] - y[0] };
-    }
-
-    pub fn sortOutputs(self: *Self) void {
+        // Sort outputs from left to right row by row
         std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
+
+        const first = self.outputs.items[0].output_info;
+        const last = self.outputs.getLast().output_info;
+
+        self.total_dimensions = .{ (last.x + last.width) - first.x, (last.y + last.height) - first.y };
     }
 
-    fn drawGrid(self: *Self, width: u32, height: u32, context: *cairo.Context) void {
-        const grid = self.config.?.grid;
+    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
+        var surf_iter = SurfaceIterator.new(&self.outputs.items);
+        while (surf_iter.next()) |surface| {
+            if (!surface.isConfigured()) continue;
 
-        defer switch (self.mode) {
-            .Region => |position| if (position) |pos| {
-                context.moveTo(0, @floatFromInt(pos[1]));
-                context.lineTo(@floatFromInt(width), @floatFromInt(pos[1]));
+            const info = surface.output_info;
 
-                context.moveTo(@floatFromInt(pos[0]), 0);
-                context.lineTo(@floatFromInt(pos[0]), @floatFromInt(height));
-
-                context.setSourceRgba(grid.selected_color[0], grid.selected_color[1], grid.selected_color[2], grid.selected_color[3]);
-                context.setLineWidth(grid.selected_line_width);
-                context.stroke();
-            },
-            .Single => {},
-        };
-
-        if (self.border_mode) {
-            var surf_iter = SurfaceIterator.new(self.outputs.items);
-            while (surf_iter.next()) |res| {
-                const surface: Surface, const pos: [2]i32 = res;
-                const info = surface.output_info;
-
-                context.rectangle(.{ .x = @floatFromInt(pos[0]), .y = @floatFromInt(pos[1]), .width = @floatFromInt(info.width), .height = @floatFromInt(info.height) });
-            }
-
-            context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
-            context.setLineWidth(grid.line_width);
-            context.stroke();
-
-            return;
-        }
-
-        var i: i32 = grid.offset[0];
-        while (i <= width) : (i += grid.size[0]) {
-            context.moveTo(@floatFromInt(i), 0);
-            context.lineTo(@floatFromInt(i), @floatFromInt(height));
-        }
-
-        i = grid.offset[1];
-        while (i <= height) : (i += grid.size[1]) {
-            context.moveTo(0, @floatFromInt(i));
-            context.lineTo(@floatFromInt(width), @floatFromInt(i));
-        }
-
-        context.setSourceRgba(grid.color[0], grid.color[1], grid.color[2], grid.color[3]);
-        context.setLineWidth(grid.line_width);
-        context.stroke();
-    }
-
-    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32, outputs: []Surface) void {
-        var pos: [2]i32 = .{ 0, 0 };
-        var output_name: []const u8 = "<unkown>";
-        for (outputs, 0..) |*output, i| {
-            if (!output.isConfigured()) continue;
-            const info = output.output_info;
-
-            if (i > 0) {
-                if (info.x <= outputs[i - 1].output_info.x) pos = .{ 0, outputs[i - 1].output_info.height };
-            }
-
-            if (output.posInSurface(top_left)) {
+            if (surface.posInSurface(top_left)) {
                 const relative_pos = .{ top_left[0] - info.x, top_left[1] - info.y };
-                const relative_size = .{ @abs(top_left[0] - @min((info.x + info.width), top_left[0] + size[0])), @abs(top_left[1] - @min((info.y + info.height), top_left[1] + size[1])) };
-                output_name = if (info.name) |name| name else "<unkown>";
-                inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%X", relative_pos[0]);
-                inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%Y", relative_pos[1]);
-                inPlaceReplace(u32, arena.allocator(), &self.config.?.output_format, "%W", relative_size[0]);
-                inPlaceReplace(u32, arena.allocator(), &self.config.?.output_format, "%H", relative_size[1]);
+                const relative_size = .{
+                    @abs(top_left[0] - @min((info.x + info.width), top_left[0] + size[0])),
+                    @abs(top_left[1] - @min((info.y + info.height), top_left[1] + size[1])),
+                };
+
+                const output_name = if (info.name) |name| name else "<unkown>";
+
+                inPlaceReplace([]const u8, arena.allocator(), &self.config.output_format, "%o", output_name);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%X", relative_pos[0]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%Y", relative_pos[1]);
+                inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%W", relative_size[0]);
+                inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%H", relative_size[1]);
+
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%x", top_left[0]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%y", top_left[1]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%w", size[0]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%h", size[1]);
+
+                return;
             }
-
-            pos[0] += info.width;
         }
-
-        inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%x", top_left[0]);
-        inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%y", top_left[1]);
-        inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%w", size[0]);
-        inPlaceReplace(i32, arena.allocator(), &self.config.?.output_format, "%h", size[1]);
-        inPlaceReplace([]const u8, arena.allocator(), &self.config.?.output_format, "%o", output_name);
     }
 
     fn printToStdout(self: *Self) !void {
-        const coords = try self.tree.?.find(self.seat.buffer.items);
-        switch (self.mode) {
-            .Region => |positions| {
-                if (positions) |pos| {
-                    const top_left: [2]i32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
-                    const bottom_right: [2]i32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
-                    const size: [2]i32 = .{ bottom_right[0] - top_left[0], bottom_right[1] - top_left[1] };
+        const coords = try self.tree.?.find(&self.seat.buffer.items);
+        var arena = std.heap.ArenaAllocator.init(self.alloc);
+        defer arena.deinit();
 
-                    var arena = std.heap.ArenaAllocator.init(self.alloc);
-                    defer arena.deinit();
-                    self.formatOutput(&arena, top_left, size, self.outputs.items);
+        switch (self.state.mode) {
+            .Single => self.formatOutput(&arena, coords, .{ 1, 1 }),
+            .Region => |positions| if (positions) |pos| {
+                const top_left: [2]i32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
+                const bottom_right: [2]i32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
 
-                    _ = std.io.getStdOut().write(self.config.?.output_format) catch @panic("Write error");
-                    self.exit = true;
-                } else {
-                    self.mode = .{ .Region = coords };
-                    self.seat.buffer.clearAndFree();
-                }
-            },
-            .Single => {
-                var arena = std.heap.ArenaAllocator.init(self.alloc);
-                defer arena.deinit();
-                _ = self.formatOutput(&arena, coords, .{ 1, 1 }, self.outputs.items);
+                const width = bottom_right[0] - top_left[0];
+                const height = bottom_right[1] - top_left[1];
 
-                _ = std.io.getStdOut().write(self.config.?.output_format) catch @panic("Write error");
-                self.exit = true;
+                const size: [2]i32 = .{ if (width == 0) 1 else width, if (height == 0) 1 else height };
+
+                self.formatOutput(&arena, top_left, size);
+            } else {
+                self.state.mode = .{ .Region = coords };
+                self.seat.buffer.clearAndFree();
+                return;
             },
         }
-    }
 
-    fn createLayout(self: *Self, ctx: *cairo.Context) *pango.Layout {
-        const font = self.config.?.font;
-        const layout: *pango.Layout = ctx.createLayout() catch @panic("OOM");
-        const font_description = pango.FontDescription.new() catch @panic("OOM");
-        defer font_description.free();
-
-        font_description.setFamilyStatic(font.family);
-        font_description.setStyle(font.style);
-        font_description.setWeight(font.weight);
-        font_description.setAbsoluteSize(font.size * pango.SCALE);
-        font_description.setVariant(font.variant);
-        font_description.setStretch(font.stretch);
-        font_description.setGravity(font.gravity);
-
-        layout.setFontDescription(font_description);
-
-        ctx.setSourceRgba(font.color[0], font.color[1], font.color[2], font.color[3]);
-
-        return layout;
+        _ = std.io.getStdOut().write(self.config.output_format) catch @panic("Write error");
+        self.state.exit = true;
     }
 
     fn createSurfaces(self: *Self) !void {
         if (!self.shouldDraw()) return;
-        if (self.tree == null) {
-            self.tree = Tree.new(self.config.?.keys.search, self.alloc, self.total_dimensions, self.config.?.grid, self.outputs.items);
-        }
-
         self.printToStdout() catch |err| {
             switch (err) {
                 error.KeyNotFound => {
@@ -234,61 +149,34 @@ pub const Seto = struct {
                 else => {},
             }
         };
-        if (self.exit) return;
 
-        const width: u32 = @intCast(self.total_dimensions[0]);
-        const height: u32 = @intCast(self.total_dimensions[1]);
+        var surf_iter = SurfaceIterator.new(&self.outputs.items);
+        while (surf_iter.next()) |surface| {
+            if (!surface.isConfigured()) continue;
 
-        const cairo_surface = try cairo.ImageSurface.create(.argb32, @intCast(width), @intCast(height));
-        defer cairo_surface.destroy();
-        const ctx = try cairo.Context.create(cairo_surface.asSurface());
-        defer ctx.destroy();
-
-        const bg_color = self.config.?.background_color;
-        ctx.setSourceRgba(bg_color[0], bg_color[1], bg_color[2], bg_color[3]);
-        ctx.paint();
-
-        self.drawGrid(width, height, ctx);
-        const layout = self.createLayout(ctx);
-        defer layout.destroy();
-
-        self.tree.?.drawText(ctx, self.config.?.font, self.seat.buffer.items, layout, self.border_mode, self.outputs.items);
-
-        var surf_iter = SurfaceIterator.new(self.outputs.items);
-        while (surf_iter.next()) |res| {
-            const surface: Surface, const pos: [2]i32 = res;
-            const info = surface.output_info;
-
-            const output_surface = try cairo.ImageSurface.create(.argb32, @intCast(info.width), @intCast(info.height));
-            defer output_surface.destroy();
-            const output_ctx = try cairo.Context.create(output_surface.asSurface());
-            defer output_ctx.destroy();
-
-            output_ctx.setSourceSurface(cairo_surface.asSurface(), @floatFromInt(-pos[0]), @floatFromInt(-pos[1]));
-            output_ctx.paint();
-
-            const data = try output_surface.getData();
-            @memcpy(surface.mmap.?, data);
+            surface.draw(self.state.border_mode, self.state.mode);
+            self.tree.?.drawText(surface, self.seat.buffer.items, self.state.border_mode);
+            surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }
     }
 
     fn shouldDraw(self: *Self) bool {
-        defer self.first_draw = false;
-        return self.seat.repeat.key != null or self.first_draw;
+        defer self.state.first_draw = false;
+        return self.seat.repeat.key != null or self.state.first_draw;
     }
 
     fn destroy(self: *Self) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
-        self.shm.?.destroy();
         for (self.outputs.items) |*output| {
             output.destroy();
         }
         self.outputs.deinit();
         self.seat.destroy();
-        self.config.?.destroy();
+        self.config.destroy();
         self.tree.?.arena.deinit();
+        self.egl.destroy();
     }
 };
 
@@ -305,25 +193,27 @@ pub fn main() !void {
     };
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
-    var seto = Seto.new(alloc);
+    var seto = try Seto.new(alloc, display);
     defer seto.destroy();
+
+    parseArgs(&seto);
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
 
-    const config = Config.load(alloc);
-    seto.config = config;
+    if (seto.compositor == null or seto.layer_shell == null) @panic("Compositor or layer shell not bound");
 
-    parseArgs(&seto);
-
-    while (display.dispatch() == .SUCCESS and !seto.exit) {
+    while (display.dispatch() == .SUCCESS and !seto.state.exit) {
         if (seto.seat.repeatKey()) handleKey(&seto);
         try seto.createSurfaces();
     }
 
-    for (seto.outputs.items) |*output| {
-        if (!output.isConfigured()) continue;
-        for (0..output.mmap.?.len) |index| output.mmap.?[index] = 0;
+    var surf_iter = SurfaceIterator.new(&seto.outputs.items);
+    while (surf_iter.next()) |surface| {
+        surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
+        c.glClearColor(0, 0, 0, 0);
+        c.glClear(c.GL_COLOR_BUFFER_BIT);
+        surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
     }
 
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
@@ -334,25 +224,35 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
         .global => |global| {
             const event_str = std.meta.stringToEnum(EventInterfaces, mem.span(global.interface)) orelse return;
             switch (event_str) {
-                .wl_shm => {
-                    seto.shm = registry.bind(global.name, wl.Shm, 1) catch |err| @panic(@errorName(err));
-                },
                 .wl_compositor => {
-                    seto.compositor = registry.bind(global.name, wl.Compositor, wl.Compositor.generated_version) catch |err| @panic(@errorName(err));
+                    seto.compositor = registry.bind(
+                        global.name,
+                        wl.Compositor,
+                        wl.Compositor.generated_version,
+                    ) catch @panic("Failed to bind compositor global");
                 },
                 .zwlr_layer_shell_v1 => {
-                    seto.layer_shell = registry.bind(global.name, zwlr.LayerShellV1, zwlr.LayerShellV1.generated_version) catch |err| @panic(@errorName(err));
+                    seto.layer_shell = registry.bind(
+                        global.name,
+                        zwlr.LayerShellV1,
+                        zwlr.LayerShellV1.generated_version,
+                    ) catch @panic("Failed to bind layer shell global");
                 },
                 .wl_output => {
                     const global_output = registry.bind(
                         global.name,
                         wl.Output,
                         wl.Output.generated_version,
-                    ) catch |err| @panic(@errorName(err));
+                    ) catch @panic("Failed to bind output global");
 
-                    const surface = seto.compositor.?.createSurface() catch |err| @panic(@errorName(err));
+                    const surface = seto.compositor.?.createSurface() catch @panic("Failed to create surface");
 
-                    const layer_surface = seto.layer_shell.?.getLayerSurface(surface, global_output, .overlay, "seto") catch |err| @panic(@errorName(err));
+                    const layer_surface = seto.layer_shell.?.getLayerSurface(
+                        surface,
+                        global_output,
+                        .overlay,
+                        "seto",
+                    ) catch @panic("Failed to get layer surface");
                     layer_surface.setListener(*Seto, layerSurfaceListener, seto);
                     layer_surface.setAnchor(.{
                         .top = true,
@@ -364,42 +264,50 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     layer_surface.setKeyboardInteractivity(.exclusive);
                     surface.commit();
 
-                    const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch |err| @panic(@errorName(err));
+                    const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch @panic("Failed to get xdg output global");
 
-                    const output_info = OutputInfo{ .wl_output = global_output };
-                    const output = Surface.new(surface, layer_surface, seto.alloc, xdg_output, output_info);
+                    const egl_surface = seto.egl.newSurface(surface, .{ 1, 1 }) catch @panic("Failed to create egl surface");
+
+                    const output = Surface.new(
+                        egl_surface,
+                        surface,
+                        layer_surface,
+                        seto.alloc,
+                        xdg_output,
+                        OutputInfo{ .id = global.name },
+                        &seto.config,
+                    );
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
 
-                    seto.outputs.append(output) catch |err| @panic(@errorName(err));
+                    seto.outputs.append(output) catch @panic("OOM");
                 },
                 .wl_seat => {
-                    const wl_seat = registry.bind(global.name, wl.Seat, wl.Seat.generated_version) catch |err| @panic(@errorName(err));
-                    seto.seat.wl_seat = wl_seat;
-                    wl_seat.setListener(*Seto, seatListener, seto);
+                    seto.seat.wl_seat = registry.bind(
+                        global.name,
+                        wl.Seat,
+                        wl.Seat.generated_version,
+                    ) catch @panic("Failed to bind seat global");
+                    seto.seat.wl_seat.?.setListener(*Seto, seatListener, seto);
                 },
                 .zxdg_output_manager_v1 => {
                     seto.output_manager = registry.bind(
                         global.name,
                         zxdg.OutputManagerV1,
                         zxdg.OutputManagerV1.generated_version,
-                    ) catch |err| @panic(@errorName(err));
+                    ) catch @panic("Failed to bind output manager global");
                 },
             }
         },
-        .global_remove => {},
+        .global_remove => |global| {
+            for (seto.outputs.items, 0..) |*output, i| {
+                if (output.output_info.id == global.name) {
+                    output.destroy();
+                    _ = seto.outputs.swapRemove(i);
+                    seto.updateDimensions();
+                    return;
+                }
+            }
+        },
     }
-}
-
-fn inPlaceReplace(comptime T: type, alloc: std.mem.Allocator, input: *[]const u8, needle: []const u8, replacement: T) void {
-    const count = std.mem.count(u8, input.*, needle);
-    if (count == 0) return;
-    const str = if (T == []const u8)
-        std.fmt.allocPrint(alloc, "{s}", .{replacement}) catch @panic("OOM")
-    else
-        std.fmt.allocPrint(alloc, "{}", .{replacement}) catch @panic("OOM");
-
-    const buffer = alloc.alloc(u8, count * str.len + (input.*.len - needle.len * count)) catch @panic("OOM");
-    _ = std.mem.replace(u8, input.*, needle, str, buffer);
-    input.* = buffer;
 }

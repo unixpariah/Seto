@@ -1,4 +1,6 @@
-# Seto - keyboard based screen selection tool for wayland compositors
+# Seto
+
+Hardware accelerated keyboard based screen selection tool with all the eye candy you could ever ask for.
 
 ## Building
 
@@ -7,8 +9,10 @@
 - zig
 - wayland
 - libxkbcommon
-- cairo
-- pango
+- libGL
+- freetype
+- fontconfig
+- ydotool (optional: tests)
 - scdoc (optional: man pages)
 
 2. Clone the repository:
@@ -21,7 +25,7 @@ cd seto
 2. Build and install
 
 ```bash
-zig build -Doptimize=ReleaseFast -p /usr/local
+zig build -Doptimize=ReleaseSafe -p /usr/local
 ```
 
 ## Configuration
@@ -29,7 +33,7 @@ zig build -Doptimize=ReleaseFast -p /usr/local
 Configuration can be done using lua. By default, seto will look for config at
 `$XDG_CONFIG_HOME/seto/config.lua`.
 
-You can also specify a custom path to your configuration file:
+You can also specify a custom path to your configuration directory:
 
 ```bash
 seto -c <PATH>
@@ -60,7 +64,7 @@ grim -g $(./zig-out/bin/seto -r) - | wl-copy -t image/png
 Output just x and y positions and move mouse using [ydotool](https://github.com/ReimuNotMoe/ydotool) (specific syntax for escaping newline works in bash and zsh but may not in other shells):
 
 ```bash
-ydotool mousemove -a $(seto -f $'%x %y')
+ydotool mousemove -a $(seto -f $'%x %y\n')
 ```
 
 Took a lot of inspirations from [slurp](https://github.com/emersion/slurp) :)

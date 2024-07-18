@@ -24,11 +24,13 @@
             src = cleanSource ./.;
 
             nativeBuildInputs = with env.pkgs; [
-              pango
-              cairo
               wayland
               wayland-protocols
+              egl-wayland
+              libGL
               libxkbcommon
+              freetype
+              fontconfig
             ];
 
             buildInputs = with env.pkgsForTarget target; [
@@ -38,7 +40,6 @@
             ];
 
             zigPreferMusl = true;
-
             zigDisableWrap = true;
           }
           // optionalAttrs (!pathExists ./build.zig.zon) {
@@ -72,22 +73,26 @@
         program = "${pkg}/bin/default";
       });
 
-      # default bundle
       apps.bundle.default = apps.bundle.target.${system-triple};
 
       # nix run .#zon2json-lock
       apps.zon2json-lock = env.app [env.zon2json-lock] "zon2json-lock \"$@\"";
 
-      # nix develop
       devShells.default = env.mkShell {
         packages = with env.pkgs; [
-          pango
-          cairo
           pkg-config
           wayland
           wayland-protocols
-          wayland-scanner
+          wayland-utils
           libxkbcommon
+          libGL
+          glxinfo
+          freetype
+          ydotool
+          shfmt
+          fontconfig
+          clang-tools
+          egl-wayland
           zls.packages.${system}.default
         ];
       };
