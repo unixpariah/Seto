@@ -93,6 +93,7 @@
           fontconfig
           clang-tools
           egl-wayland
+          scdoc
           zls.packages.${system}.default
         ];
       };
