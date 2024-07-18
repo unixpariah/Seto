@@ -159,10 +159,11 @@ pub fn handleKey(self: *Seto) void {
         @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
     ) == 1;
 
+    const keysym: xkb.Keysym = @enumFromInt(key);
+
     {
         var buffer: [64]u8 = undefined;
-        const keysym: xkb.Keysym = @enumFromInt(key);
-        _ = keysym.toUTF8(&buffer, 64);
+        _ = keysym.getName(&buffer, 64);
         if (buffer[0] == 'c' and ctrl_active) self.state.exit = true;
         if (self.config.keys.bindings.get(buffer[0])) |function| {
             switch (function) {
@@ -177,21 +178,19 @@ pub fn handleKey(self: *Seto) void {
                 .quit => self.state.exit = true,
             }
 
-            if (function == .move or function == .resize or function == .border_mode) {
-                self.tree.?.updateCoordinates(
-                    &self.config.grid,
-                    self.state.border_mode,
-                    &self.outputs.items,
-                    &self.seat.buffer,
-                );
-            }
+            self.tree.?.updateCoordinates(
+                &self.config.grid,
+                self.state.border_mode,
+                &self.outputs.items,
+                &self.seat.buffer,
+            );
 
             return;
         }
     }
 
     var buffer: [64]u8 = undefined;
-    const keynum: xkb.Keysym = @enumFromInt(key);
-    _ = keynum.getName(&buffer, 64);
+    _ = keysym.toUTF8(&buffer, 64);
+
     self.seat.buffer.append(buffer) catch return;
 }

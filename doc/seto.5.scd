@@ -146,10 +146,10 @@ following sections describe the configurable options.
 
 	```
 	{
-		z = { move = { -5, 0 } },
-		x = { move = { 0, 5 } },
-		n = { move = { 0, -5 } },
-		m = { move = { 5, 0 } },
+        ["Left"] = { move = { -5, 0 } },
+        ["Down"] = { move = { 0, 5 } },
+        ["Up"] = { move = { 0, -5 } },
+        ["Right"] = { move = { 5, 0 } },
 		Z = { resize = { -5, 0 } },
 		X = { resize = { 0, 5 } },
 		N = { resize = { 0, -5 } },
@@ -159,6 +159,7 @@ following sections describe the configurable options.
 		K = { move_selection = { 0, -5 } },
 		L = { move_selection = { 5, 0 } },
 		c = "cancel_selection",
+		o = "border_mode",
 		[8] = "remove",
 		q = "quit",
 	}
@@ -188,8 +189,10 @@ remove				Remove last character from buffer.
 quit					Cancel the selection and exit seto.
 
 By default only function that is bound is quit on *Ctrl+c* which cannot be
-overwritten or unbound. Keys to be bound can be specified in xkb keycode or
-plain string.
+overwritten or unbound. Keys to be bound can be:
+- Single character
+- xkb keycode
+- String representing name of key
 
 # EXAMPLE CONFIGURATION
 
@@ -215,10 +218,10 @@ return {
 	keys = {
 		search = "asdfghjkl",
 		bindings = {
-			z = { move = { -5, 0 } },
-			x = { move = { 0, 5 } },
-			n = { move = { 0, -5 } },
-			m = { move = { 5, 0 } },
+        	["Left"] = { move = { -5, 0 } },
+        	["Down"] = { move = { 0, 5 } },
+        	["Up"] = { move = { 0, -5 } },
+        	["Right"] = { move = { 5, 0 } },
 			Z = { resize = { -5, 0 } },
 			X = { resize = { 0, 5 } },
 			N = { resize = { 0, -5 } },

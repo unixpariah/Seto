@@ -107,8 +107,8 @@ pub fn updateCoordinates(
             continue;
         }
 
-        const vert_line_count = std.math.divCeil(i32, info.x, surface.config.grid.size[0]) catch @panic("");
-        const hor_line_count = std.math.divCeil(i32, info.y, surface.config.grid.size[1]) catch @panic("");
+        const vert_line_count = @divFloor(info.x, surface.config.grid.size[0]);
+        const hor_line_count = @divFloor(info.y, surface.config.grid.size[1]);
 
         const start_pos: [2]i32 = .{
             vert_line_count * surface.config.grid.size[0] + surface.config.grid.offset[0],
@@ -116,9 +116,9 @@ pub fn updateCoordinates(
         };
 
         var i = start_pos[0];
-        while (i <= info.x + info.width) : (i += grid.size[0]) {
+        while (i <= info.x + info.width - 1) : (i += grid.size[0]) {
             var j = start_pos[1];
-            while (j <= info.y + info.height) : (j += grid.size[1]) {
+            while (j <= info.y + info.height - 1) : (j += grid.size[1]) {
                 intersections.append(.{ i, j }) catch @panic("OOM");
             }
         }

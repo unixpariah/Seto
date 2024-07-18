@@ -197,12 +197,17 @@ pub const Surface = struct {
     }
 
     pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32, matches: u8) void {
-        setColor(self.config.font.color, self.egl.text_shader_program.*);
         c.glActiveTexture(c.GL_TEXTURE0);
 
+        if (matches > 0) {
+            setColor(self.config.font.highlight_color, self.egl.text_shader_program.*);
+        } else {
+            setColor(self.config.font.color, self.egl.text_shader_program.*);
+        }
+
         for (text, 0..) |char, i| {
-            if (matches > i) {
-                setColor(self.config.font.highlight_color, self.egl.text_shader_program.*);
+            if (matches == i and matches > 0) {
+                setColor(self.config.font.color, self.egl.text_shader_program.*);
             }
 
             const ch = self.config.keys.char_info.get(char) orelse continue;
@@ -226,10 +231,6 @@ pub const Surface = struct {
 
             c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
             c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
-
-            if (matches > i) {
-                setColor(self.config.font.color, self.egl.text_shader_program.*);
-            }
         }
     }
 

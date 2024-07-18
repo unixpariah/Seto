@@ -25,7 +25,7 @@ cd seto
 2. Build and install
 
 ```bash
-zig build -Doptimize=ReleaseFast -p /usr/local
+zig build -Doptimize=ReleaseSafe -p /usr/local
 ```
 
 ## Configuration
@@ -64,7 +64,7 @@ grim -g $(./zig-out/bin/seto -r) - | wl-copy -t image/png
 Output just x and y positions and move mouse using [ydotool](https://github.com/ReimuNotMoe/ydotool) (specific syntax for escaping newline works in bash and zsh but may not in other shells):
 
 ```bash
-ydotool mousemove -a $(seto -f $'%x %y')
+ydotool mousemove -a $(seto -f $'%x %y\n')
 ```
 
 Took a lot of inspirations from [slurp](https://github.com/emersion/slurp) :)

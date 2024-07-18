@@ -142,8 +142,10 @@ remove				Remove last character from buffer.
 quit					Cancel the selection and exit seto.
 
 By default only function that is bound is quit on *Ctrl+c* which cannot be
-overwritten or unbound. Keys to be bound can be specified in xkb keycode or
-plain string.
+overwritten or unbound. Keys to be bound can be:
+- Single character
+- xkb keycode
+- String representing name of key
 
 # AUTHORS
 unixpariah <_https://github.com/unixpariah_>.
