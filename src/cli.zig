@@ -181,24 +181,34 @@ pub fn parseArgs(seto: *Seto) void {
                 seto.config.keys.search = seto.alloc.dupe(u8, keys_search) catch @panic("OOM");
             },
             .@"--function", .@"-F" => {
-                // TODO: this is gonna be annoying
-                //const key = args.next() orelse {
-                //    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
-                //    std.process.exit(1);
-                //};
-                //const function = args.next() orelse {
-                //    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
-                //    std.process.exit(1);
-                //};
-                //const func = Function.stringToFunction(function, null) catch |err| {
-                //    switch (err) {
-                //        error.NullValue => std.log.err("Function {s} is missing an argument\n", .{function}),
-                //        error.UnkownFunction => std.log.err("Unkown function {s}\n", .{function}),
-                //    }
-                //    std.process.exit(1);
-                //};
+                // TODO: This looks like it was written with hopes and prayes, will have to come back to it
+                const key = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                const function = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
 
-                //seto.config.keys.bindings.put(key[0], func) catch unreachable;
+                var value = args.next();
+                if (value != null and std.meta.stringToEnum(Arguments, value.?) != null) {
+                    value = null;
+                }
+                const final = if (value) |v| parseIntArray(v, ",") catch {
+                    std.log.err("Failed to parse arguments to {s} function\n", .{function});
+                    std.process.exit(1);
+                } else null;
+
+                const func = Function.stringToFunction(function, final) catch |err| {
+                    switch (err) {
+                        error.NullValue => std.log.err("Function {s} is missing an argument\n", .{function}),
+                        error.UnkownFunction => std.log.err("Unkown function {s}\n", .{function}),
+                    }
+                    std.process.exit(1);
+                };
+
+                seto.config.keys.bindings.put(key[0], func) catch @panic("OOM");
             },
         }
     }
