@@ -7,7 +7,7 @@ seto - configuration file
 
 # CONFIGURATION
 
-The seto configuration file defines various parameterss for the client's appearance and functionality. The
+The seto configuration file defines various parameters for the client's appearance and functionality. The
 following sections describe the configurable options.
 
 *General Settings* \
@@ -118,11 +118,11 @@ following sections describe the configurable options.
 *grid.selected_line_width:*
 	Width of selected position (Applies only when using *--region* option).
 
-	_Type:_ Integer
+	_Type:_ Integer \
 
-	_Default:_ 2
+	_Default:_ 2 \
 
-	_Example:_ 10
+	_Example:_ 10 \
 
 # Keybindings
 
@@ -187,9 +187,19 @@ remove				Remove last character from buffer.
 
 quit					Cancel the selection and exit seto.
 
-By default only function that is bound is quit on *Ctrl+c* which cannot be
-overwritten or unbound. Keys to be bound can be a Single character, xkb keycode
-or a String representing name of key.
+By default, there are 5 functions bound:
+
+- `Ctrl+C`: Quit (This binding cannot be overwritten or unbound)
+- `Shift+H`: Move grid left
+- `Shift+J`: Move grid down
+- `Shift+K`: Move grid up
+- `Shift+L`: Move grid right
+- `Backspace`: Remove last character entered into buffer
+
+Keys to be bound can be:
+
+- A single character
+- An UTF-32 keycode
 
 # EXAMPLE CONFIGURATION
 
@@ -200,7 +210,6 @@ return {
 		color = "#FFFFFF",
 		highlight_color = "#FFFF00FF",
 		size = 16,
-		weight = 1000,
 		family = "JetBrainsMono Nerd Font",
 		offset = { 5, 5 },
 	},

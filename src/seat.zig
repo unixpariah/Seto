@@ -21,14 +21,14 @@ pub const Seat = struct {
     xkb_context: *xkb.Context,
     alloc: std.mem.Allocator,
     repeat: Repeat = Repeat{},
-    buffer: std.ArrayList([64]u8),
+    buffer: std.ArrayList(u32),
 
     const Self = @This();
 
     pub fn new(alloc: std.mem.Allocator) Self {
         return .{
             .xkb_context = xkb.Context.new(.no_flags) orelse @panic(""),
-            .buffer = std.ArrayList([64]u8).init(alloc),
+            .buffer = std.ArrayList(u32).init(alloc),
             .alloc = alloc,
         };
     }
@@ -160,12 +160,11 @@ pub fn handleKey(self: *Seto) void {
     ) == 1;
 
     const keysym: xkb.Keysym = @enumFromInt(key);
+    const buffer = keysym.toUTF32();
 
     {
-        var buffer: [64]u8 = undefined;
-        _ = keysym.getName(&buffer, 64);
-        if (buffer[0] == 'c' and ctrl_active) self.state.exit = true;
-        if (self.config.keys.bindings.get(buffer[0])) |function| {
+        if (buffer == 'c' and ctrl_active) self.state.exit = true;
+        if (self.config.keys.bindings.get(@intCast(buffer))) |function| {
             switch (function) {
                 .move => |value| grid.move(value),
                 .resize => |value| grid.resize(value),
@@ -189,8 +188,5 @@ pub fn handleKey(self: *Seto) void {
         }
     }
 
-    var buffer: [64]u8 = undefined;
-    _ = keysym.toUTF8(&buffer, 64);
-
-    self.seat.buffer.append(buffer) catch return;
+    self.seat.buffer.append(buffer) catch @panic("OOM");
 }

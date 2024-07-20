@@ -10,9 +10,9 @@ pub const Character = struct {
     bearing: [2]i32,
     advance: [2]u32,
 
-    fn new(face: c.FT_Face, key: u8) Character {
+    fn new(face: c.FT_Face, key: u32) Character {
         if (c.FT_Load_Char(face, key, c.FT_LOAD_RENDER) == 1) {
-            std.log.err("Failed to load glyph for character {s}\n", .{[_]u8{key}});
+            std.log.err("Failed to load glyph for character {}\n", .{key});
             std.process.exit(1);
         }
 
@@ -55,28 +55,35 @@ pub const Character = struct {
     }
 };
 
-search: []const u8,
-bindings: std.AutoHashMap(u8, Function),
-char_info: std.AutoHashMap(u8, Character),
+search: []const u32,
+bindings: std.AutoHashMap(u32, Function),
+char_info: std.AutoHashMap(u32, Character),
 alloc: std.mem.Allocator,
 
 const Self = @This();
 
 pub fn default(alloc: std.mem.Allocator) Self {
+    var bindings = std.AutoHashMap(u32, Function).init(alloc);
+    bindings.put('H', .{ .move = .{ -5, 0 } }) catch @panic("OOM");
+    bindings.put('J', .{ .move = .{ 0, 5 } }) catch @panic("OOM");
+    bindings.put('K', .{ .move = .{ 0, -5 } }) catch @panic("OOM");
+    bindings.put('L', .{ .move = .{ 5, 0 } }) catch @panic("OOM");
+    bindings.put(8, .remove) catch @panic("OOM");
+
+    const keys = [_]u32{ 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l' };
+    const search = alloc.alloc(u32, 9) catch @panic("OOM");
+    @memcpy(search, &keys);
+
     return .{
         .alloc = alloc,
-        .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"),
-        .bindings = std.AutoHashMap(u8, Function).init(alloc),
-        .char_info = std.AutoHashMap(u8, Character).init(alloc),
+        .search = search,
+        .bindings = bindings,
+        .char_info = std.AutoHashMap(u32, Character).init(alloc),
     };
 }
 
 pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     var keys_s = Self.default(alloc);
-    keys_s.bindings.put('H', .{ .move = .{ -5, 0 } }) catch @panic("OOM");
-    keys_s.bindings.put('J', .{ .move = .{ 0, -5 } }) catch @panic("OOM");
-    keys_s.bindings.put('K', .{ .move = .{ 0, 5 } }) catch @panic("OOM");
-    keys_s.bindings.put('L', .{ .move = .{ 5, 0 } }) catch @panic("OOM");
 
     _ = lua.pushString("keys");
     _ = lua.getTable(1);
@@ -86,7 +93,15 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     if (lua.isString(3)) {
         alloc.free(keys_s.search);
         const keys = lua.toString(3) catch unreachable; // Already checked if string
-        keys_s.search = alloc.dupe(u8, keys) catch @panic("OOM");
+        const utf8_view = std.unicode.Utf8View.init(keys) catch @panic("Failed to initialize utf8 view");
+
+        var buffer = std.ArrayList(u32).init(alloc);
+        var iter = utf8_view.iterator();
+        while (iter.nextCodepoint()) |codepoint| {
+            buffer.append(codepoint) catch @panic("OOM");
+        }
+
+        keys_s.search = buffer.toOwnedSlice() catch @panic("OOM");
     }
     lua.pop(1);
 

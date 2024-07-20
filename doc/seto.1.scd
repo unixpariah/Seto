@@ -77,15 +77,14 @@ compositors implementing layer-shell protocol.
 
 *-s, --search-keys* _keys_
 	Bind keys used to select screen. No separator between keys required.
-	Needs at least two characters.
+	Requires at least two different characters.
 
 *-F, --function* _key_ _function_ [_x_,_y_]
 	Bind function to key. See *FUNCTIONS* for more details.
 
 # CONFIGURATION
 
-Configuration is done in lua, by default seto looks for config file at
-$XDG_CONFIG_HOME/.config/seto/config.lua
+Configuration is done in lua, by default seto looks for config file at ~/.config/.config/seto/config.lua
 
 # COLORS
 
@@ -144,15 +143,17 @@ quit					Cancel the selection and exit seto.
 By default, there are 5 functions bound:
 
 - `Ctrl+C`: Quit (This binding cannot be overwritten or unbound)
-- `Shift+H`: Move grid left (like Vim)
-- `Shift+J`: Move grid down (like Vim)
-- `Shift+K`: Move grid up (like Vim)
-- `Shift+L`: Move grid right (like Vim)
+- `Shift+H`: Move grid left
+- `Shift+J`: Move grid down
+- `Shift+K`: Move grid up
+- `Shift+L`: Move grid right
+- `Backspace`: Remove last character entered into buffer
 
 Keys to be bound can be:
+- An UTF-32 keycode
 - A single character
-- An xkb keycode
-- A string representing the name of the key
+
+First, the key will be checked to determine if it can be interpreted as a UTF-32 keycode. If it cannot, it will be interpreted as a character. Because of that, number keys must be bound using their keycodes.
 
 # AUTHORS
 unixpariah <_https://github.com/unixpariah_>.
