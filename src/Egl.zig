@@ -19,7 +19,7 @@ pub const EglSurface = struct {
     main_shader_program: *c_uint,
     text_shader_program: *c_uint,
     VBO: [5]u32,
-    EBO: [2]u32,
+    EBO: *u32,
     UBO: u32,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
@@ -43,7 +43,6 @@ pub const EglSurface = struct {
 
     pub fn destroy(self: *EglSurface) void {
         c.glDeleteBuffers(5, &self.VBO);
-        c.glDeleteBuffers(2, &self.EBO);
         if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) @panic("Failed to destroy egl surface");
         self.window.destroy();
     }
@@ -77,6 +76,7 @@ context: c.EGLContext,
 main_shader_program: c_uint,
 text_shader_program: c_uint,
 VAO: u32,
+EBO: u32,
 
 const Self = @This();
 
@@ -186,8 +186,20 @@ pub fn new(display: *wl.Display) !Self {
 
     var VAO: u32 = undefined;
     c.glGenVertexArrays(1, &VAO);
+
     c.glBindVertexArray(VAO);
     c.glEnableVertexAttribArray(0);
+
+    var EBO: u32 = undefined;
+    c.glGenBuffers(1, &EBO);
+
+    const indices = [_]i32{
+        0, 1, 3,
+        3, 2, 0,
+    };
+
+    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
+    c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
 
     return .{
         .display = egl_display,
@@ -196,6 +208,7 @@ pub fn new(display: *wl.Display) !Self {
         .main_shader_program = main_shader_program,
         .text_shader_program = text_shader_program,
         .VAO = VAO,
+        .EBO = EBO,
     };
 }
 
@@ -212,31 +225,6 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
     var VBO: [5]u32 = undefined;
     c.glGenBuffers(5, &VBO);
 
-    var EBO: [2]u32 = undefined;
-    c.glGenBuffers(2, &EBO);
-
-    {
-        const indices = [_]i32{
-            0, 1,
-            1, 2,
-            2, 3,
-            3, 0,
-        };
-
-        c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO[1]);
-        c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
-    }
-
-    {
-        const indices = [_]i32{
-            0, 1, 3,
-            0, 2, 3,
-        };
-
-        c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO[0]);
-        c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
-    }
-
     var UBO: u32 = undefined;
     c.glGenBuffers(1, &UBO);
 
@@ -251,12 +239,13 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         .main_shader_program = &self.main_shader_program,
         .text_shader_program = &self.text_shader_program,
         .VBO = VBO,
-        .EBO = EBO,
+        .EBO = &self.EBO,
         .UBO = UBO,
     };
 }
 
 pub fn destroy(self: *Self) void {
+    c.glDeleteBuffers(1, &self.EBO);
     c.glDeleteBuffers(1, &self.VAO);
     if (c.eglDestroyContext(self.display, self.context) != c.EGL_TRUE) @panic("Failed to destroy egl context");
     if (c.eglTerminate(self.display) != c.EGL_TRUE) @panic("Failed to terminate egl");

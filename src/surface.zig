@@ -123,12 +123,9 @@ pub const Surface = struct {
         setColor(grid.color, self.egl.main_shader_program.*);
 
         if (border_mode) {
-            c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, self.egl.EBO[1]);
-            defer c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, self.egl.EBO[0]);
             c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[2]);
-
             c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 2 * @sizeOf(i32), null);
-            c.glDrawElements(c.GL_LINES, 8, c.GL_UNSIGNED_INT, null);
+            c.glDrawElements(c.GL_LINE_LOOP, 8, c.GL_UNSIGNED_INT, null);
 
             return;
         }
@@ -170,7 +167,6 @@ pub const Surface = struct {
     }
 
     pub fn draw(self: *const Self, border_mode: bool, mode: Mode) void {
-        self.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
         c.glClear(c.GL_COLOR_BUFFER_BIT);
         c.glUseProgram(self.egl.main_shader_program.*);
 
@@ -196,7 +192,7 @@ pub const Surface = struct {
                 setColor(self.config.font.color, self.egl.text_shader_program.*);
             }
 
-            const ch = self.config.keys.char_info.get(char) orelse continue;
+            const ch = self.config.keys.char_info.get(char).?;
 
             const move: i32 = @intCast(ch.advance[0] * i);
 
@@ -214,8 +210,8 @@ pub const Surface = struct {
 
             c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[4]);
             c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
-
             c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
+
             c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
         }
     }
@@ -316,8 +312,8 @@ pub fn xdgOutputListener(
                         const vertices = [_]i32{
                             info.x,              info.y,
                             info.x + info.width, info.y,
-                            info.x + info.width, info.y + info.height,
                             info.x,              info.y + info.height,
+                            info.x + info.width, info.y + info.height,
                         };
 
                         c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[2]);
@@ -328,16 +324,16 @@ pub fn xdgOutputListener(
                     c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[3]);
                     c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_DYNAMIC_DRAW);
 
-                    // Text VBO
-                    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[4]);
-                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_DYNAMIC_DRAW);
-
                     const projection = helpers.orthographicProjection(
                         @floatFromInt(info.x),
                         @floatFromInt(info.x + info.width),
                         @floatFromInt(info.y),
                         @floatFromInt(info.y + info.height),
                     );
+
+                    // Text VBO
+                    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[4]);
+                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_DYNAMIC_DRAW);
 
                     c.glBindBuffer(c.GL_UNIFORM_BUFFER, surface.egl.UBO);
                     c.glBufferData(
