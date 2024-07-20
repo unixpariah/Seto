@@ -181,7 +181,6 @@ pub fn parseArgs(seto: *Seto) void {
                 seto.config.keys.search = seto.alloc.dupe(u8, keys_search) catch @panic("OOM");
             },
             .@"--function", .@"-F" => {
-                // TODO: This looks like it was written with hopes and prayes, will have to come back to it
                 const key = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);

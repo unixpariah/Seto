@@ -59,13 +59,17 @@ pub const Seto = struct {
     const Self = @This();
 
     fn new(alloc: mem.Allocator, display: *wl.Display) !Self {
-        return .{
+        var seto = Seto{
             .seat = Seat.new(alloc),
             .outputs = std.ArrayList(Surface).init(alloc),
             .alloc = alloc,
             .egl = try Egl.new(display),
             .config = Config.load(alloc),
         };
+
+        parseArgs(&seto);
+        seto.config.keys.loadTextures(&seto.config.font);
+        return seto;
     }
 
     pub fn updateDimensions(self: *Self) void {
@@ -201,9 +205,6 @@ pub fn main() !void {
 
     var seto = try Seto.new(alloc, display);
     defer seto.destroy();
-
-    parseArgs(&seto);
-    seto.config.keys.loadTextures(&seto.config.font);
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;

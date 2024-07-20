@@ -141,9 +141,18 @@ remove				Remove last character from buffer.
 
 quit					Cancel the selection and exit seto.
 
-By default only function that is bound is quit on *Ctrl+c* which cannot be
-overwritten or unbound. Keys to be bound can be a Single character, xkb keycode
-or a String representing name of key.
+By default, there are 5 functions bound:
+
+- `Ctrl+C`: Quit (This binding cannot be overwritten or unbound)
+- `Shift+H`: Move grid left (like Vim)
+- `Shift+J`: Move grid down (like Vim)
+- `Shift+K`: Move grid up (like Vim)
+- `Shift+L`: Move grid right (like Vim)
+
+Keys to be bound can be:
+- A single character
+- An xkb keycode
+- A string representing the name of the key
 
 # AUTHORS
 unixpariah <_https://github.com/unixpariah_>.
