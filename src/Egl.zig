@@ -19,7 +19,6 @@ pub const EglSurface = struct {
     main_shader_program: *c_uint,
     text_shader_program: *c_uint,
     VBO: [5]u32,
-    EBO: *u32,
     UBO: u32,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
@@ -186,7 +185,6 @@ pub fn new(display: *wl.Display) !Self {
 
     var VAO: u32 = undefined;
     c.glGenVertexArrays(1, &VAO);
-
     c.glBindVertexArray(VAO);
     c.glEnableVertexAttribArray(0);
 
@@ -239,7 +237,6 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         .main_shader_program = &self.main_shader_program,
         .text_shader_program = &self.text_shader_program,
         .VBO = VBO,
-        .EBO = &self.EBO,
         .UBO = UBO,
     };
 }

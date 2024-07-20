@@ -1,12 +1,33 @@
 const std = @import("std");
 const Lua = @import("ziglua").Lua;
 
+const c = @cImport({
+    @cInclude("EGL/egl.h");
+
+    @cDefine("GL_GLEXT_PROTOTYPES", "1");
+    @cInclude("GL/gl.h");
+    @cInclude("EGL/eglext.h");
+
+    @cInclude("ft2build.h");
+    @cInclude("freetype/freetype.h");
+    @cInclude("fontconfig/fontconfig.h");
+});
+
 pub fn orthographicProjection(left: f32, right: f32, top: f32, bottom: f32) [4][4]f32 {
     return .{
         .{ 2 / (right - left), 0.0, 0.0, 0.0 },
         .{ 0.0, 2 / (top - bottom), 0.0, 0.0 },
         .{ 0.0, 0.0, 2, 0.0 },
         .{ -(right + left) / (right - left), -(top + bottom) / (top - bottom), (1 + 0) / -1, 1.0 },
+    };
+}
+
+pub fn translate(x: f32, y: f32, z: f32) [4][4]f32 {
+    return .{
+        .{ 1.0, 0.0, 0.0, 0.0 },
+        .{ 0.0, 1.0, 0.0, 0.0 },
+        .{ 0.0, 0.0, 1.0, 0.0 },
+        .{ x, y, z, 1.0 },
     };
 }
 
@@ -57,6 +78,24 @@ pub const Color = struct {
             .end_color = end_color.?,
             .deg = deg,
         };
+    }
+
+    pub fn set(self: *const Self, shader_program: c_uint) void {
+        c.glUniform4f(
+            c.glGetUniformLocation(shader_program, "u_startcolor"),
+            self.start_color[0] * self.start_color[3],
+            self.start_color[1] * self.start_color[3],
+            self.start_color[2] * self.start_color[3],
+            self.start_color[3],
+        );
+        c.glUniform4f(
+            c.glGetUniformLocation(shader_program, "u_endcolor"),
+            self.end_color[0] * self.end_color[3],
+            self.end_color[1] * self.end_color[3],
+            self.end_color[2] * self.end_color[3],
+            self.end_color[3],
+        );
+        c.glUniform1f(c.glGetUniformLocation(shader_program, "u_degrees"), self.deg);
     }
 };
 

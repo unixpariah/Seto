@@ -32,12 +32,13 @@ pub fn build(b: *std.Build) void {
 
     exe.linkLibC();
 
-    const helpers = b.addModule("helpers", .{ .root_source_file = b.path("src/helpers.zig") });
+    const helpers = b.addModule("helpers", .{ .root_source_file = b.path("src/helpers.zig"), .target = target });
 
     const ffi_libs = [_][]const u8{ "egl", "gl", "freetype2", "fontconfig" };
     const ffi = b.addModule("ffi", .{ .root_source_file = b.path("src/ffi.zig"), .target = target, .optimize = optimize });
     for (ffi_libs) |lib| {
         ffi.linkSystemLibrary(lib, .{});
+        helpers.linkSystemLibrary(lib, .{});
         exe.linkSystemLibrary(lib);
     }
 

@@ -52,7 +52,7 @@ pub fn load(alloc: std.mem.Allocator) Self {
         .alloc = alloc,
         .grid = Grid.new(lua, alloc),
         .font = font,
-        .keys = Keys.new(lua, alloc, &font),
+        .keys = Keys.new(lua, alloc),
         .background_color = Color.parse(background_color, alloc) catch @panic("Failed to parse color"),
     };
 }

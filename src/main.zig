@@ -138,7 +138,7 @@ pub const Seto = struct {
         self.state.exit = true;
     }
 
-    fn createSurfaces(self: *Self) !void {
+    fn render(self: *Self) !void {
         if (!self.shouldDraw()) return;
         self.printToStdout() catch |err| {
             switch (err) {
@@ -155,8 +155,12 @@ pub const Seto = struct {
             if (!surface.isConfigured()) continue;
             surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
 
+            c.glClear(c.GL_COLOR_BUFFER_BIT);
+            c.glUseProgram(self.egl.main_shader_program);
+
             surface.draw(self.state.border_mode, self.state.mode);
 
+            c.glUseProgram(self.egl.text_shader_program);
             self.tree.?.drawText(surface, self.seat.buffer.items, self.state.border_mode);
             surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }
@@ -199,6 +203,7 @@ pub fn main() !void {
     defer seto.destroy();
 
     parseArgs(&seto);
+    seto.config.keys.loadTextures(&seto.config.font);
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
@@ -207,13 +212,12 @@ pub fn main() !void {
 
     while (display.dispatch() == .SUCCESS and !seto.state.exit) {
         if (seto.seat.repeatKey()) handleKey(&seto);
-        try seto.createSurfaces();
+        try seto.render();
     }
 
     var surf_iter = SurfaceIterator.new(&seto.outputs.items);
     while (surf_iter.next()) |surface| {
         surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
-        c.glClearColor(0, 0, 0, 0);
         c.glClear(c.GL_COLOR_BUFFER_BIT);
         surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
     }

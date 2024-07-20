@@ -49,9 +49,10 @@ pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
 
 pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8, border_mode: bool) void {
     const info = surface.output_info;
-    c.glUseProgram(surface.egl.text_shader_program.*);
 
     const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");
+
+    surface.config.font.color.set(surface.egl.text_shader_program.*);
 
     for (self.children) |*child| {
         path[0] = child.key;

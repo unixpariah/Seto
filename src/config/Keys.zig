@@ -58,18 +58,20 @@ pub const Character = struct {
 search: []const u8,
 bindings: std.AutoHashMap(u8, Function),
 char_info: std.AutoHashMap(u8, Character),
+alloc: std.mem.Allocator,
 
 const Self = @This();
 
 pub fn default(alloc: std.mem.Allocator) Self {
     return .{
+        .alloc = alloc,
         .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"),
         .bindings = std.AutoHashMap(u8, Function).init(alloc),
         .char_info = std.AutoHashMap(u8, Character).init(alloc),
     };
 }
 
-pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
+pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     var keys_s = Self.default(alloc);
 
     _ = lua.pushString("keys");
@@ -135,6 +137,10 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     }
     lua.pop(2);
 
+    return keys_s;
+}
+
+pub fn loadTextures(self: *Self, font: *const Font) void {
     var ft: c.FT_Library = undefined;
     defer _ = c.FT_Done_FreeType(ft);
 
@@ -143,7 +149,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     var face: c.FT_Face = undefined;
     defer _ = c.FT_Done_Face(face);
 
-    const font_path = getFontPath(alloc, font.family) catch |err| {
+    const font_path = getFontPath(self.alloc, font.family) catch |err| {
         switch (err) {
             error.InitError => std.log.err("Failed to initialize FontConfig\n", .{}),
             error.FontNotFound => std.log.err("Font {s} not found\n", .{font.family}),
@@ -151,7 +157,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
         }
         std.process.exit(1);
     };
-    defer alloc.free(font_path);
+    defer self.alloc.free(font_path);
 
     if (c.FT_New_Face(ft, font_path.ptr, 0, &face) == 1) {
         std.log.err("Failed to load font {s}\n", .{font_path});
@@ -161,11 +167,9 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator, font: *const Font) Self {
     _ = c.FT_Set_Pixel_Sizes(face, 0, @intFromFloat(font.size));
     c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
 
-    for (keys_s.search) |key| {
-        keys_s.char_info.put(key, Character.new(face, key)) catch @panic("OOM");
+    for (self.search) |key| {
+        self.char_info.put(key, Character.new(face, key)) catch @panic("OOM");
     }
-
-    return keys_s;
 }
 
 fn getFontPath(alloc: std.mem.Allocator, font_name: [:0]const u8) ![]const u8 {

@@ -87,7 +87,7 @@ pub const Surface = struct {
     }
 
     fn drawBackground(self: *const Self) void {
-        setColor(self.config.background_color, self.egl.main_shader_program.*);
+        self.config.background_color.set(self.egl.main_shader_program.*);
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 2 * @sizeOf(i32), null);
@@ -96,7 +96,7 @@ pub const Surface = struct {
 
     fn drawSelection(self: *const Self, mode: *const Mode) void {
         if (mode.Region) |pos| {
-            setColor(self.config.grid.selected_color, self.egl.main_shader_program.*);
+            self.config.grid.selected_color.set(self.egl.main_shader_program.*);
 
             const info = self.output_info;
             var vertices: [8]i32 = .{
@@ -120,7 +120,7 @@ pub const Surface = struct {
         const grid = &self.config.grid;
 
         c.glLineWidth(grid.line_width);
-        setColor(grid.color, self.egl.main_shader_program.*);
+        grid.color.set(self.egl.main_shader_program.*);
 
         if (border_mode) {
             c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[2]);
@@ -167,9 +167,6 @@ pub const Surface = struct {
     }
 
     pub fn draw(self: *const Self, border_mode: bool, mode: Mode) void {
-        c.glClear(c.GL_COLOR_BUFFER_BIT);
-        c.glUseProgram(self.egl.main_shader_program.*);
-
         c.glBindBuffer(c.GL_UNIFORM_BUFFER, self.egl.UBO);
         c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
 
@@ -179,17 +176,13 @@ pub const Surface = struct {
     }
 
     pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32, matches: u8) void {
-        c.glActiveTexture(c.GL_TEXTURE0);
-
         if (matches > 0) {
-            setColor(self.config.font.highlight_color, self.egl.text_shader_program.*);
-        } else {
-            setColor(self.config.font.color, self.egl.text_shader_program.*);
+            self.config.font.highlight_color.set(self.egl.text_shader_program.*);
         }
 
         for (text, 0..) |char, i| {
             if (matches == i and matches > 0) {
-                setColor(self.config.font.color, self.egl.text_shader_program.*);
+                self.config.font.color.set(self.egl.text_shader_program.*);
             }
 
             const ch = self.config.keys.char_info.get(char).?;
@@ -362,22 +355,4 @@ pub fn xdgOutputListener(
             }
         }
     }
-}
-
-pub fn setColor(color: Color, shader_program: c_uint) void {
-    c.glUniform4f(
-        c.glGetUniformLocation(shader_program, "u_startcolor"),
-        color.start_color[0] * color.start_color[3],
-        color.start_color[1] * color.start_color[3],
-        color.start_color[2] * color.start_color[3],
-        color.start_color[3],
-    );
-    c.glUniform4f(
-        c.glGetUniformLocation(shader_program, "u_endcolor"),
-        color.end_color[0] * color.end_color[3],
-        color.end_color[1] * color.end_color[3],
-        color.end_color[2] * color.end_color[3],
-        color.end_color[3],
-    );
-    c.glUniform1f(c.glGetUniformLocation(shader_program, "u_degrees"), color.deg);
 }
