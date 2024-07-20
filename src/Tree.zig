@@ -49,20 +49,7 @@ pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
 
 pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8, border_mode: bool) void {
     const info = surface.output_info;
-    const projection = helpers.orthographicProjection(
-        @floatFromInt(info.x),
-        @floatFromInt(info.x + info.width),
-        @floatFromInt(info.y),
-        @floatFromInt(info.y + info.height),
-    );
-
     c.glUseProgram(surface.egl.text_shader_program.*);
-    c.glUniformMatrix4fv(
-        c.glGetUniformLocation(surface.egl.text_shader_program.*, "projection"),
-        1,
-        c.GL_FALSE,
-        @ptrCast(&projection),
-    );
 
     const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");
 

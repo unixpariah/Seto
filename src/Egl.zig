@@ -20,6 +20,7 @@ pub const EglSurface = struct {
     text_shader_program: *c_uint,
     VBO: [5]u32,
     EBO: [2]u32,
+    UBO: u32,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
         self.width = @floatFromInt(new_dimensions[0]);
@@ -130,6 +131,11 @@ pub fn new(display: *wl.Display) !Self {
         context,
     ) != c.EGL_TRUE) return error.EGLError;
 
+    c.glEnable(c.GL_DEBUG_OUTPUT);
+    c.glEnable(c.GL_BLEND);
+    c.glDebugMessageCallback(glMessageCallback, null);
+    c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
+
     const main_vertex_source = @embedFile("shaders/main.vert");
     const main_fragment_source = @embedFile("shaders/main.frag");
 
@@ -177,13 +183,6 @@ pub fn new(display: *wl.Display) !Self {
         c.glGetShaderInfoLog(text_shader_program, 512, null, @ptrCast(&info_log));
         return error.EGLError;
     }
-
-    c.glEnable(c.GL_DEBUG_OUTPUT);
-    c.glEnable(c.GL_BLEND);
-    c.glDebugMessageCallback(glMessageCallback, null);
-    c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
-
-    c.glUseProgram(main_shader_program);
 
     var VAO: u32 = undefined;
     c.glGenVertexArrays(1, &VAO);
@@ -238,6 +237,9 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
     }
 
+    var UBO: u32 = undefined;
+    c.glGenBuffers(1, &UBO);
+
     return .{
         .window = egl_window,
         .surface = egl_surface,
@@ -250,6 +252,7 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         .text_shader_program = &self.text_shader_program,
         .VBO = VBO,
         .EBO = EBO,
+        .UBO = UBO,
     };
 }
 

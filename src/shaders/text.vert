@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec4 in_pos;
 
-uniform mat4 projection;
+layout(std140) uniform UniformBlock { mat4 projection; };
 
 out vec2 v_pos;
 out vec2 v_texcoords;

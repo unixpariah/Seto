@@ -153,6 +153,7 @@ pub const Seto = struct {
         var surf_iter = SurfaceIterator.new(&self.outputs.items);
         while (surf_iter.next()) |surface| {
             if (!surface.isConfigured()) continue;
+            surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
 
             surface.draw(self.state.border_mode, self.state.mode);
             self.tree.?.drawText(surface, self.seat.buffer.items, self.state.border_mode);

@@ -38,6 +38,7 @@ pub fn build(b: *std.Build) void {
     const ffi = b.addModule("ffi", .{ .root_source_file = b.path("src/ffi.zig"), .target = target, .optimize = optimize });
     for (ffi_libs) |lib| {
         ffi.linkSystemLibrary(lib, .{});
+        exe.linkSystemLibrary(lib);
     }
 
     exe.root_module.addImport("ffi", ffi);

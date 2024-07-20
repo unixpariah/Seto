@@ -171,25 +171,11 @@ pub const Surface = struct {
 
     pub fn draw(self: *const Self, border_mode: bool, mode: Mode) void {
         self.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
-
         c.glClear(c.GL_COLOR_BUFFER_BIT);
-
         c.glUseProgram(self.egl.main_shader_program.*);
-        const info = self.output_info;
 
-        const projection = helpers.orthographicProjection(
-            @floatFromInt(info.x),
-            @floatFromInt(info.x + info.width),
-            @floatFromInt(info.y),
-            @floatFromInt(info.y + info.height),
-        );
-
-        c.glUniformMatrix4fv(
-            c.glGetUniformLocation(self.egl.main_shader_program.*, "projection"),
-            1,
-            c.GL_FALSE,
-            @ptrCast(&projection),
-        );
+        c.glBindBuffer(c.GL_UNIFORM_BUFFER, self.egl.UBO);
+        c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
 
         self.drawBackground();
         self.drawGrid(border_mode);
@@ -345,6 +331,28 @@ pub fn xdgOutputListener(
                     // Text VBO
                     c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[4]);
                     c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_DYNAMIC_DRAW);
+
+                    const projection = helpers.orthographicProjection(
+                        @floatFromInt(info.x),
+                        @floatFromInt(info.x + info.width),
+                        @floatFromInt(info.y),
+                        @floatFromInt(info.y + info.height),
+                    );
+
+                    c.glBindBuffer(c.GL_UNIFORM_BUFFER, surface.egl.UBO);
+                    c.glBufferData(
+                        c.GL_UNIFORM_BUFFER,
+                        @sizeOf(f32) * projection.len * projection[0].len,
+                        @ptrCast(&projection),
+                        c.GL_STATIC_DRAW,
+                    );
+
+                    c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, surface.egl.UBO);
+                    c.glUniformBlockBinding(
+                        surface.egl.main_shader_program.*,
+                        c.glGetUniformBlockIndex(surface.egl.main_shader_program.*, "UniformBlock"),
+                        0,
+                    );
 
                     if (seto.tree) |tree| tree.destroy();
                     seto.tree = Tree.new(
