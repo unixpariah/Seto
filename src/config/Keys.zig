@@ -56,27 +56,30 @@ pub const Character = struct {
 };
 
 search: []const u8,
-bindings: std.AutoHashMap(u8, Function),
-char_info: std.AutoHashMap(u8, Character),
+bindings: std.AutoHashMap(u32, Function),
+char_info: std.AutoHashMap(u32, Character),
 alloc: std.mem.Allocator,
 
 const Self = @This();
 
 pub fn default(alloc: std.mem.Allocator) Self {
+    var bindings = std.AutoHashMap(u32, Function).init(alloc);
+    bindings.put('H', .{ .move = .{ -5, 0 } }) catch @panic("OOM");
+    bindings.put('J', .{ .move = .{ 0, -5 } }) catch @panic("OOM");
+    bindings.put('K', .{ .move = .{ 0, 5 } }) catch @panic("OOM");
+    bindings.put('L', .{ .move = .{ 5, 0 } }) catch @panic("OOM");
+    bindings.put(8, .remove) catch @panic("OOM");
+
     return .{
         .alloc = alloc,
         .search = alloc.dupe(u8, "asdfghjkl") catch @panic("OOM"),
-        .bindings = std.AutoHashMap(u8, Function).init(alloc),
-        .char_info = std.AutoHashMap(u8, Character).init(alloc),
+        .bindings = bindings,
+        .char_info = std.AutoHashMap(u32, Character).init(alloc),
     };
 }
 
 pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     var keys_s = Self.default(alloc);
-    keys_s.bindings.put('H', .{ .move = .{ -5, 0 } }) catch @panic("OOM");
-    keys_s.bindings.put('J', .{ .move = .{ 0, -5 } }) catch @panic("OOM");
-    keys_s.bindings.put('K', .{ .move = .{ 0, 5 } }) catch @panic("OOM");
-    keys_s.bindings.put('L', .{ .move = .{ 5, 0 } }) catch @panic("OOM");
 
     _ = lua.pushString("keys");
     _ = lua.getTable(1);

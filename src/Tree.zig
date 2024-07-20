@@ -26,7 +26,7 @@ pub fn new(keys: []const u8, alloc: std.mem.Allocator, grid: *const Grid, output
         .arena = arena,
     };
 
-    var tmp = std.ArrayList([64]u8).init(alloc);
+    var tmp = std.ArrayList(u32).init(alloc);
     tree.updateCoordinates(grid, false, outputs, &tmp);
 
     return tree;
@@ -36,10 +36,10 @@ pub fn destroy(self: *const Self) void {
     self.arena.deinit();
 }
 
-pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
+pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
     if (buffer.len == 0) return error.EndNotReached;
     for (self.children) |*child| {
-        if (child.key == buffer.*[0][0]) {
+        if (child.key == buffer.*[0]) {
             return child.traverseAndFind(buffer, 1);
         }
     }
@@ -47,7 +47,7 @@ pub fn find(self: *Self, buffer: *[][64]u8) ![2]i32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8, border_mode: bool) void {
+pub fn drawText(self: *Self, surface: *const Surface, buffer: []u32, border_mode: bool) void {
     const info = surface.output_info;
 
     const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");
@@ -62,7 +62,7 @@ pub fn drawText(self: *Self, surface: *const Surface, buffer: [][64]u8, border_m
             if (child.coordinates) |coordinates| {
                 var matches: u8 = 0;
                 for (buffer, 0..) |char, i| {
-                    if (path[i] == char[0]) matches += 1 else break;
+                    if (path[i] == char) matches += 1 else break;
                 }
                 if (buffer.len > matches) matches = 0;
 
@@ -97,7 +97,7 @@ pub fn updateCoordinates(
     grid: *const Grid,
     border_mode: bool,
     outputs: *const []Surface,
-    buffer: *std.ArrayList([64]u8),
+    buffer: *std.ArrayList(u32),
 ) void {
     var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
     defer intersections.deinit();
@@ -182,7 +182,7 @@ const Node = struct {
         }
     }
 
-    fn traverseAndFind(self: *Node, buffer: *[][64]u8, index: usize) ![2]i32 {
+    fn traverseAndFind(self: *Node, buffer: *[]u32, index: usize) ![2]i32 {
         if (self.coordinates) |coordinates| return coordinates;
         if (buffer.*.len <= index) {
             try self.checkIfOnScreen();
@@ -190,7 +190,7 @@ const Node = struct {
         }
         if (self.children) |children| {
             for (children) |*child| {
-                if (child.key == buffer.*[index][0]) {
+                if (child.key == buffer.*[index]) {
                     return child.traverseAndFind(buffer, index + 1);
                 }
             }
@@ -199,7 +199,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn traverseAndDraw(self: *Node, path: []u8, index: u8, surface: *const Surface, buffer: [][64]u8, border_mode: bool) void {
+    fn traverseAndDraw(self: *Node, path: []u8, index: u8, surface: *const Surface, buffer: []u32, border_mode: bool) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
@@ -207,7 +207,7 @@ const Node = struct {
                 if (child.coordinates) |coordinates| {
                     var matches: u8 = 0;
                     for (buffer, 0..) |char, i| {
-                        if (path[i] == char[0]) matches += 1 else break;
+                        if (path[i] == char) matches += 1 else break;
                     }
                     if (buffer.len > matches) matches = 0;
 
