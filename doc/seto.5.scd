@@ -187,19 +187,9 @@ remove				Remove last character from buffer.
 
 quit					Cancel the selection and exit seto.
 
-By default, there are 5 functions bound:
-
-- `Ctrl+C`: Quit (This binding cannot be overwritten or unbound)
-- `Shift+H`: Move grid left
-- `Shift+J`: Move grid down
-- `Shift+K`: Move grid up
-- `Shift+L`: Move grid right
-- `Backspace`: Remove last character entered into buffer
-
-Keys to be bound can be:
-
-- A single character
-- An UTF-32 keycode
+By default only function that is bound is quit on *Ctrl+c* which cannot be
+overwritten or unbound. Keys to be bound can be a Single character, xkb keycode
+or a String representing name of key.
 
 # EXAMPLE CONFIGURATION
 

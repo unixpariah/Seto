@@ -84,6 +84,10 @@ pub fn default(alloc: std.mem.Allocator) Self {
 
 pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     var keys_s = Self.default(alloc);
+    keys_s.bindings.put('H', .{ .move = .{ -5, 0 } }) catch @panic("OOM");
+    keys_s.bindings.put('J', .{ .move = .{ 0, -5 } }) catch @panic("OOM");
+    keys_s.bindings.put('K', .{ .move = .{ 0, 5 } }) catch @panic("OOM");
+    keys_s.bindings.put('L', .{ .move = .{ 5, 0 } }) catch @panic("OOM");
 
     _ = lua.pushString("keys");
     _ = lua.getTable(1);
