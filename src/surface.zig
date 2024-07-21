@@ -180,6 +180,7 @@ pub const Surface = struct {
             self.config.font.highlight_color.set(self.egl.text_shader_program.*);
         }
 
+        var move: i32 = 0;
         for (text, 0..) |char, i| {
             if (matches == i and matches > 0) {
                 self.config.font.color.set(self.egl.text_shader_program.*);
@@ -187,9 +188,7 @@ pub const Surface = struct {
 
             const ch = self.config.keys.char_info.get(char).?;
 
-            const move: i32 = @intCast(ch.advance[0] * i);
-
-            const x_pos = x + ch.size[0] + move;
+            const x_pos = x + ch.bearing[0] + move;
             const y_pos = y - ch.bearing[1];
 
             const vertices = [_]i32{
@@ -206,6 +205,7 @@ pub const Surface = struct {
             c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
 
             c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
+            move += @intCast(ch.advance[0]);
         }
     }
 
