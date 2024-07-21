@@ -8,13 +8,13 @@ const Grid = @import("config/Grid.zig");
 const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 
 children: []Node,
-keys: []const u8,
+keys: []const u32,
 depth: u8,
 arena: std.heap.ArenaAllocator,
 
 const Self = @This();
 
-pub fn new(keys: []const u8, alloc: std.mem.Allocator, grid: *const Grid, outputs: *const []Surface) Self {
+pub fn new(keys: []const u32, alloc: std.mem.Allocator, grid: *const Grid, outputs: *const []Surface) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, keys.len) catch @panic("OOM");
     for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -50,7 +50,7 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
 pub fn drawText(self: *Self, surface: *const Surface, buffer: []u32, border_mode: bool) void {
     const info = surface.output_info;
 
-    const path = self.arena.allocator().alloc(u8, self.depth) catch @panic("OOM");
+    const path = self.arena.allocator().alloc(u32, self.depth) catch @panic("OOM");
 
     surface.config.font.color.set(surface.egl.text_shader_program.*);
 
@@ -169,7 +169,7 @@ fn decreaseDepth(self: *Self) void {
 }
 
 const Node = struct {
-    key: u8,
+    key: u32,
     children: ?[]Node = null,
     coordinates: ?[2]i32 = null,
 
@@ -199,7 +199,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn traverseAndDraw(self: *Node, path: []u8, index: u8, surface: *const Surface, buffer: []u32, border_mode: bool) void {
+    fn traverseAndDraw(self: *Node, path: []u32, index: u8, surface: *const Surface, buffer: []u32, border_mode: bool) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
@@ -254,7 +254,7 @@ const Node = struct {
         }
     }
 
-    fn traverseAndCreateChildren(self: *Node, keys: []const u8, alloc: std.mem.Allocator) void {
+    fn traverseAndCreateChildren(self: *Node, keys: []const u32, alloc: std.mem.Allocator) void {
         if (self.children) |children| {
             for (children) |*child| child.traverseAndCreateChildren(keys, alloc);
         } else {
@@ -276,7 +276,7 @@ const Node = struct {
         }
     }
 
-    fn createChildren(self: *Node, keys: []const u8, alloc: std.mem.Allocator) void {
+    fn createChildren(self: *Node, keys: []const u32, alloc: std.mem.Allocator) void {
         self.coordinates = null;
         if (self.children == null) {
             const nodes = alloc.alloc(Node, keys.len) catch @panic("OOM");

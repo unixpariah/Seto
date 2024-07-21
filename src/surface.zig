@@ -175,7 +175,7 @@ pub const Surface = struct {
         if (mode == .Region) self.drawSelection(&mode);
     }
 
-    pub fn renderText(self: *const Self, text: []const u8, x: i32, y: i32, matches: u8) void {
+    pub fn renderText(self: *const Self, text: []const u32, x: i32, y: i32, matches: u8) void {
         if (matches > 0) {
             self.config.font.highlight_color.set(self.egl.text_shader_program.*);
         }

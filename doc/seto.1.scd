@@ -151,7 +151,6 @@ By default, there are 5 functions bound:
 - `Backspace`: Remove last character entered into buffer
 
 Keys to be bound can be:
-
 - A single character
 - An UTF-32 keycode
 
