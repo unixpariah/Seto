@@ -178,25 +178,13 @@ pub fn parseArgs(seto: *Seto) void {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                var buffer = std.ArrayList(u32).init(seto.alloc);
-                const utf8_view = std.unicode.Utf8View.init(keys_search) catch @panic("Failed to initialize utf8 view");
-                var iter = utf8_view.iterator();
-                while (iter.nextCodepoint()) |codepoint| {
-                    buffer.append(codepoint) catch @panic("OOM");
-                }
-
-                seto.config.keys.search = buffer.toOwnedSlice() catch @panic("OOM");
+                seto.config.keys.search = seto.alloc.dupe(u8, keys_search) catch @panic("OOM");
             },
             .@"--function", .@"-F" => {
                 const key = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-
-                const decoded_key = std.fmt.parseInt(u21, key, 10) catch blk: {
-                    break :blk std.unicode.utf8Decode(key) catch @panic("Failed to decode key into unicode character");
-                };
-
                 const function = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
@@ -219,7 +207,7 @@ pub fn parseArgs(seto: *Seto) void {
                     std.process.exit(1);
                 };
 
-                seto.config.keys.bindings.put(decoded_key, func) catch @panic("OOM");
+                seto.config.keys.bindings.put(key[0], func) catch @panic("OOM");
             },
         }
     }

@@ -18,7 +18,7 @@ pub fn default(alloc: std.mem.Allocator) Self {
     return .{ // These are hardcoded so no way for error
         .color = Color.parse("#FFFFFF", alloc) catch unreachable,
         .highlight_color = Color.parse("#FFFF00", alloc) catch unreachable,
-        .family = alloc.dupeZ(u8, "monospace") catch @panic("OOM"),
+        .family = alloc.dupeZ(u8, "sans-serif") catch @panic("OOM"),
     };
 }
 
