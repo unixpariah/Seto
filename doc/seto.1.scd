@@ -77,7 +77,7 @@ compositors implementing layer-shell protocol.
 
 *-s, --search-keys* _keys_
 	Bind keys used to select screen. No separator between keys required.
-	Needs at least two characters.
+	Requires at least two different characters.
 
 *-F, --function* _key_ _function_ [_x_,_y_]
 	Bind function to key. See *FUNCTIONS* for more details.
@@ -85,7 +85,7 @@ compositors implementing layer-shell protocol.
 # CONFIGURATION
 
 Configuration is done in lua, by default seto looks for config file at
-$XDG_CONFIG_HOME/.config/seto/config.lua
+`~/.config/.config/seto/config.lua`
 
 # COLORS
 
@@ -151,9 +151,10 @@ By default, there are 5 functions bound:
 - `Backspace`: Remove last character entered into buffer
 
 Keys to be bound can be:
-
-- A single character
 - An UTF-32 keycode
+- A single character
+
+First, the key will be checked to determine if it can be interpreted as a UTF-32 keycode. If it cannot, it will be interpreted as a character. Because of that, number keys must be bound using their keycodes.
 
 # AUTHORS
 unixpariah <_https://github.com/unixpariah_>.

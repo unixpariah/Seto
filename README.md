@@ -22,16 +22,16 @@ git clone https://github.com/unixpariah/seto.git
 cd seto
 ```
 
-2. Build and install
+3. Build and run
 
 ```bash
-zig build -Doptimize=ReleaseSafe -p /usr/local
+zig build -Doptimize=ReleaseSafe run
 ```
 
 ## Configuration
 
 Configuration can be done using lua. By default, seto will look for config at
-`$XDG_CONFIG_HOME/seto/config.lua`.
+`~/.config/seto/config.lua`.
 
 You can also specify a custom path to your configuration directory:
 

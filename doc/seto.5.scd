@@ -210,7 +210,6 @@ return {
 		color = "#FFFFFF",
 		highlight_color = "#FFFF00FF",
 		size = 16,
-		weight = 1000,
 		family = "JetBrainsMono Nerd Font",
 		offset = { 5, 5 },
 	},

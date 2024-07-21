@@ -69,6 +69,12 @@ pub const Seto = struct {
 
         parseArgs(&seto);
         seto.config.keys.loadTextures(&seto.config.font);
+
+        if (seto.config.keys.search.len < 2) {
+            std.log.err("Minimum two search keys have to be set\n", .{});
+            std.process.exit(1);
+        }
+
         return seto;
     }
 
