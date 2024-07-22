@@ -130,10 +130,13 @@ pub fn new(display: *wl.Display) !Self {
         context,
     ) != c.EGL_TRUE) return error.EGLError;
 
-    c.glEnable(c.GL_DEBUG_OUTPUT);
     c.glEnable(c.GL_BLEND);
-    c.glDebugMessageCallback(glMessageCallback, null);
     c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
+
+    if (@import("builtin").mode == .Debug) {
+        c.glEnable(c.GL_DEBUG_OUTPUT);
+        c.glDebugMessageCallback(glMessageCallback, null);
+    }
 
     const main_vertex_source = @embedFile("shaders/main.vert");
     const main_fragment_source = @embedFile("shaders/main.frag");

@@ -86,15 +86,27 @@ pub const Surface = struct {
             return a.output_info.y < b.output_info.y;
     }
 
-    fn drawBackground(self: *const Self) void {
+    pub fn draw(self: *const Self, border_mode: bool, mode: *Mode) void {
+        c.glUseProgram(self.egl.main_shader_program.*);
+        c.glClear(c.GL_COLOR_BUFFER_BIT);
+
+        c.glBindBuffer(c.GL_UNIFORM_BUFFER, self.egl.UBO);
+        c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
+
+        self.drawBackground();
+        self.drawGrid(border_mode);
+        if (mode.* == .Region) self.drawSelection(mode);
+    }
+
+    pub fn drawBackground(self: *const Self) void {
         self.config.background_color.set(self.egl.main_shader_program.*);
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
-        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 2 * @sizeOf(i32), null);
+        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
         c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
     }
 
-    fn drawSelection(self: *const Self, mode: *const Mode) void {
+    pub fn drawSelection(self: *const Self, mode: *const Mode) void {
         if (mode.Region) |pos| {
             self.config.grid.selected_color.set(self.egl.main_shader_program.*);
 
@@ -115,7 +127,7 @@ pub const Surface = struct {
         }
     }
 
-    fn drawGrid(self: *const Self, border_mode: bool) void {
+    pub fn drawGrid(self: *const Self, border_mode: bool) void {
         const info = &self.output_info;
         const grid = &self.config.grid;
 
@@ -124,8 +136,8 @@ pub const Surface = struct {
 
         if (border_mode) {
             c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[2]);
-            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 2 * @sizeOf(i32), null);
-            c.glDrawElements(c.GL_LINE_LOOP, 8, c.GL_UNSIGNED_INT, null);
+            c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+            c.glDrawElements(c.GL_LINE_LOOP, 5, c.GL_UNSIGNED_INT, null);
 
             return;
         }
@@ -166,15 +178,6 @@ pub const Surface = struct {
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
     }
 
-    pub fn draw(self: *const Self, border_mode: bool, mode: Mode) void {
-        c.glBindBuffer(c.GL_UNIFORM_BUFFER, self.egl.UBO);
-        c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
-
-        self.drawBackground();
-        self.drawGrid(border_mode);
-        if (mode == .Region) self.drawSelection(&mode);
-    }
-
     pub fn renderText(self: *const Self, text: []const u32, x: i32, y: i32, matches: u8) void {
         if (matches > 0) {
             self.config.font.highlight_color.set(self.egl.text_shader_program.*);
@@ -199,11 +202,7 @@ pub const Surface = struct {
             };
 
             c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
-
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[4]);
             c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
-            c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
-
             c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
             move += @intCast(ch.advance[0]);
         }
@@ -298,7 +297,7 @@ pub fn xdgOutputListener(
                         };
 
                         c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[1]);
-                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_DYNAMIC_DRAW);
+                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
                     }
 
                     { // Border VBO
@@ -310,7 +309,7 @@ pub fn xdgOutputListener(
                         };
 
                         c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[2]);
-                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_DYNAMIC_DRAW);
+                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
                     }
 
                     // Selection VBO
