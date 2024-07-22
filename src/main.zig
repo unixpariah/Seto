@@ -166,8 +166,8 @@ pub const Seto = struct {
             surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
 
             surface.draw(self.state.border_mode, &self.state.mode);
-
             self.tree.?.drawText(surface, self.seat.buffer.items, self.state.border_mode);
+
             surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }
     }

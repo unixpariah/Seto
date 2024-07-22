@@ -68,15 +68,16 @@ pub fn drawText(self: *Self, surface: *const Surface, buffer: []u32, border_mode
                 if (buffer.len > matches) matches = 0;
 
                 const coords = blk: {
+                    const text_size = surface.getTextSize(path);
                     if (border_mode) {
                         break :blk if (coordinates[0] == info.x and coordinates[1] == info.y)
                             .{ coordinates[0] + 5, coordinates[1] + 25 }
                         else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1)
                             .{ coordinates[0] + 5, coordinates[1] - 15 }
                         else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y)
-                            break :blk .{ coordinates[0] - 25, coordinates[1] + 25 }
+                            .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 }
                         else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1)
-                            break :blk .{ coordinates[0] - 25, coordinates[1] - 15 }
+                            .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 }
                         else
                             continue;
                     } else {
@@ -214,16 +215,18 @@ const Node = struct {
 
                     const coords = blk: {
                         if (border_mode) {
+                            const text_size = surface.getTextSize(path);
                             const info = surface.output_info;
-                            if (coordinates[0] == info.x and coordinates[1] == info.y) {
-                                break :blk .{ coordinates[0] + 5, coordinates[1] + 25 };
-                            } else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1) {
-                                break :blk .{ coordinates[0] + 5, coordinates[1] - 15 };
-                            } else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y) {
-                                break :blk .{ coordinates[0] - 25, coordinates[1] + 25 };
-                            } else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1) {
-                                break :blk .{ coordinates[0] - 25, coordinates[1] - 15 };
-                            } else continue;
+                            break :blk if (coordinates[0] == info.x and coordinates[1] == info.y)
+                                .{ coordinates[0] + 5, coordinates[1] + 25 }
+                            else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1)
+                                .{ coordinates[0] + 5, coordinates[1] - 15 }
+                            else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y)
+                                .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 }
+                            else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1)
+                                .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 }
+                            else
+                                continue;
                         } else {
                             break :blk .{
                                 coordinates[0] + surface.config.font.offset[0],
