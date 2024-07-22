@@ -18,7 +18,8 @@ pub const EglSurface = struct {
     context: *c.EGLContext,
     main_shader_program: *c_uint,
     text_shader_program: *c_uint,
-    VBO: [5]u32,
+    VBO: [2]u32,
+    gen_VBO: *[3]u32,
     UBO: u32,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
@@ -41,7 +42,7 @@ pub const EglSurface = struct {
     }
 
     pub fn destroy(self: *EglSurface) void {
-        c.glDeleteBuffers(5, &self.VBO);
+        c.glDeleteBuffers(2, &self.VBO);
         if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) @panic("Failed to destroy egl surface");
         self.window.destroy();
     }
@@ -75,6 +76,7 @@ context: c.EGLContext,
 main_shader_program: c_uint,
 text_shader_program: c_uint,
 VAO: u32,
+VBO: [3]u32,
 EBO: u32,
 
 const Self = @This();
@@ -191,6 +193,17 @@ pub fn new(display: *wl.Display) !Self {
     c.glBindVertexArray(VAO);
     c.glEnableVertexAttribArray(0);
 
+    var VBO: [3]u32 = undefined;
+    c.glGenBuffers(3, &VBO);
+
+    // Selection VBO
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[1]);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_DYNAMIC_DRAW);
+
+    // Text VBO
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[2]);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_DYNAMIC_DRAW);
+
     var EBO: u32 = undefined;
     c.glGenBuffers(1, &EBO);
 
@@ -209,6 +222,7 @@ pub fn new(display: *wl.Display) !Self {
         .main_shader_program = main_shader_program,
         .text_shader_program = text_shader_program,
         .VAO = VAO,
+        .VBO = VBO,
         .EBO = EBO,
     };
 }
@@ -223,8 +237,8 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         null,
     ) orelse return error.EGLError;
 
-    var VBO: [5]u32 = undefined;
-    c.glGenBuffers(5, &VBO);
+    var VBO: [2]u32 = undefined;
+    c.glGenBuffers(2, &VBO);
 
     var UBO: u32 = undefined;
     c.glGenBuffers(1, &UBO);
@@ -240,12 +254,14 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
         .main_shader_program = &self.main_shader_program,
         .text_shader_program = &self.text_shader_program,
         .VBO = VBO,
+        .gen_VBO = &self.VBO,
         .UBO = UBO,
     };
 }
 
 pub fn destroy(self: *Self) void {
     c.glDeleteBuffers(1, &self.EBO);
+    c.glDeleteBuffers(3, &self.VBO);
     c.glDeleteBuffers(1, &self.VAO);
     if (c.eglDestroyContext(self.display, self.context) != c.EGL_TRUE) @panic("Failed to destroy egl context");
     if (c.eglTerminate(self.display) != c.EGL_TRUE) @panic("Failed to terminate egl");

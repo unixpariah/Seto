@@ -49,7 +49,7 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
 
 pub fn drawText(self: *Self, surface: *const Surface, buffer: []u32, border_mode: bool) void {
     c.glUseProgram(surface.egl.text_shader_program.*);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[4]);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.gen_VBO[2]);
     c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
 
     const info = surface.output_info;

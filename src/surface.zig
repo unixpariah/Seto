@@ -81,9 +81,8 @@ pub const Surface = struct {
 
     pub fn cmp(_: Self, a: Self, b: Self) bool {
         if (a.output_info.x != b.output_info.x)
-            return a.output_info.x < b.output_info.x
-        else
-            return a.output_info.y < b.output_info.y;
+            return a.output_info.x < b.output_info.x;
+        return a.output_info.y < b.output_info.y;
     }
 
     pub fn draw(self: *const Self, border_mode: bool, mode: *Mode) void {
@@ -101,7 +100,7 @@ pub const Surface = struct {
     pub fn drawBackground(self: *const Self) void {
         self.config.background_color.set(self.egl.main_shader_program.*);
 
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[0]);
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
         c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
     }
@@ -119,7 +118,7 @@ pub const Surface = struct {
             };
             c.glLineWidth(self.config.grid.selected_line_width);
 
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[3]);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.gen_VBO[1]);
             c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
 
             c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
@@ -135,7 +134,7 @@ pub const Surface = struct {
         grid.color.set(self.egl.main_shader_program.*);
 
         if (border_mode) {
-            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[2]);
+            c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
             c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
             c.glDrawElements(c.GL_LINE_LOOP, 5, c.GL_UNSIGNED_INT, null);
 
@@ -167,7 +166,7 @@ pub const Surface = struct {
             }) catch @panic("OOM");
         }
 
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[0]);
+        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.gen_VBO[0]);
         c.glBufferData(
             c.GL_ARRAY_BUFFER,
             @intCast(@sizeOf(i32) * vertices.items.len),
@@ -296,7 +295,7 @@ pub fn xdgOutputListener(
                             info.x + info.width, info.y + info.height,
                         };
 
-                        c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[1]);
+                        c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[0]);
                         c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
                     }
 
@@ -308,13 +307,9 @@ pub fn xdgOutputListener(
                             info.x + info.width, info.y + info.height,
                         };
 
-                        c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[2]);
+                        c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[1]);
                         c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
                     }
-
-                    // Selection VBO
-                    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[3]);
-                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_DYNAMIC_DRAW);
 
                     const projection = helpers.orthographicProjection(
                         @floatFromInt(info.x),
@@ -322,10 +317,6 @@ pub fn xdgOutputListener(
                         @floatFromInt(info.y),
                         @floatFromInt(info.y + info.height),
                     );
-
-                    // Text VBO
-                    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.VBO[4]);
-                    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_DYNAMIC_DRAW);
 
                     c.glBindBuffer(c.GL_UNIFORM_BUFFER, surface.egl.UBO);
                     c.glBufferData(
