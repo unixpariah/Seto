@@ -10,9 +10,16 @@ pub const Character = struct {
     bearing: [2]i32,
     advance: [2]u32,
 
-    fn new(face: c.FT_Face, key: u32) Character {
-        if (c.FT_Load_Char(face, key, c.FT_LOAD_RENDER) == 1) {
+    fn new(face: c.FT_Face, key: u32, font: *const Font) Character {
+        if (c.FT_Load_Char(face, key, c.FT_LOAD_DEFAULT) == 1) {
             std.log.err("Failed to load glyph for character {}\n", .{key});
+            std.process.exit(1);
+        }
+
+        if (font.weight) |weight| _ = c.FT_Outline_Embolden(&face.*.glyph.*.outline, @intFromFloat(weight));
+
+        if (c.FT_Render_Glyph(face.*.glyph, c.FT_RENDER_MODE_NORMAL) == 1) {
+            std.log.err("Failed to render glyph for character {}\n", .{key});
             std.process.exit(1);
         }
 
@@ -172,7 +179,7 @@ pub fn loadTextures(self: *Self, font: *const Font) void {
         switch (err) {
             error.InitError => std.log.err("Failed to initialize FontConfig\n", .{}),
             error.FontNotFound => std.log.err("Font {s} not found\n", .{font.family}),
-            else => std.log.err("OOM\n", .{}),
+            else => @panic("OOM"),
         }
         std.process.exit(1);
     };
@@ -186,8 +193,12 @@ pub fn loadTextures(self: *Self, font: *const Font) void {
     _ = c.FT_Set_Pixel_Sizes(face, 0, @intFromFloat(font.size));
     c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
 
+    // const stroker = c.FT_STROKER_LINEJOIN_ROUND;
+    // _ = c.FT_Stroker_New(ft, stroker);
+    // c.FT_Stroker_Set(stroker, 0, c.FT_STROKER_LINECAP_BUTT, c.FT_STROKER_LINEJOIN_ROUND, 0);
+
     for (self.search) |key| {
-        self.char_info.put(key, Character.new(face, key)) catch @panic("OOM");
+        self.char_info.put(key, Character.new(face, key, font)) catch @panic("OOM");
     }
 }
 

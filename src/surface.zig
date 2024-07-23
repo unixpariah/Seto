@@ -80,8 +80,7 @@ pub const Surface = struct {
     }
 
     pub fn cmp(_: Self, a: Self, b: Self) bool {
-        if (a.output_info.x != b.output_info.x)
-            return a.output_info.x < b.output_info.x;
+        if (a.output_info.x != b.output_info.x) return a.output_info.x < b.output_info.x;
         return a.output_info.y < b.output_info.y;
     }
 

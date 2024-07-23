@@ -50,6 +50,15 @@ following sections describe the configurable options.
 
 	_Example:_ 22 \
 
+*font.weight*
+	Weight of font. \
+
+	_Type:_ Integer \
+
+	_Default:_ null \
+
+	_Example:_ 50 \
+
 *font.family*
 	Family of font. \
 

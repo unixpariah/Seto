@@ -6,6 +6,7 @@ const hexToRgba = helpers.hexToRgba;
 const Lua = @import("ziglua").Lua;
 const Color = helpers.Color;
 
+weight: ?f64 = null,
 color: Color,
 highlight_color: Color,
 offset: [2]i32 = .{ 5, 5 },
@@ -31,20 +32,31 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
 
     _ = lua.pushString("color");
     _ = lua.getTable(2);
-    const font_color = lua.toString(3) catch @panic("font.color expected string");
-    font.color = Color.parse(font_color, alloc) catch @panic("Failed to parse font.color");
+    if (!lua.isNil(3)) {
+        const font_color = lua.toString(3) catch @panic("font.color expected string");
+        font.color = Color.parse(font_color, alloc) catch @panic("Failed to parse font.color");
+    }
     lua.pop(1);
 
     _ = lua.pushString("highlight_color");
     _ = lua.getTable(2);
-    const font_highlight_color = lua.toString(3) catch @panic("font.hightlight_color expected string");
-    font.highlight_color = Color.parse(font_highlight_color, alloc) catch @panic("Failed to parse font.highlight_color");
+    if (!lua.isNil(3)) {
+        const font_highlight_color = lua.toString(3) catch @panic("font.hightlight_color expected string");
+        font.highlight_color = Color.parse(font_highlight_color, alloc) catch @panic("Failed to parse font.highlight_color");
+    }
     lua.pop(1);
 
     _ = lua.pushString("size");
     _ = lua.getTable(2);
     if (!lua.isNil(3)) {
         font.size = lua.toNumber(3) catch @panic("font.size expected number");
+    }
+    lua.pop(1);
+
+    _ = lua.pushString("weight");
+    _ = lua.getTable(2);
+    if (!lua.isNil(3)) {
+        font.weight = lua.toNumber(3) catch @panic("font.weight expected number");
     }
     lua.pop(1);
 
@@ -70,9 +82,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         }
         if (index < 2) @panic("font.offset expected {{ x, y }} format");
     }
-    lua.pop(1);
-
-    lua.pop(1);
+    lua.pop(2);
 
     return font;
 }

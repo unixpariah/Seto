@@ -48,6 +48,9 @@ compositors implementing layer-shell protocol.
 *--font-size* _size_
 	Set font size.
 
+*--font-weight* _weight_
+	Set font weight.
+
 *--font-family* _family_
 	Set font family.
 

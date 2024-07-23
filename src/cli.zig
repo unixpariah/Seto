@@ -42,6 +42,7 @@ const Arguments = enum {
     @"--highlight-color",
     @"--font-color",
     @"--font-size",
+    @"--font-weight",
     @"--font-family",
     @"--font-offset",
 
@@ -115,6 +116,13 @@ pub fn parseArgs(seto: *Seto) void {
                     std.process.exit(1);
                 };
                 seto.config.font.size = std.fmt.parseFloat(f64, font_size) catch @panic("Failed to parse font-size");
+            },
+            .@"--font-weight" => {
+                const font_weight = args.next() orelse {
+                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
+                    std.process.exit(1);
+                };
+                seto.config.font.weight = std.fmt.parseFloat(f64, font_weight) catch @panic("Failed to parse font-weight");
             },
             .@"--font-family" => {
                 seto.alloc.free(seto.config.font.family);
@@ -245,6 +253,7 @@ const help_message =
     \\  --highlight-color <HEX>                    Set highlighted color
     \\  --font-color <HEX>                         Set font color
     \\  --font-size <INT>                          Set font size
+    \\  --font-weight <INT>                        Set font weight
     \\  --font-family <STRING>                     Set font family
     \\  --font-offset <INT,INT>                    Change position of text on grid
     \\
