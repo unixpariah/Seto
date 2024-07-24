@@ -40,7 +40,8 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
     if (buffer.len == 0) return error.EndNotReached;
     for (self.children) |*child| {
         if (child.key == buffer.*[0]) {
-            return child.traverseAndFind(buffer, 1);
+            if (child.children == null and child.coordinates == null) return error.KeyNotFound;
+            return child.find(buffer, 1);
         }
     }
 
@@ -50,7 +51,7 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
 pub fn drawText(self: *Self, surface: *const Surface, buffer: []u32, border_mode: bool) void {
     c.glUseProgram(surface.egl.text_shader_program.*);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.gen_VBO[2]);
-    c.glVertexAttribPointer(0, 4, c.GL_INT, c.GL_FALSE, 0, null);
+    c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
 
     const info = surface.output_info;
     const path = self.arena.allocator().alloc(u32, self.depth) catch @panic("OOM");
@@ -58,7 +59,7 @@ pub fn drawText(self: *Self, surface: *const Surface, buffer: []u32, border_mode
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.traverseAndDraw(path, 1, surface, buffer, border_mode);
+            child.drawText(path, 1, surface, buffer, border_mode);
         } else {
             if (child.coordinates) |coordinates| {
                 var matches: u8 = 0;
@@ -152,21 +153,21 @@ pub fn updateCoordinates(
 
     var index: usize = 0;
     for (self.children) |*child| {
-        child.traverseAndPutCoords(intersections.items, &index);
+        child.updateCoordinates(intersections.items, &index);
     }
 }
 
 fn increaseDepth(self: *Self) void {
     self.depth += 1;
     for (self.children) |*child| {
-        child.traverseAndCreateChildren(self.keys, self.arena.allocator());
+        child.increaseDepth(self.keys, self.arena.allocator());
     }
 }
 
 fn decreaseDepth(self: *Self) void {
     self.depth -= 1;
     for (self.children) |*child| {
-        child.traverseAndFreeChildren(self.arena.allocator());
+        child.decreaseDepth(self.arena.allocator());
     }
 }
 
@@ -184,7 +185,7 @@ const Node = struct {
         }
     }
 
-    fn traverseAndFind(self: *Node, buffer: *[]u32, index: usize) ![2]i32 {
+    fn find(self: *Node, buffer: *[]u32, index: usize) ![2]i32 {
         if (self.coordinates) |coordinates| return coordinates;
         if (buffer.*.len <= index) {
             try self.checkIfOnScreen();
@@ -193,7 +194,8 @@ const Node = struct {
         if (self.children) |children| {
             for (children) |*child| {
                 if (child.key == buffer.*[index]) {
-                    return child.traverseAndFind(buffer, index + 1);
+                    if (child.children == null and child.coordinates == null) return error.KeyNotFound;
+                    return child.find(buffer, index + 1);
                 }
             }
         }
@@ -201,7 +203,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn traverseAndDraw(self: *Node, path: []u32, index: u8, surface: *const Surface, buffer: []u32, border_mode: bool) void {
+    fn drawText(self: *Node, path: []u32, index: u8, surface: *const Surface, buffer: []u32, border_mode: bool) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
@@ -237,13 +239,13 @@ const Node = struct {
 
                     surface.renderText(path, coords[0], coords[1], matches);
                 } else {
-                    child.traverseAndDraw(path, index + 1, surface, buffer, border_mode);
+                    child.drawText(path, index + 1, surface, buffer, border_mode);
                 }
             }
         }
     }
 
-    fn traverseAndPutCoords(self: *Node, intersections: [][2]i32, index: *usize) void {
+    fn updateCoordinates(self: *Node, intersections: [][2]i32, index: *usize) void {
         if (self.children == null) {
             if (index.* < intersections.len) {
                 self.coordinates = intersections[index.*];
@@ -253,20 +255,20 @@ const Node = struct {
             }
         } else {
             for (self.children.?) |*child| {
-                child.traverseAndPutCoords(intersections, index);
+                child.updateCoordinates(intersections, index);
             }
         }
     }
 
-    fn traverseAndCreateChildren(self: *Node, keys: []const u32, alloc: std.mem.Allocator) void {
+    fn increaseDepth(self: *Node, keys: []const u32, alloc: std.mem.Allocator) void {
         if (self.children) |children| {
-            for (children) |*child| child.traverseAndCreateChildren(keys, alloc);
+            for (children) |*child| child.increaseDepth(keys, alloc);
         } else {
             self.createChildren(keys, alloc);
         }
     }
 
-    fn traverseAndFreeChildren(self: *Node, alloc: std.mem.Allocator) void {
+    fn decreaseDepth(self: *Node, alloc: std.mem.Allocator) void {
         if (self.children) |children| {
             for (children) |*child| {
                 if (child.children == null) {
@@ -274,7 +276,7 @@ const Node = struct {
                     self.children = null;
                     return;
                 } else {
-                    child.traverseAndFreeChildren(alloc);
+                    child.decreaseDepth(alloc);
                 }
             }
         }
