@@ -4,6 +4,7 @@
   inputs = {
     zig2nix.url = "github:Cloudef/zig2nix";
     zls.url = "github:zigtools/zls";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
   outputs = {

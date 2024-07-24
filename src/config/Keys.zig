@@ -76,6 +76,7 @@ pub fn default(alloc: std.mem.Allocator) Self {
     bindings.put('K', .{ .move = .{ 0, -5 } }) catch @panic("OOM");
     bindings.put('L', .{ .move = .{ 5, 0 } }) catch @panic("OOM");
     bindings.put(8, .remove) catch @panic("OOM");
+    bindings.put('b', .border_mode) catch @panic("OOM");
 
     const keys = [_]u32{ 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l' };
     const search = alloc.alloc(u32, 9) catch @panic("OOM");
@@ -190,12 +191,11 @@ pub fn loadTextures(self: *Self, font: *const Font) void {
         std.process.exit(1);
     }
 
-    _ = c.FT_Set_Pixel_Sizes(face, 0, @intFromFloat(font.size));
+    if (c.FT_Set_Pixel_Sizes(face, 0, @intFromFloat(font.size)) == 1) {
+        std.log.err("Failed to set font size\n", .{});
+        std.process.exit(1);
+    }
     c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
-
-    // const stroker = c.FT_STROKER_LINEJOIN_ROUND;
-    // _ = c.FT_Stroker_New(ft, stroker);
-    // c.FT_Stroker_Set(stroker, 0, c.FT_STROKER_LINECAP_BUTT, c.FT_STROKER_LINEJOIN_ROUND, 0);
 
     for (self.search) |key| {
         self.char_info.put(key, Character.new(face, key, font)) catch @panic("OOM");

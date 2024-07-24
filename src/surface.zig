@@ -1,13 +1,16 @@
 const std = @import("std");
 const wayland = @import("wayland");
 const c = @import("ffi");
+const helpers = @import("helpers");
 
 const mem = std.mem;
 const posix = std.posix;
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
-const helpers = @import("helpers");
+const mul = helpers.mul;
+const translate = helpers.translate;
+const scale = helpers.scale;
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
@@ -191,16 +194,18 @@ pub const Surface = struct {
             const x_pos = x + ch.bearing[0] + move;
             const y_pos = y - ch.bearing[1];
 
-            const vertices = [_]i32{
-                x_pos,              y_pos,              0, 0,
-                x_pos + ch.size[0], y_pos,              1, 0,
-                x_pos,              y_pos + ch.size[1], 0, 1,
-                x_pos + ch.size[0], y_pos + ch.size[1], 1, 1,
-            };
+            const scale_mat = scale(@floatFromInt(ch.size[0]), @floatFromInt(ch.size[1]), 0);
+            const translate_mat = translate(@floatFromInt(x_pos), @floatFromInt(y_pos), 0);
+            const transform = mul(scale_mat, translate_mat);
+            c.glUniformMatrix4fv(
+                c.glGetUniformLocation(self.egl.text_shader_program.*, "transform"),
+                1,
+                c.GL_FALSE,
+                @ptrCast(&transform),
+            );
 
             c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
-            c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
-            c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
+            c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, 1);
             move += @intCast(ch.advance[0]);
         }
     }

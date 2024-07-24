@@ -10,8 +10,6 @@ fn glMessageCallback(source: u32, err_type: u32, id: u32, severity: u32, length:
 pub const EglSurface = struct {
     window: *wl.EglWindow,
     surface: c.EGLSurface,
-    width: f32,
-    height: f32,
 
     display: *c.EGLDisplay,
     config: *c.EGLConfig,
@@ -23,9 +21,7 @@ pub const EglSurface = struct {
     UBO: u32,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
-        self.width = @floatFromInt(new_dimensions[0]);
-        self.height = @floatFromInt(new_dimensions[1]);
-        self.window.resize(@intFromFloat(self.width), @intFromFloat(self.height), 0, 0);
+        self.window.resize(@intCast(new_dimensions[0]), @intCast(new_dimensions[1]), 0, 0);
     }
 
     pub fn makeCurrent(self: *const EglSurface) !void {
@@ -53,7 +49,7 @@ fn compileShader(shader_source: []const u8, shader: c_uint, shader_program: c_ui
         shader,
         1,
         @ptrCast(&shader_source),
-        &[_]c_int{@intCast(shader_source.len)},
+        null,
     );
 
     c.glCompileShader(shader);
@@ -161,6 +157,7 @@ pub fn new(display: *wl.Display) !Self {
     if (link_success != c.GL_TRUE) {
         var info_log: [512]u8 = undefined;
         c.glGetShaderInfoLog(main_shader_program, 512, null, @ptrCast(&info_log));
+        std.debug.print("{s}\n", .{info_log});
         return error.EGLError;
     }
 
@@ -185,6 +182,7 @@ pub fn new(display: *wl.Display) !Self {
     if (link_success != c.GL_TRUE) {
         var info_log: [512]u8 = undefined;
         c.glGetShaderInfoLog(text_shader_program, 512, null, @ptrCast(&info_log));
+        std.debug.print("{s}\n", .{info_log});
         return error.EGLError;
     }
 
@@ -201,8 +199,14 @@ pub fn new(display: *wl.Display) !Self {
     c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_DYNAMIC_DRAW);
 
     // Text VBO
+    const vertices = [_]i32{
+        0, 0,
+        1, 0,
+        0, 1,
+        1, 1,
+    };
     c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[2]);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 16, null, c.GL_DYNAMIC_DRAW);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
 
     var EBO: u32 = undefined;
     c.glGenBuffers(1, &EBO);
@@ -246,8 +250,6 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
     return .{
         .window = egl_window,
         .surface = egl_surface,
-        .width = 0,
-        .height = 0,
         .display = &self.display,
         .config = &self.config,
         .context = &self.context,

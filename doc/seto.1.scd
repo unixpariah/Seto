@@ -150,6 +150,7 @@ By default, there are 5 functions bound:
 - `Shift+J`: Move grid down
 - `Shift+K`: Move grid up
 - `Shift+L`: Move grid right
+- `b`: Enter border mode
 - `Backspace`: Remove last character entered into buffer
 
 Keys to be bound can be:
