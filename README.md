@@ -2,6 +2,10 @@
 
 Hardware accelerated keyboard based screen selection tool with all the eye candy you could ever ask for.
 
+
+https://github.com/user-attachments/assets/1d97709c-f17b-4742-a36a-6eee580d06d4
+
+
 ## Building
 
 1. Install dependencies:
