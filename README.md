@@ -62,7 +62,7 @@ seto -r
 Take screenshot with [grim](https://wayland.emersion.fr/grim/)
 
 ```bash
-grim -g $(./zig-out/bin/seto -r) - | wl-copy -t image/png
+grim -g $(seto -r) - | wl-copy -t image/png
 ```
 
 Output just x and y positions and move mouse using [ydotool](https://github.com/ReimuNotMoe/ydotool) (specific syntax for escaping newline works in bash and zsh but may not in other shells):
