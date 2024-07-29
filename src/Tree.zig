@@ -40,7 +40,6 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
     if (buffer.len == 0) return error.EndNotReached;
     for (self.children) |*child| {
         if (child.key == buffer.*[0]) {
-            if (child.children == null and child.coordinates == null) return error.KeyNotFound;
             return child.find(buffer, 1);
         }
     }
@@ -187,6 +186,7 @@ const Node = struct {
 
     fn find(self: *Node, buffer: *[]u32, index: usize) ![2]i32 {
         if (self.coordinates) |coordinates| return coordinates;
+        if (self.children == null) return error.KeyNotFound;
         if (buffer.*.len <= index) {
             try self.checkIfOnScreen();
             return error.EndNotReached;
@@ -194,7 +194,6 @@ const Node = struct {
         if (self.children) |children| {
             for (children) |*child| {
                 if (child.key == buffer.*[index]) {
-                    if (child.children == null and child.coordinates == null) return error.KeyNotFound;
                     return child.find(buffer, index + 1);
                 }
             }
