@@ -3,7 +3,7 @@
 layout(location = 0) in vec2 in_pos;
 
 layout(std140) uniform UniformBlock { mat4 projection; };
-uniform mat4 transform[400];
+uniform mat4 transform[5];
 
 out VS_OUT {
   vec2 pos;

@@ -46,7 +46,7 @@ following sections describe the configurable options.
 
 	_Type:_ Integer \
 
-	_Default:_ 16 \
+	_Default:_ 26 \
 
 	_Example:_ 22 \
 

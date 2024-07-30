@@ -6,7 +6,7 @@ uniform vec4 u_startcolor;
 uniform vec4 u_endcolor;
 uniform float u_degrees;
 uniform sampler2DArray text;
-uniform int letterMap[400];
+uniform int letterMap[5];
 
 in VS_OUT {
   vec2 pos;

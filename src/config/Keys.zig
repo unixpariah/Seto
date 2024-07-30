@@ -63,8 +63,8 @@ pub const Character = struct {
     }
 };
 
-letterMap: [400]u32 = undefined,
-transform: [400]helpers.Mat4 = undefined,
+letterMap: [5]u32 = undefined,
+transform: [5]helpers.Mat4 = undefined,
 search: []const u32,
 bindings: std.AutoHashMap(u32, Function),
 char_info: std.ArrayList(Character),
@@ -210,7 +210,7 @@ pub fn loadTextures(self: *Self, font: *const Font) void {
         c.GL_R8,
         256,
         256,
-        128,
+        @intCast(self.search.len),
         0,
         c.GL_RED,
         c.GL_UNSIGNED_BYTE,
@@ -221,7 +221,7 @@ pub fn loadTextures(self: *Self, font: *const Font) void {
         self.char_info.append(Character.new(face, key, font, @intCast(i))) catch @panic("OOM");
     }
 
-    for (0..400) |i| {
+    for (0..5) |i| {
         self.transform[i] = helpers.mat4();
         self.letterMap[i] = 0;
     }

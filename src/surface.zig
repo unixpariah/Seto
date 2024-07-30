@@ -10,7 +10,6 @@ const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
 const mul = helpers.mul;
 const translate = helpers.translate;
-const scale = helpers.scale;
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
@@ -178,9 +177,10 @@ pub const Surface = struct {
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
     }
 
-    pub fn renderText(self: *Self, text: []const u32, x: i32, y: i32) void {
-        var working_index: u32 = 0;
-        var move: i32 = 0;
+    pub fn renderText(self: *Self, text: []const u32, x: f32, y: f32) void {
+        const scale: f32 = @as(f32, @floatCast(self.config.font.size)) / 256.0;
+        var index: u32 = 0;
+        var move: f32 = 0;
         for (text) |char| {
             const ch = blk: {
                 for (self.config.keys.char_info.items) |ch| {
@@ -188,35 +188,46 @@ pub const Surface = struct {
                 } else unreachable; // renderText cant be called with a character that is not in char_info
             };
 
-            const x_pos = x + ch.bearing[0] + move;
-            const y_pos = y - ch.bearing[1];
+            const bearing: [2]f32 = .{ @floatFromInt(ch.bearing[0]), @floatFromInt(ch.bearing[1]) };
+            const x_pos = x + bearing[0] * scale + move;
+            const y_pos = y - bearing[1] * scale;
 
-            const scale_mat = scale(256, 256, 0);
-            const translate_mat = translate(@floatFromInt(x_pos), @floatFromInt(y_pos), 0);
+            const scale_mat = helpers.scale(256 * scale, 256 * scale, 0);
+            const translate_mat = translate(x_pos, y_pos, 0);
 
-            self.config.keys.transform[working_index] = mul(scale_mat, translate_mat);
-            self.config.keys.letterMap[working_index] = ch.texture_id;
+            self.config.keys.transform[index] = mul(scale_mat, translate_mat);
+            self.config.keys.letterMap[index] = ch.texture_id;
 
-            move += @intCast(ch.advance[0]);
-            working_index += 1;
+            const advance: f32 = @floatFromInt(ch.advance[0]);
+            move += advance * scale;
+            index += 1;
+            if (index == 5) {
+                self.renderCall(index);
+                index = 0;
+            }
         }
 
+        self.renderCall(index);
+    }
+
+    fn renderCall(self: *Self, index: u32) void {
         c.glUniformMatrix4fv(
             c.glGetUniformLocation(self.egl.text_shader_program.*, "transform"),
-            @intCast(working_index),
+            @intCast(index),
             c.GL_FALSE,
             @ptrCast(&self.config.keys.transform[0][0][0]),
         );
         c.glUniform1iv(
             c.glGetUniformLocation(self.egl.text_shader_program.*, "letterMap"),
-            @intCast(working_index),
+            @intCast(index),
             @ptrCast(&self.config.keys.letterMap[0]),
         );
-        c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(working_index));
+        c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(index));
     }
 
     pub fn getTextSize(self: *const Self, text: []const u32) i32 {
-        var move: i32 = 0;
+        const scale: f32 = @as(f32, @floatCast(self.config.font.size)) / 256.0;
+        var move: f32 = 0;
         for (text) |char| {
             const ch = blk: {
                 for (self.config.keys.char_info.items) |ch| {
@@ -224,9 +235,10 @@ pub const Surface = struct {
                 } else unreachable; // getTextSize cant be called with a character that is not in char_info
             };
 
-            move += @intCast(ch.advance[0]);
+            const advance: f32 = @floatFromInt(ch.advance[0]);
+            move += advance * scale;
         }
-        return move;
+        return @intFromFloat(move);
     }
 
     pub fn isConfigured(self: *const Self) bool {
