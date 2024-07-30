@@ -14,7 +14,7 @@ arena: std.heap.ArenaAllocator,
 
 const Self = @This();
 
-pub fn new(keys: []const u32, alloc: std.mem.Allocator, grid: *const Grid, outputs: *const []Surface) Self {
+pub fn new(keys: []const u32, alloc: std.mem.Allocator, grid: *const Grid, outputs: *[]Surface) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, keys.len) catch @panic("OOM");
     for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -47,12 +47,11 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, surface: *const Surface, buffer: []u32, border_mode: bool) void {
+pub fn drawText(self: *Self, surface: *Surface, buffer: []u32, border_mode: bool) void {
     c.glUseProgram(surface.egl.text_shader_program.*);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.gen_VBO[2]);
     c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
 
-    const info = surface.output_info;
     const path = self.arena.allocator().alloc(u32, self.depth) catch @panic("OOM");
     surface.config.font.color.set(surface.egl.text_shader_program.*);
     for (self.children) |*child| {
@@ -61,44 +60,69 @@ pub fn drawText(self: *Self, surface: *const Surface, buffer: []u32, border_mode
             child.drawText(path, 1, surface, buffer, border_mode);
         } else {
             if (child.coordinates) |coordinates| {
-                var matches: u8 = 0;
-                for (buffer, 0..) |char, i| {
-                    if (path[i] == char) matches += 1 else break;
-                }
-                if (buffer.len > matches) matches = 0;
-
-                const coords = blk: {
-                    const text_size = surface.getTextSize(path);
-                    if (border_mode) {
-                        break :blk if (coordinates[0] == info.x and coordinates[1] == info.y)
-                            .{ coordinates[0] + 5, coordinates[1] + 25 }
-                        else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1)
-                            .{ coordinates[0] + 5, coordinates[1] - 15 }
-                        else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y)
-                            .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 }
-                        else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1)
-                            .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 }
-                        else
-                            continue;
-                    } else {
-                        break :blk .{
-                            coordinates[0] + surface.config.font.offset[0],
-                            coordinates[1] + 20 + surface.config.font.offset[1],
-                        };
-                    }
-                };
-
-                surface.renderText(path, coords[0], coords[1], matches);
+                applyHighlight(
+                    surface,
+                    buffer,
+                    path,
+                    border_mode,
+                    coordinates,
+                );
             }
         }
     }
+}
+
+fn applyHighlight(surface: *Surface, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]i32) void {
+    const info = surface.output_info;
+    var matches: u8 = 0;
+    for (buffer, 0..) |char, i| {
+        if (path[i] == char) matches += 1 else break;
+    }
+    if (buffer.len > matches) matches = 0;
+
+    const coords = blk: {
+        const text_size = surface.getTextSize(path);
+        if (border_mode) {
+            break :blk if (coordinates[0] == info.x and coordinates[1] == info.y)
+                .{ coordinates[0] + 5, coordinates[1] + 25 }
+            else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1)
+                .{ coordinates[0] + 5, coordinates[1] - 15 }
+            else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y)
+                .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 }
+            else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1)
+                .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 }
+            else
+                return;
+        } else {
+            break :blk .{
+                coordinates[0] + surface.config.font.offset[0],
+                coordinates[1] + 20 + surface.config.font.offset[1],
+            };
+        }
+    };
+
+    if (matches > 0) {
+        surface.config.font.highlight_color.set(surface.egl.text_shader_program.*);
+        surface.renderText(
+            path[0..matches],
+            @floatFromInt(coords[0]),
+            @floatFromInt(coords[1]),
+        );
+    }
+
+    surface.config.font.color.set(surface.egl.text_shader_program.*);
+    surface.renderText(
+        path[matches..],
+        @floatFromInt(coords[0] + surface.getTextSize(path[0..matches])),
+        @floatFromInt(coords[1]),
+    );
 }
 
 pub fn updateCoordinates(
     self: *Self,
     grid: *const Grid,
     border_mode: bool,
-    outputs: *const []Surface,
+    outputs: *[]Surface,
     buffer: *std.ArrayList(u32),
 ) void {
     var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
@@ -202,41 +226,19 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn drawText(self: *Node, path: []u32, index: u8, surface: *const Surface, buffer: []u32, border_mode: bool) void {
+    fn drawText(self: *Node, path: []u32, index: u8, surface: *Surface, buffer: []u32, border_mode: bool) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
 
                 if (child.coordinates) |coordinates| {
-                    var matches: u8 = 0;
-                    for (buffer, 0..) |char, i| {
-                        if (path[i] == char) matches += 1 else break;
-                    }
-                    if (buffer.len > matches) matches = 0;
-
-                    const coords = blk: {
-                        if (border_mode) {
-                            const text_size = surface.getTextSize(path);
-                            const info = surface.output_info;
-                            break :blk if (coordinates[0] == info.x and coordinates[1] == info.y)
-                                .{ coordinates[0] + 5, coordinates[1] + 25 }
-                            else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1)
-                                .{ coordinates[0] + 5, coordinates[1] - 15 }
-                            else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y)
-                                .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 }
-                            else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1)
-                                .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 }
-                            else
-                                continue;
-                        } else {
-                            break :blk .{
-                                coordinates[0] + surface.config.font.offset[0],
-                                coordinates[1] + 20 + surface.config.font.offset[1],
-                            };
-                        }
-                    };
-
-                    surface.renderText(path, coords[0], coords[1], matches);
+                    applyHighlight(
+                        surface,
+                        buffer,
+                        path,
+                        border_mode,
+                        coordinates,
+                    );
                 } else {
                     child.drawText(path, index + 1, surface, buffer, border_mode);
                 }

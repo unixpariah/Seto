@@ -13,7 +13,16 @@ const c = @cImport({
     @cInclude("fontconfig/fontconfig.h");
 });
 
-const Mat4 = [4][4]f32;
+pub const Mat4 = [4][4]f32;
+
+pub fn mat4() Mat4 {
+    return .{
+        .{ 1, 0, 0, 0 },
+        .{ 0, 1, 0, 0 },
+        .{ 0, 0, 1, 0 },
+        .{ 0, 0, 0, 1 },
+    };
+}
 
 pub fn orthographicProjection(left: f32, right: f32, top: f32, bottom: f32) Mat4 {
     return .{

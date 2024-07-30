@@ -5,11 +5,13 @@ layout(location = 0) out vec4 FragColor;
 uniform vec4 u_startcolor;
 uniform vec4 u_endcolor;
 uniform float u_degrees;
-uniform sampler2D text;
+uniform sampler2DArray text;
+uniform int letterMap[5];
 
 in VS_OUT {
   vec2 pos;
   vec2 texCoords;
+  flat int index;
 }
 fs_in;
 
@@ -24,5 +26,6 @@ void main() {
   float gradientFactor = smoothstep(0.0, 1.0, rotatedUV.x);
   vec4 color = mix(u_startcolor, u_endcolor, gradientFactor);
 
-  FragColor = color * texture(text, fs_in.texCoords).r;
+  FragColor =
+      color * texture(text, vec3(fs_in.texCoords.xy, letterMap[fs_in.index])).r;
 }
