@@ -5,6 +5,7 @@ const Lua = @import("ziglua").Lua;
 const Font = @import("Font.zig");
 
 pub const Character = struct {
+    key: u32,
     texture_id: u32,
     size: [2]i32,
     bearing: [2]i32,
@@ -45,6 +46,7 @@ pub const Character = struct {
         c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
 
         return .{
+            .key = key,
             .texture_id = texture,
             .size = .{
                 @intCast(face.*.glyph.*.bitmap.width),
@@ -64,7 +66,7 @@ pub const Character = struct {
 
 search: []const u32,
 bindings: std.AutoHashMap(u32, Function),
-char_info: std.AutoHashMap(u32, Character),
+char_info: std.ArrayList(Character),
 alloc: std.mem.Allocator,
 
 const Self = @This();
@@ -86,7 +88,7 @@ pub fn default(alloc: std.mem.Allocator) Self {
         .alloc = alloc,
         .search = search,
         .bindings = bindings,
-        .char_info = std.AutoHashMap(u32, Character).init(alloc),
+        .char_info = std.ArrayList(Character).init(alloc),
     };
 }
 
@@ -198,7 +200,7 @@ pub fn loadTextures(self: *Self, font: *const Font) void {
     c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
 
     for (self.search) |key| {
-        self.char_info.put(key, Character.new(face, key, font)) catch @panic("OOM");
+        self.char_info.append(Character.new(face, key, font)) catch @panic("OOM");
     }
 }
 

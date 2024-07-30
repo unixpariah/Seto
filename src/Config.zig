@@ -22,7 +22,7 @@ alloc: std.mem.Allocator,
 const Self = @This();
 
 pub fn load(alloc: std.mem.Allocator) Self {
-    const config_dir = getPath(alloc) catch {
+    const config_path = getPath(alloc) catch {
         return .{
             .alloc = alloc,
             .font = Font.default(alloc),
@@ -31,15 +31,12 @@ pub fn load(alloc: std.mem.Allocator) Self {
             .background_color = Color.parse("#FFFFFF66", alloc) catch unreachable, // Hardcoded so unwrap is safe
         };
     };
-    defer alloc.free(config_dir);
+    defer alloc.free(config_path);
 
     var lua = Lua.init(&alloc) catch @panic("OOM");
     defer lua.deinit();
 
-    const config_file = fs.path.joinZ(alloc, &[_][]const u8{ config_dir, "config.lua" }) catch @panic("OOM");
-    defer alloc.free(config_file);
-
-    lua.doFile(config_file) catch @panic("Lua failed to interpret config file");
+    lua.doFile(config_path) catch @panic("Lua failed to interpret config file");
 
     _ = lua.pushString("background_color");
     _ = lua.getTable(1);
@@ -64,7 +61,7 @@ pub fn destroy(self: *Self) void {
     self.keys.bindings.deinit();
 }
 
-fn getPath(alloc: std.mem.Allocator) ![]const u8 {
+fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     var args = std.process.args();
     var index: u8 = 0;
     while (args.next()) |arg| : (index += 1) {
@@ -77,36 +74,24 @@ fn getPath(alloc: std.mem.Allocator) ![]const u8 {
             if (std.mem.eql(u8, path, "null")) return error.Null;
 
             const absolute_path = try std.fs.cwd().realpathAlloc(alloc, path);
+            const absolute_path_z = try fs.path.joinZ(alloc, &[_][]const u8{absolute_path});
 
-            _ = fs.openDirAbsolute(absolute_path, .{}) catch {
-                std.log.err("Directory \"{s}\" not found", .{absolute_path});
-                std.process.exit(1);
-            };
-
-            const config_path = try fs.path.joinZ(alloc, &[_][]const u8{ absolute_path, "config.lua" });
-            defer alloc.free(config_path);
-
-            _ = fs.accessAbsolute(config_path, .{}) catch {
+            _ = fs.accessAbsolute(absolute_path_z, .{}) catch {
                 std.log.err("File config.lua not found in \"{s}\" directory", .{absolute_path});
                 std.process.exit(1);
             };
 
-            return absolute_path;
+            return absolute_path_z;
         }
     }
 
     const home = std.posix.getenv("HOME") orelse @panic("HOME env var not set");
-    const config_dir = try fs.path.join(alloc, &[_][]const u8{ home, ".config/seto" });
-    const config_path = fs.path.join(alloc, &[_][]const u8{ config_dir, "config.lua" }) catch |err| {
-        alloc.free(config_dir);
-        return err;
-    };
-    defer alloc.free(config_path);
+    const config_path = try fs.path.joinZ(alloc, &[_][]const u8{ home, ".config/seto/config.lua" });
 
     fs.accessAbsolute(config_path, .{}) catch |err| {
-        alloc.free(config_dir);
+        alloc.free(config_path);
         return err;
     };
 
-    return config_dir;
+    return config_path;
 }

@@ -29,7 +29,7 @@ compositors implementing layer-shell protocol.
 	Select region of screen.
 
 *-c, --config* _path_
-	Specifies path to config directory. Pass *null* as argument to use default
+	Specifies path to config file. Pass *null* as argument to use default
 	config.
 
 *-f, --format* _format_

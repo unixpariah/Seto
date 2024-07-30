@@ -189,7 +189,11 @@ pub const Surface = struct {
                 self.config.font.color.set(self.egl.text_shader_program.*);
             }
 
-            const ch = self.config.keys.char_info.get(char).?;
+            const ch = blk: {
+                for (self.config.keys.char_info.items) |ch| {
+                    if (ch.key == char) break :blk ch;
+                } else unreachable; // renderText cant be called with a character that is not in char_info
+            };
 
             const x_pos = x + ch.bearing[0] + move;
             const y_pos = y - ch.bearing[1];
@@ -213,7 +217,12 @@ pub const Surface = struct {
     pub fn getTextSize(self: *const Self, text: []const u32) i32 {
         var move: i32 = 0;
         for (text) |char| {
-            const ch = self.config.keys.char_info.get(char).?;
+            const ch = blk: {
+                for (self.config.keys.char_info.items) |ch| {
+                    if (ch.key == char) break :blk ch;
+                } else unreachable; // getTextSize cant be called with a character that is not in char_info
+            };
+
             move += @intCast(ch.advance[0]);
         }
         return move;
