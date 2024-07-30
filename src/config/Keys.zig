@@ -1,17 +1,18 @@
 const std = @import("std");
 const c = @import("ffi");
+const helpers = @import("helpers");
 
 const Lua = @import("ziglua").Lua;
 const Font = @import("Font.zig");
 
 pub const Character = struct {
-    key: u32,
     texture_id: u32,
+    key: u32,
     size: [2]i32,
     bearing: [2]i32,
     advance: [2]u32,
 
-    fn new(face: c.FT_Face, key: u32, font: *const Font) Character {
+    fn new(face: c.FT_Face, key: u32, font: *const Font, index: u32) Character {
         if (c.FT_Load_Char(face, key, c.FT_LOAD_DEFAULT) == 1) {
             std.log.err("Failed to load glyph for character {}\n", .{key});
             std.process.exit(1);
@@ -24,30 +25,28 @@ pub const Character = struct {
             std.process.exit(1);
         }
 
-        var texture: u32 = undefined;
-        c.glGenTextures(1, &texture);
-        c.glBindTexture(c.GL_TEXTURE_2D, texture);
-
-        c.glTexImage2D(
-            c.GL_TEXTURE_2D,
+        c.glTexSubImage3D(
+            c.GL_TEXTURE_2D_ARRAY,
             0,
-            c.GL_RED,
+            0,
+            0,
+            @intCast(index),
             @intCast(face.*.glyph.*.bitmap.width),
             @intCast(face.*.glyph.*.bitmap.rows),
-            0,
+            1,
             c.GL_RED,
             c.GL_UNSIGNED_BYTE,
             face.*.glyph.*.bitmap.buffer,
         );
 
-        c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_S, c.GL_CLAMP_TO_BORDER);
-        c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_WRAP_T, c.GL_CLAMP_TO_BORDER);
-        c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MIN_FILTER, c.GL_LINEAR);
-        c.glTexParameteri(c.GL_TEXTURE_2D, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
+        c.glTexParameteri(c.GL_TEXTURE_2D_ARRAY, c.GL_TEXTURE_WRAP_S, c.GL_CLAMP_TO_BORDER);
+        c.glTexParameteri(c.GL_TEXTURE_2D_ARRAY, c.GL_TEXTURE_WRAP_T, c.GL_CLAMP_TO_BORDER);
+        c.glTexParameteri(c.GL_TEXTURE_2D_ARRAY, c.GL_TEXTURE_MIN_FILTER, c.GL_LINEAR);
+        c.glTexParameteri(c.GL_TEXTURE_2D_ARRAY, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
 
         return .{
             .key = key,
-            .texture_id = texture,
+            .texture_id = index,
             .size = .{
                 @intCast(face.*.glyph.*.bitmap.width),
                 @intCast(face.*.glyph.*.bitmap.rows),
@@ -64,6 +63,8 @@ pub const Character = struct {
     }
 };
 
+letterMap: [400]u32 = undefined,
+transform: [400]helpers.Mat4 = undefined,
 search: []const u32,
 bindings: std.AutoHashMap(u32, Function),
 char_info: std.ArrayList(Character),
@@ -193,15 +194,39 @@ pub fn loadTextures(self: *Self, font: *const Font) void {
         std.process.exit(1);
     }
 
-    if (c.FT_Set_Pixel_Sizes(face, 0, @intFromFloat(font.size)) == 1) {
+    if (c.FT_Set_Pixel_Sizes(face, 256, 256) == 1) {
         std.log.err("Failed to set font size\n", .{});
         std.process.exit(1);
     }
     c.glPixelStorei(c.GL_UNPACK_ALIGNMENT, 1);
 
-    for (self.search) |key| {
-        self.char_info.append(Character.new(face, key, font)) catch @panic("OOM");
+    var texture_array: u32 = undefined;
+    c.glGenTextures(1, &texture_array);
+    c.glActiveTexture(c.GL_TEXTURE0);
+    c.glBindTexture(c.GL_TEXTURE_2D_ARRAY, texture_array);
+    c.glTexImage3D(
+        c.GL_TEXTURE_2D_ARRAY,
+        0,
+        c.GL_R8,
+        256,
+        256,
+        128,
+        0,
+        c.GL_RED,
+        c.GL_UNSIGNED_BYTE,
+        null,
+    );
+
+    for (self.search, 0..) |key, i| {
+        self.char_info.append(Character.new(face, key, font, @intCast(i))) catch @panic("OOM");
     }
+
+    for (0..400) |i| {
+        self.transform[i] = helpers.mat4();
+        self.letterMap[i] = 0;
+    }
+
+    c.glBindTexture(c.GL_TEXTURE_2D_ARRAY, texture_array);
 }
 
 fn getFontPath(alloc: std.mem.Allocator, font_name: [:0]const u8) ![]const u8 {

@@ -44,7 +44,7 @@ pub const Surface = struct {
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
 
-    config: *const Config,
+    config: *Config,
 
     const Self = @This();
 
@@ -55,7 +55,7 @@ pub const Surface = struct {
         alloc: mem.Allocator,
         xdg_output: *zxdg.OutputV1,
         output_info: OutputInfo,
-        config_ptr: *const Config,
+        config_ptr: *Config,
     ) Self {
         return .{
             .config = config_ptr,
@@ -178,17 +178,10 @@ pub const Surface = struct {
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
     }
 
-    pub fn renderText(self: *const Self, text: []const u32, x: i32, y: i32, matches: u8) void {
-        if (matches > 0) {
-            self.config.font.highlight_color.set(self.egl.text_shader_program.*);
-        }
-
+    pub fn renderText(self: *Self, text: []const u32, x: i32, y: i32) void {
+        var working_index: u32 = 0;
         var move: i32 = 0;
-        for (text, 0..) |char, i| {
-            if (matches == i and matches > 0) {
-                self.config.font.color.set(self.egl.text_shader_program.*);
-            }
-
+        for (text) |char| {
             const ch = blk: {
                 for (self.config.keys.char_info.items) |ch| {
                     if (ch.key == char) break :blk ch;
@@ -198,20 +191,28 @@ pub const Surface = struct {
             const x_pos = x + ch.bearing[0] + move;
             const y_pos = y - ch.bearing[1];
 
-            const scale_mat = scale(@floatFromInt(ch.size[0]), @floatFromInt(ch.size[1]), 0);
+            const scale_mat = scale(256, 256, 0);
             const translate_mat = translate(@floatFromInt(x_pos), @floatFromInt(y_pos), 0);
-            const transform = mul(scale_mat, translate_mat);
-            c.glUniformMatrix4fv(
-                c.glGetUniformLocation(self.egl.text_shader_program.*, "transform"),
-                1,
-                c.GL_FALSE,
-                @ptrCast(&transform),
-            );
 
-            c.glBindTexture(c.GL_TEXTURE_2D, ch.texture_id);
-            c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, 1);
+            self.config.keys.transform[working_index] = mul(scale_mat, translate_mat);
+            self.config.keys.letterMap[working_index] = ch.texture_id;
+
             move += @intCast(ch.advance[0]);
+            working_index += 1;
         }
+
+        c.glUniformMatrix4fv(
+            c.glGetUniformLocation(self.egl.text_shader_program.*, "transform"),
+            @intCast(working_index),
+            c.GL_FALSE,
+            @ptrCast(&self.config.keys.transform[0][0][0]),
+        );
+        c.glUniform1iv(
+            c.glGetUniformLocation(self.egl.text_shader_program.*, "letterMap"),
+            @intCast(working_index),
+            @ptrCast(&self.config.keys.letterMap[0]),
+        );
+        c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(working_index));
     }
 
     pub fn getTextSize(self: *const Self, text: []const u32) i32 {
@@ -243,12 +244,12 @@ pub const Surface = struct {
 
 pub const SurfaceIterator = struct {
     position: [2]i32,
-    outputs: *const []Surface,
+    outputs: *[]Surface,
     index: u8 = 0,
 
     const Self = @This();
 
-    pub fn new(outputs: *const []Surface) Self {
+    pub fn new(outputs: *[]Surface) Self {
         return Self{ .outputs = outputs, .position = .{ outputs.*[0].output_info.x, outputs.*[0].output_info.y } };
     }
 
@@ -257,7 +258,7 @@ pub const SurfaceIterator = struct {
         return self.outputs.*[self.index].output_info.x <= self.outputs.*[self.index - 1].output_info.x;
     }
 
-    pub fn next(self: *Self) ?*const Surface {
+    pub fn next(self: *Self) ?*Surface {
         if (self.index >= self.outputs.len or !self.outputs.*[self.index].isConfigured()) return null;
         const output = &self.outputs.*[self.index];
 
