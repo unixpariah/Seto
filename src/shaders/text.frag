@@ -2,9 +2,9 @@
 
 layout(location = 0) out vec4 FragColor;
 
-uniform vec4 u_startcolor;
-uniform vec4 u_endcolor;
-uniform float u_degrees;
+uniform vec4 u_startcolor[5];
+uniform vec4 u_endcolor[5];
+uniform float u_degrees[5];
 uniform sampler2DArray text;
 uniform int letterMap[5];
 
@@ -18,13 +18,14 @@ fs_in;
 void main() {
   vec2 uv = fs_in.pos - 0.5;
 
-  float angle = radians(u_degrees);
+  float angle = radians(u_degrees[fs_in.index]);
   vec2 rotatedUV = vec2(cos(angle) * uv.x - sin(angle) * uv.y,
                         sin(angle) * uv.x + cos(angle) * uv.y) +
                    0.5;
 
   float gradientFactor = smoothstep(0.0, 1.0, rotatedUV.x);
-  vec4 color = mix(u_startcolor, u_endcolor, gradientFactor);
+  vec4 color =
+      mix(u_startcolor[fs_in.index], u_endcolor[fs_in.index], gradientFactor);
 
   FragColor =
       color * texture(text, vec3(fs_in.texCoords.xy, letterMap[fs_in.index])).r;

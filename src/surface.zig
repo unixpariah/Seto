@@ -177,9 +177,11 @@ pub const Surface = struct {
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
     }
 
-    pub fn renderText(self: *Self, text: []const u32, x: f32, y: f32) void {
+    pub fn placeText(self: *Self, text: []const u32, x: f32, y: f32, color: Color, starting_index: u32) u32 {
+        if (text.len == 0) return 0;
+
         const scale: f32 = @as(f32, @floatCast(self.config.font.size)) / 256.0;
-        var index: u32 = 0;
+        var index: u32 = starting_index;
         var move: f32 = 0;
         for (text) |char| {
             const ch = blk: {
@@ -196,33 +198,52 @@ pub const Surface = struct {
             const translate_mat = translate(x_pos, y_pos, 0);
 
             self.config.keys.transform[index] = mul(scale_mat, translate_mat);
-            self.config.keys.letterMap[index] = ch.texture_id;
+            self.config.keys.letter_map[index] = ch.texture_id;
+            self.config.keys.start_color[index] = color.start_color;
+            self.config.keys.end_color[index] = color.end_color;
+            self.config.keys.deg[index] = color.deg;
 
             const advance: f32 = @floatFromInt(ch.advance[0]);
             move += advance * scale;
             index += 1;
             if (index == 5) {
-                self.renderCall(index);
+                self.renderTextCall(index);
                 index = 0;
             }
         }
 
-        self.renderCall(index);
+        return index;
     }
 
-    fn renderCall(self: *Self, index: u32) void {
+    pub fn renderTextCall(self: *Self, length: u32) void {
+        c.glUniform4fv(
+            c.glGetUniformLocation(self.egl.text_shader_program.*, "u_startcolor"),
+            @intCast(length),
+            @ptrCast(&self.config.keys.start_color[0][0]),
+        );
+        c.glUniform4fv(
+            c.glGetUniformLocation(self.egl.text_shader_program.*, "u_endcolor"),
+            @intCast(length),
+            @ptrCast(&self.config.keys.end_color[0][0]),
+        );
+        c.glUniform1fv(
+            c.glGetUniformLocation(self.egl.text_shader_program.*, "u_degrees"),
+            @intCast(length),
+            @ptrCast(&self.config.keys.deg[0]),
+        );
+
         c.glUniformMatrix4fv(
             c.glGetUniformLocation(self.egl.text_shader_program.*, "transform"),
-            @intCast(index),
+            @intCast(length),
             c.GL_FALSE,
             @ptrCast(&self.config.keys.transform[0][0][0]),
         );
         c.glUniform1iv(
             c.glGetUniformLocation(self.egl.text_shader_program.*, "letterMap"),
-            @intCast(index),
-            @ptrCast(&self.config.keys.letterMap[0]),
+            @intCast(length),
+            @ptrCast(&self.config.keys.letter_map[0]),
         );
-        c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(index));
+        c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(length));
     }
 
     pub fn getTextSize(self: *const Self, text: []const u32) i32 {

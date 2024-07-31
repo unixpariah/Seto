@@ -53,7 +53,6 @@ pub fn drawText(self: *Self, surface: *Surface, buffer: []u32, border_mode: bool
     c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
 
     const path = self.arena.allocator().alloc(u32, self.depth) catch @panic("OOM");
-    surface.config.font.color.set(surface.egl.text_shader_program.*);
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
@@ -101,21 +100,24 @@ fn applyHighlight(surface: *Surface, buffer: []u32, path: []u32, border_mode: bo
         }
     };
 
-    if (matches > 0) {
-        surface.config.font.highlight_color.set(surface.egl.text_shader_program.*);
-        surface.renderText(
-            path[0..matches],
-            @floatFromInt(coords[0]),
-            @floatFromInt(coords[1]),
-        );
-    }
+    const hightlight_length =
+        surface.placeText(
+        path[0..matches],
+        @floatFromInt(coords[0]),
+        @floatFromInt(coords[1]),
+        surface.config.font.highlight_color,
+        0,
+    );
 
-    surface.config.font.color.set(surface.egl.text_shader_program.*);
-    surface.renderText(
+    const length = surface.placeText(
         path[matches..],
         @floatFromInt(coords[0] + surface.getTextSize(path[0..matches])),
         @floatFromInt(coords[1]),
+        surface.config.font.color,
+        hightlight_length,
     );
+
+    surface.renderTextCall(length);
 }
 
 pub fn updateCoordinates(

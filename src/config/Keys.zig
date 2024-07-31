@@ -63,8 +63,11 @@ pub const Character = struct {
     }
 };
 
-letterMap: [5]u32 = undefined,
+letter_map: [5]u32 = undefined,
 transform: [5]helpers.Mat4 = undefined,
+start_color: [5][4]f32 = undefined,
+end_color: [5][4]f32 = undefined,
+deg: [5]f32 = undefined,
 search: []const u32,
 bindings: std.AutoHashMap(u32, Function),
 char_info: std.ArrayList(Character),
@@ -223,7 +226,7 @@ pub fn loadTextures(self: *Self, font: *const Font) void {
 
     for (0..5) |i| {
         self.transform[i] = helpers.mat4();
-        self.letterMap[i] = 0;
+        self.letter_map[i] = 0;
     }
 
     c.glBindTexture(c.GL_TEXTURE_2D_ARRAY, texture_array);
