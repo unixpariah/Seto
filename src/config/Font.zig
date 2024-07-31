@@ -10,7 +10,7 @@ weight: ?f64 = null,
 color: Color,
 highlight_color: Color,
 offset: [2]i32 = .{ 5, 5 },
-size: f64 = 26,
+size: f64 = 20,
 family: [:0]const u8,
 
 const Self = @This();
