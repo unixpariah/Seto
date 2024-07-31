@@ -8,6 +8,7 @@
   };
 
   outputs = {
+    nixpkgs,
     zig2nix,
     zls,
     ...
@@ -16,15 +17,16 @@
   in (flake-utils.lib.eachDefaultSystem (system: let
     env = zig2nix.outputs.zig-env.${system} {zig = zig2nix.outputs.packages.${system}.zig."0.13.0".bin;};
     system-triple = env.lib.zigTripleFromString system;
+    pkgs = nixpkgs.legacyPackages.${system};
   in
     with builtins;
     with env.lib;
-    with env.pkgs.lib; rec {
+    with pkgs.lib; rec {
       packages.target = genAttrs allTargetTriples (target:
         env.packageForTarget target ({
             src = cleanSource ./.;
 
-            nativeBuildInputs = with env.pkgs; [
+            nativeBuildInputs = with pkgs; [
               wayland
               wayland-protocols
               egl-wayland
@@ -48,7 +50,6 @@
             version = "0.1.0";
           }));
 
-      # nix build .
       packages.default = packages.target.${system-triple}.override {
         zigPreferMusl = false;
         zigDisableWrap = false;
@@ -76,11 +77,10 @@
 
       apps.bundle.default = apps.bundle.target.${system-triple};
 
-      # nix run .#zon2json-lock
       apps.zon2json-lock = env.app [env.zon2json-lock] "zon2json-lock \"$@\"";
 
       devShells.default = env.mkShell {
-        packages = with env.pkgs; [
+        packages = with pkgs; [
           pkg-config
           wayland
           wayland-protocols

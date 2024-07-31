@@ -85,7 +85,9 @@ pub fn new(display: *wl.Display) !Self {
         null,
     ) orelse return error.EGLError;
 
-    if (c.eglInitialize(egl_display, null, null) != c.EGL_TRUE) return error.EGLError;
+    var major: i32 = undefined;
+    var minor: i32 = undefined;
+    if (c.eglInitialize(egl_display, @ptrCast(&major), @ptrCast(&minor)) != c.EGL_TRUE) return error.EGLError;
 
     const config = egl_conf: {
         var config: c.EGLConfig = undefined;
@@ -94,11 +96,11 @@ pub fn new(display: *wl.Display) !Self {
             egl_display,
             &[_]i32{
                 c.EGL_SURFACE_TYPE,    c.EGL_WINDOW_BIT,
-                c.EGL_RED_SIZE,        1,
-                c.EGL_GREEN_SIZE,      1,
-                c.EGL_BLUE_SIZE,       1,
-                c.EGL_ALPHA_SIZE,      1,
-                c.EGL_RENDERABLE_TYPE, c.EGL_OPENGL_ES2_BIT,
+                c.EGL_RED_SIZE,        8,
+                c.EGL_GREEN_SIZE,      8,
+                c.EGL_BLUE_SIZE,       8,
+                c.EGL_ALPHA_SIZE,      8,
+                c.EGL_RENDERABLE_TYPE, c.EGL_OPENGL_BIT,
                 c.EGL_NONE,
             },
             &config,
@@ -113,8 +115,8 @@ pub fn new(display: *wl.Display) !Self {
         config,
         c.EGL_NO_CONTEXT,
         &[_]i32{
-            c.EGL_CONTEXT_MAJOR_VERSION,       4,
-            c.EGL_CONTEXT_MINOR_VERSION,       3,
+            c.EGL_CONTEXT_MAJOR_VERSION,       major,
+            c.EGL_CONTEXT_MINOR_VERSION,       minor,
             c.EGL_CONTEXT_OPENGL_DEBUG,        c.EGL_TRUE,
             c.EGL_CONTEXT_OPENGL_PROFILE_MASK, c.EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
             c.EGL_NONE,
