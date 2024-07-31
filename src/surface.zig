@@ -2,14 +2,16 @@ const std = @import("std");
 const wayland = @import("wayland");
 const c = @import("ffi");
 const helpers = @import("helpers");
+const math = @import("math");
 
 const mem = std.mem;
 const posix = std.posix;
 const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
-const mul = helpers.mul;
-const translate = helpers.translate;
+
+const mul = math.mul;
+const translate = math.translate;
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
@@ -177,81 +179,12 @@ pub const Surface = struct {
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
     }
 
-    pub fn placeText(self: *Self, text: []const u32, x: f32, y: f32, color: Color, starting_index: u32) u32 {
-        if (text.len == 0) return 0;
-
-        const scale: f32 = @as(f32, @floatCast(self.config.font.size)) / 256.0;
-        var index: u32 = starting_index;
-        var move: f32 = 0;
-        for (text) |char| {
-            const ch = blk: {
-                for (self.config.keys.char_info.items) |ch| {
-                    if (ch.key == char) break :blk ch;
-                } else unreachable; // renderText cant be called with a character that is not in char_info
-            };
-
-            const bearing: [2]f32 = .{ @floatFromInt(ch.bearing[0]), @floatFromInt(ch.bearing[1]) };
-            const x_pos = x + bearing[0] * scale + move;
-            const y_pos = y - bearing[1] * scale;
-
-            const scale_mat = helpers.scale(256 * scale, 256 * scale, 0);
-            const translate_mat = translate(x_pos, y_pos, 0);
-
-            self.config.keys.transform[index] = mul(scale_mat, translate_mat);
-            self.config.keys.letter_map[index] = ch.texture_id;
-            self.config.keys.start_color[index] = color.start_color;
-            self.config.keys.end_color[index] = color.end_color;
-            self.config.keys.deg[index] = color.deg;
-
-            const advance: f32 = @floatFromInt(ch.advance[0]);
-            move += advance * scale;
-            index += 1;
-            if (index == 5) {
-                self.renderTextCall(index);
-                index = 0;
-            }
-        }
-
-        return index;
-    }
-
-    pub fn renderTextCall(self: *Self, length: u32) void {
-        c.glUniform4fv(
-            c.glGetUniformLocation(self.egl.text_shader_program.*, "u_startcolor"),
-            @intCast(length),
-            @ptrCast(&self.config.keys.start_color[0][0]),
-        );
-        c.glUniform4fv(
-            c.glGetUniformLocation(self.egl.text_shader_program.*, "u_endcolor"),
-            @intCast(length),
-            @ptrCast(&self.config.keys.end_color[0][0]),
-        );
-        c.glUniform1fv(
-            c.glGetUniformLocation(self.egl.text_shader_program.*, "u_degrees"),
-            @intCast(length),
-            @ptrCast(&self.config.keys.deg[0]),
-        );
-
-        c.glUniformMatrix4fv(
-            c.glGetUniformLocation(self.egl.text_shader_program.*, "transform"),
-            @intCast(length),
-            c.GL_FALSE,
-            @ptrCast(&self.config.keys.transform[0][0][0]),
-        );
-        c.glUniform1iv(
-            c.glGetUniformLocation(self.egl.text_shader_program.*, "letterMap"),
-            @intCast(length),
-            @ptrCast(&self.config.keys.letter_map[0]),
-        );
-        c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(length));
-    }
-
     pub fn getTextSize(self: *const Self, text: []const u32) i32 {
         const scale: f32 = @as(f32, @floatCast(self.config.font.size)) / 256.0;
         var move: f32 = 0;
         for (text) |char| {
             const ch = blk: {
-                for (self.config.keys.char_info.items) |ch| {
+                for (self.config.text.char_info) |ch| {
                     if (ch.key == char) break :blk ch;
                 } else unreachable; // getTextSize cant be called with a character that is not in char_info
             };
@@ -366,7 +299,7 @@ pub fn xdgOutputListener(
                         c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
                     }
 
-                    const projection = helpers.orthographicProjection(
+                    const projection = math.orthographicProjection(
                         @floatFromInt(info.x),
                         @floatFromInt(info.x + info.width),
                         @floatFromInt(info.y),

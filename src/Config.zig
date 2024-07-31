@@ -9,7 +9,7 @@ const Font = @import("config/Font.zig");
 const Keys = @import("config//Keys.zig");
 const Grid = @import("config/Grid.zig");
 const Function = @import("config/Keys.zig").Function;
-const Character = @import("config/Keys.zig").Character;
+const Text = @import("config/Text.zig");
 const Color = helpers.Color;
 
 output_format: []const u8 = "%x,%y %wx%h\n",
@@ -17,6 +17,7 @@ background_color: Color,
 keys: Keys,
 font: Font,
 grid: Grid,
+text: Text = undefined,
 alloc: std.mem.Allocator,
 
 const Self = @This();
@@ -57,7 +58,7 @@ pub fn load(alloc: std.mem.Allocator) Self {
 pub fn destroy(self: *Self) void {
     self.alloc.free(self.keys.search);
     self.alloc.free(self.font.family);
-    self.keys.char_info.deinit();
+    self.text.destroy();
     self.keys.bindings.deinit();
 }
 

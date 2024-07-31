@@ -2,11 +2,11 @@
 
 layout(location = 0) out vec4 FragColor;
 
-uniform vec4 u_startcolor[5];
-uniform vec4 u_endcolor[5];
-uniform float u_degrees[5];
+uniform vec4 u_startcolor[400];
+uniform vec4 u_endcolor[400];
+uniform float u_degrees[400];
 uniform sampler2DArray text;
-uniform int letterMap[5];
+uniform int letterMap[400];
 
 in VS_OUT {
   vec2 pos;

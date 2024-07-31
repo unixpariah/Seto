@@ -15,6 +15,7 @@ const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 const Seat = @import("seat.zig").Seat;
 const Config = @import("Config.zig");
 const Egl = @import("Egl.zig");
+const Text = @import("config/Text.zig");
 
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("surface.zig").xdgOutputListener;
@@ -68,7 +69,7 @@ pub const Seto = struct {
         };
 
         parseArgs(&seto);
-        seto.config.keys.loadTextures(&seto.config.font);
+        seto.config.text = Text.new(alloc, &seto.config);
 
         if (seto.config.keys.search.len < 2) {
             std.log.err("Minimum two search keys have to be set\n", .{});
@@ -167,6 +168,7 @@ pub const Seto = struct {
 
             surface.draw(self.state.border_mode, &self.state.mode);
             self.tree.?.drawText(surface, self.seat.buffer.items, self.state.border_mode);
+            surface.config.text.renderCall(surface.egl.text_shader_program);
 
             surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }

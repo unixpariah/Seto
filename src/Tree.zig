@@ -100,24 +100,23 @@ fn applyHighlight(surface: *Surface, buffer: []u32, path: []u32, border_mode: bo
         }
     };
 
-    const hightlight_length =
-        surface.placeText(
+    surface.config.text.place(
         path[0..matches],
         @floatFromInt(coords[0]),
         @floatFromInt(coords[1]),
         surface.config.font.highlight_color,
-        0,
+        surface.config,
+        surface.egl.text_shader_program,
     );
 
-    const length = surface.placeText(
+    surface.config.text.place(
         path[matches..],
         @floatFromInt(coords[0] + surface.getTextSize(path[0..matches])),
         @floatFromInt(coords[1]),
         surface.config.font.color,
-        hightlight_length,
+        surface.config,
+        surface.egl.text_shader_program,
     );
-
-    surface.renderTextCall(length);
 }
 
 pub fn updateCoordinates(

@@ -32,6 +32,7 @@ pub fn build(b: *std.Build) void {
 
     exe.linkLibC();
 
+    const math = b.addModule("math", .{ .root_source_file = b.path("src/math.zig"), .target = target });
     const helpers = b.addModule("helpers", .{ .root_source_file = b.path("src/helpers.zig"), .target = target });
 
     const ffi_libs = [_][]const u8{ "egl", "gl", "freetype2", "fontconfig" };
@@ -44,6 +45,7 @@ pub fn build(b: *std.Build) void {
 
     exe.root_module.addImport("ffi", ffi);
     exe.root_module.addImport("helpers", helpers);
+    exe.root_module.addImport("math", math);
 
     exe.root_module.addImport("wayland", wayland);
     exe.root_module.addImport("xkbcommon", xkbcommon);
