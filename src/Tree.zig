@@ -146,10 +146,13 @@ pub fn updateCoordinates(
         const vert_line_count = @divFloor(info.x, surface.config.grid.size[0]);
         const hor_line_count = @divFloor(info.y, surface.config.grid.size[1]);
 
-        const start_pos: [2]i32 = .{
+        var start_pos: [2]i32 = .{
             vert_line_count * surface.config.grid.size[0] + surface.config.grid.offset[0],
             hor_line_count * surface.config.grid.size[1] + surface.config.grid.offset[1],
         };
+
+        if (start_pos[0] < surface.output_info.x) start_pos[0] += surface.config.grid.size[0];
+        if (start_pos[1] < surface.output_info.y) start_pos[1] += surface.config.grid.size[1];
 
         var i = start_pos[0];
         while (i <= info.x + info.width - 1) : (i += grid.size[0]) {
