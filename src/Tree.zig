@@ -170,6 +170,20 @@ pub fn updateCoordinates(
         break :depth @intFromFloat(std.math.ceil(depth));
     };
 
+    const config = outputs.*[0].config;
+
+    var char_size: i32 = 0;
+    for (config.text.char_info) |char| {
+        const scale = config.font.size / 256.0;
+        const size: f32 = @floatFromInt(char.advance[0]);
+
+        const final_size: i32 = @intFromFloat(size * scale);
+
+        if (final_size > char_size) char_size = final_size;
+    }
+
+    config.*.grid.max_size[0] = char_size * (depth + 1) + config.font.offset[0];
+
     if (depth < self.depth) {
         for (depth..self.depth) |_| self.decreaseDepth();
         buffer.clearAndFree();

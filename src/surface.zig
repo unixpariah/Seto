@@ -181,7 +181,7 @@ pub const Surface = struct {
     }
 
     pub fn getTextSize(self: *const Self, text: []const u32) i32 {
-        const scale: f32 = @as(f32, @floatCast(self.config.font.size)) / 256.0;
+        const scale = self.config.font.size / 256.0;
         var move: f32 = 0;
         for (text) |char| {
             const ch = blk: {
@@ -193,6 +193,7 @@ pub const Surface = struct {
             const advance: f32 = @floatFromInt(ch.advance[0]);
             move += advance * scale;
         }
+
         return @intFromFloat(move);
     }
 

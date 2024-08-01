@@ -5,7 +5,9 @@ const hexToRgba = helpers.hexToRgba;
 
 const Lua = @import("ziglua").Lua;
 const Color = helpers.Color;
+const Font = @import("Font.zig");
 
+max_size: [2]i32 = .{ 1, 1 },
 color: Color,
 selected_color: Color,
 size: [2]i32 = .{ 80, 80 },
@@ -114,8 +116,8 @@ pub fn move(self: *Self, value: [2]i32) void {
 
 pub fn resize(self: *Self, value: [2]i32) void {
     for (value, 0..) |val, i| {
-        var new_size = self.size[i] + val;
-        if (new_size <= 0) new_size = 1;
+        const new_size = self.size[i] + val;
+        if (new_size < self.max_size[i] and val <= 0) continue;
 
         self.offset[i] = @rem(self.offset[i], self.size[i]);
 

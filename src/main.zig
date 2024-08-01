@@ -69,12 +69,15 @@ pub const Seto = struct {
         };
 
         parseArgs(&seto);
-        seto.config.text = Text.new(alloc, &seto.config);
 
         if (seto.config.keys.search.len < 2) {
             std.log.err("Minimum two search keys have to be set\n", .{});
             std.process.exit(1);
         }
+
+        const font_size: i32 = @intFromFloat(seto.config.font.size);
+        seto.config.grid.max_size[1] = font_size + seto.config.font.offset[1];
+        seto.config.text = Text.new(alloc, &seto.config);
 
         return seto;
     }

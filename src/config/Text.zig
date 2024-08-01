@@ -93,7 +93,7 @@ pub fn new(alloc: std.mem.Allocator, config: *Config) Self {
 pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color: Color, config: *Config, shader_program: *c_uint) void {
     if (text.len == 0) return;
 
-    const scale: f32 = @as(f32, @floatCast(config.font.size)) / 256.0;
+    const scale = config.font.size / 256.0;
     var move: f32 = 0;
     for (text) |char| {
         const ch = blk: {

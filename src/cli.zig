@@ -115,14 +115,14 @@ pub fn parseArgs(seto: *Seto) void {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.font.size = std.fmt.parseFloat(f64, font_size) catch @panic("Failed to parse font-size");
+                seto.config.font.size = std.fmt.parseFloat(f32, font_size) catch @panic("Failed to parse font-size");
             },
             .@"--font-weight" => {
                 const font_weight = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.font.weight = std.fmt.parseFloat(f64, font_weight) catch @panic("Failed to parse font-weight");
+                seto.config.font.weight = std.fmt.parseFloat(f32, font_weight) catch @panic("Failed to parse font-weight");
             },
             .@"--font-family" => {
                 seto.alloc.free(seto.config.font.family);

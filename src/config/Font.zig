@@ -6,11 +6,11 @@ const hexToRgba = helpers.hexToRgba;
 const Lua = @import("ziglua").Lua;
 const Color = helpers.Color;
 
-weight: ?f64 = null,
+weight: ?f32 = null,
 color: Color,
 highlight_color: Color,
 offset: [2]i32 = .{ 5, 5 },
-size: f64 = 20,
+size: f32 = 20,
 family: [:0]const u8,
 
 const Self = @This();
@@ -49,14 +49,14 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     _ = lua.pushString("size");
     _ = lua.getTable(2);
     if (!lua.isNil(3)) {
-        font.size = lua.toNumber(3) catch @panic("font.size expected number");
+        font.size = @floatCast(lua.toNumber(3) catch @panic("font.size expected number"));
     }
     lua.pop(1);
 
     _ = lua.pushString("weight");
     _ = lua.getTable(2);
     if (!lua.isNil(3)) {
-        font.weight = lua.toNumber(3) catch @panic("font.weight expected number");
+        font.weight = @floatCast(lua.toNumber(3) catch @panic("font.weight expected number"));
     }
     lua.pop(1);
 
