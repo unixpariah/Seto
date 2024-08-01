@@ -117,6 +117,8 @@ pub fn resize(self: *Self, value: [2]i32) void {
         var new_size = self.size[i] + val;
         if (new_size <= 0) new_size = 1;
 
+        self.offset[i] = @rem(self.offset[i], self.size[i]);
+
         self.size[i] = new_size;
     }
 }

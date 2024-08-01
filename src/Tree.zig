@@ -59,7 +59,7 @@ pub fn drawText(self: *Self, surface: *Surface, buffer: []u32, border_mode: bool
             child.drawText(path, 1, surface, buffer, border_mode);
         } else {
             if (child.coordinates) |coordinates| {
-                applyHighlight(
+                renderText(
                     surface,
                     buffer,
                     path,
@@ -71,7 +71,7 @@ pub fn drawText(self: *Self, surface: *Surface, buffer: []u32, border_mode: bool
     }
 }
 
-fn applyHighlight(surface: *Surface, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]i32) void {
+fn renderText(surface: *Surface, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]i32) void {
     const info = surface.output_info;
     var matches: u8 = 0;
     for (buffer, 0..) |char, i| {
@@ -233,7 +233,7 @@ const Node = struct {
                 path[index] = child.key;
 
                 if (child.coordinates) |coordinates| {
-                    applyHighlight(
+                    renderText(
                         surface,
                         buffer,
                         path,
