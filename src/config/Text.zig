@@ -120,7 +120,6 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color: Color, confi
         self.index += 1;
         if (self.index == LENGTH) {
             self.renderCall(shader_program);
-            self.index = 0;
         }
     }
 }
@@ -154,6 +153,7 @@ pub fn renderCall(self: *Self, shader_program: *c_uint) void {
         @ptrCast(&self.letter_map[0]),
     );
     c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(self.index));
+    self.index = 0;
 }
 
 pub fn destroy(self: *Self) void {

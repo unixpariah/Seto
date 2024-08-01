@@ -91,6 +91,7 @@ pub const Surface = struct {
     pub fn draw(self: *const Self, border_mode: bool, mode: *Mode) void {
         c.glUseProgram(self.egl.main_shader_program.*);
         c.glClear(c.GL_COLOR_BUFFER_BIT);
+        c.glClearColor(0, 0, 0, 0);
 
         c.glBindBuffer(c.GL_UNIFORM_BUFFER, self.egl.UBO);
         c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
