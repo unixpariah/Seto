@@ -106,7 +106,7 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color: Color, confi
         const x_pos = x + bearing[0] * scale + move;
         const y_pos = y - bearing[1] * scale;
 
-        const scale_mat = math.scale(256 * scale, 256 * scale, 0);
+        const scale_mat = math.scale(config.font.size, config.font.size, 0);
         const translate_mat = math.translate(x_pos, y_pos, 0);
 
         config.text.transform[self.index] = math.mul(scale_mat, translate_mat);

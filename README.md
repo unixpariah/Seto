@@ -1,6 +1,6 @@
 # Seto
 
-Hardware accelerated keyboard based screen selection tool.
+Hardware accelerated keyboard driven screen selection tool.
 
 
 https://github.com/user-attachments/assets/1d97709c-f17b-4742-a36a-6eee580d06d4
