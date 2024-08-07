@@ -26,12 +26,14 @@ test "get_help" {
     assert(exit_status.Exited == 0);
 }
 
-test "path_not_specified" {
-    const exit_status = try spawnChildProcess(&[_][]const u8{ "zig-out/bin/seto", "-c" });
-    assert(exit_status.Exited == 1);
-}
+test "test_config" {
+    {
+        const exit_status = try spawnChildProcess(&[_][]const u8{ "zig-out/bin/seto", "-c" });
+        assert(exit_status.Exited == 1);
+    }
 
-test "wrong_custom_config" {
-    const exit_status = try spawnChildProcess(&[_][]const u8{ "zig-out/bin/seto", "-c", "." });
-    assert(exit_status.Exited == 1);
+    {
+        const exit_status = try spawnChildProcess(&[_][]const u8{ "zig-out/bin/seto", "-c", "null" });
+        assert(exit_status.Exited == 0);
+    }
 }

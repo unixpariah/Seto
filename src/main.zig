@@ -124,7 +124,7 @@ pub const Seto = struct {
         }
     }
 
-    fn printToStdout(self: *Self) !void {
+    pub fn printToStdout(self: *Self) !void {
         const coords = try self.tree.?.find(&self.seat.buffer.items);
         var arena = std.heap.ArenaAllocator.init(self.alloc);
         defer arena.deinit();
@@ -154,15 +154,6 @@ pub const Seto = struct {
 
     fn render(self: *Self) !void {
         if (!self.shouldDraw()) return;
-        self.printToStdout() catch |err| {
-            switch (err) {
-                error.KeyNotFound => {
-                    _ = self.seat.buffer.popOrNull();
-                    return;
-                },
-                else => {},
-            }
-        };
 
         var surf_iter = SurfaceIterator.new(&self.outputs.items);
         while (surf_iter.next()) |surface| {

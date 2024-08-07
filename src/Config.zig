@@ -75,6 +75,7 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
             if (std.mem.eql(u8, path, "null")) return error.Null;
 
             const absolute_path = try std.fs.cwd().realpathAlloc(alloc, path);
+            defer alloc.free(absolute_path);
             const absolute_path_z = try fs.path.joinZ(alloc, &[_][]const u8{absolute_path});
 
             _ = fs.accessAbsolute(absolute_path_z, .{}) catch {

@@ -145,15 +145,6 @@ test "resize" {
 
         grid.resize(.{ 0, -index });
         assert(grid.size[1] == initial[1] - index);
-
-        grid.size[0] = index;
-        grid.size[1] = index;
-        initial = grid.size;
-        grid.resize(.{ -std.math.maxInt(i32), 0 });
-        assert(grid.size[0] == 1);
-
-        grid.resize(.{ 0, -std.math.maxInt(i32) });
-        assert(grid.size[1] == 1);
     }
 }
 

@@ -2,8 +2,7 @@ const std = @import("std");
 const c = @import("ffi");
 const wl = @import("wayland").client.wl;
 
-fn glMessageCallback(source: u32, err_type: u32, id: u32, severity: u32, length: i32, message: [*c]const u8, a: ?*const anyopaque) callconv(.C) void {
-    _ = a;
+fn glMessageCallback(source: u32, err_type: u32, id: u32, severity: u32, length: i32, message: [*c]const u8, _: ?*const anyopaque) callconv(.C) void {
     std.debug.print("{} {} {} {} {} {s}\n", .{ source, err_type, id, severity, length, message });
 }
 

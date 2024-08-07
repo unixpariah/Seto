@@ -65,10 +65,10 @@ Take screenshot with [grim](https://wayland.emersion.fr/grim/)
 grim -g $(seto -r) - | wl-copy -t image/png
 ```
 
-Output just x and y positions and move mouse using [ydotool](https://github.com/ReimuNotMoe/ydotool) (specific syntax for escaping newline works in bash and zsh but may not in other shells):
+Output just x and y positions move mouse, and click using [ydotool](https://github.com/ReimuNotMoe/ydotool) (specific syntax for escaping newline works in bash and zsh but may not in other shells):
 
 ```bash
-ydotool mousemove -a $(seto -f $'%x %y\n')
+ydotool mousemove -a $(seto -f $'%x %y\n') && ydotool click 0xC0
 ```
 
 Took a lot of inspirations from [slurp](https://github.com/emersion/slurp) :)
