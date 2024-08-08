@@ -12,7 +12,6 @@
   scdoc,
   installShellFiles,
   callPackage,
-  #lato,
 }:
 stdenv.mkDerivation (finalAttrs: {
   pname = "seto";
@@ -32,7 +31,6 @@ stdenv.mkDerivation (finalAttrs: {
     libxkbcommon
     freetype
     fontconfig
-    #lato
   ];
 
   buildInputs = [

@@ -2,7 +2,6 @@
   description = "Seto - hardware accelerated keyboard driven screen selection tool";
 
   inputs = {
-    lato.url = "github:unixpariah/liblato";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     zls.url = "github:zigtools/zls";
     zig = {
@@ -16,7 +15,6 @@
     zls,
     flake-utils,
     zig,
-    lato,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (
@@ -40,15 +38,13 @@
             fontconfig
             clang-tools
             scdoc
-            lato.packages.${system}.default
             zls.packages.${system}.default
             zig.packages.${system}."0.13.0"
           ];
         };
 
-        packages.default = pkgs.callPackage ./default.nix {
-          #lato = lato.packages.${system}.default;
-        };
+        packages.default =
+          pkgs.callPackage ./default.nix {};
       }
     );
 }

@@ -178,7 +178,7 @@ pub fn handleKey(self: *Seto) void {
             }
 
             self.tree.?.updateCoordinates(
-                &self.config.grid,
+                &self.config,
                 self.state.border_mode,
                 &self.outputs.items,
                 &self.seat.buffer,

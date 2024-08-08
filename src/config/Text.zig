@@ -9,12 +9,14 @@ const Font = @import("Font.zig");
 
 const LENGTH: comptime_int = 400;
 
+// TODO: when I delete this struct member text rendering in ReleaseSafe breaks (its not referenced anywhere in the code)
+start_color: [93][4]f32 = undefined,
+
+font: *Font,
 char_info: []Character,
-letter_map: [LENGTH]u32 = undefined,
-transform: [LENGTH]math.Mat4 = undefined,
-start_color: [LENGTH][4]f32 = undefined,
-end_color: [LENGTH][4]f32 = undefined,
-deg: [LENGTH]f32 = undefined,
+letter_map: [LENGTH]u32,
+transform: [LENGTH]math.Mat4,
+color_index: [LENGTH]u32,
 alloc: std.mem.Allocator,
 index: u32,
 
@@ -74,30 +76,34 @@ pub fn new(alloc: std.mem.Allocator, config: *Config) Self {
 
     var letter_map: [LENGTH]u32 = undefined;
     var transform: [LENGTH]math.Mat4 = undefined;
+    var color_index: [LENGTH]u32 = undefined;
     for (0..LENGTH) |i| {
         transform[i] = math.mat4();
         letter_map[i] = 0;
+        color_index[i] = 0;
     }
 
     c.glBindTexture(c.GL_TEXTURE_2D_ARRAY, texture_array);
 
     return .{
+        .font = &config.font,
         .letter_map = letter_map,
         .transform = transform,
         .char_info = char_info,
+        .color_index = color_index,
         .alloc = alloc,
         .index = 0,
     };
 }
 
-pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color: Color, config: *Config, shader_program: *c_uint) void {
+pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: u32, shader_program: *c_uint) void {
     if (text.len == 0) return;
 
-    const scale = config.font.size / 256.0;
+    const scale = self.font.size / 256.0;
     var move: f32 = 0;
     for (text) |char| {
         const ch = blk: {
-            for (config.text.char_info) |ch| {
+            for (self.char_info) |ch| {
                 if (ch.key == char) break :blk ch;
             } else unreachable; // renderText cant be called with a character that is not in char_info
         };
@@ -106,14 +112,12 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color: Color, confi
         const x_pos = x + bearing[0] * scale + move;
         const y_pos = y - bearing[1] * scale;
 
-        const scale_mat = math.scale(config.font.size, config.font.size, 0);
+        const scale_mat = math.scale(self.font.size, self.font.size, 0);
         const translate_mat = math.translate(x_pos, y_pos, 0);
 
-        config.text.transform[self.index] = math.mul(scale_mat, translate_mat);
-        config.text.letter_map[self.index] = ch.texture_id;
-        config.text.start_color[self.index] = color.start_color;
-        config.text.end_color[self.index] = color.end_color;
-        config.text.deg[self.index] = color.deg;
+        self.transform[self.index] = math.mul(scale_mat, translate_mat);
+        self.letter_map[self.index] = ch.texture_id;
+        self.color_index[self.index] = color_index;
 
         const advance: f32 = @floatFromInt(ch.advance[0]);
         move += advance * scale;
@@ -125,20 +129,10 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color: Color, confi
 }
 
 pub fn renderCall(self: *Self, shader_program: *c_uint) void {
-    c.glUniform4fv(
-        c.glGetUniformLocation(shader_program.*, "u_startcolor"),
+    c.glUniform1iv(
+        c.glGetUniformLocation(shader_program.*, "colorIndex"),
         @intCast(self.index),
-        @ptrCast(&self.start_color[0][0]),
-    );
-    c.glUniform4fv(
-        c.glGetUniformLocation(shader_program.*, "u_endcolor"),
-        @intCast(self.index),
-        @ptrCast(&self.end_color[0][0]),
-    );
-    c.glUniform1fv(
-        c.glGetUniformLocation(shader_program.*, "u_degrees"),
-        @intCast(self.index),
-        @ptrCast(&self.deg[0]),
+        @ptrCast(&self.color_index[0]),
     );
 
     c.glUniformMatrix4fv(
@@ -154,6 +148,23 @@ pub fn renderCall(self: *Self, shader_program: *c_uint) void {
     );
     c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(self.index));
     self.index = 0;
+}
+
+pub fn getTextSize(self: *Self, text: []const u32) i32 {
+    const scale = self.font.size / 256.0;
+    var move: f32 = 0;
+    for (text) |char| {
+        const ch = blk: {
+            for (self.char_info) |ch| {
+                if (ch.key == char) break :blk ch;
+            } else unreachable; // getTextSize cant be called with a character that is not in char_info
+        };
+
+        const advance: f32 = @floatFromInt(ch.advance[0]);
+        move += advance * scale;
+    }
+
+    return @intFromFloat(move);
 }
 
 pub fn destroy(self: *Self) void {

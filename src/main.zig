@@ -160,9 +160,9 @@ pub const Seto = struct {
             if (!surface.isConfigured()) continue;
             surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
 
-            surface.draw(self.state.border_mode, &self.state.mode);
-            self.tree.?.drawText(surface, self.seat.buffer.items, self.state.border_mode);
-            surface.config.text.renderCall(surface.egl.text_shader_program);
+            surface.draw(&self.config, self.state.border_mode, &self.state.mode);
+            self.tree.?.drawText(surface, &self.config, self.seat.buffer.items, self.state.border_mode);
+            self.config.text.renderCall(surface.egl.text_shader_program);
 
             surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }
@@ -280,7 +280,6 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         seto.alloc,
                         xdg_output,
                         OutputInfo{ .id = global.name },
-                        &seto.config,
                     );
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);

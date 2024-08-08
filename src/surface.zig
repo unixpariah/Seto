@@ -45,8 +45,6 @@ pub const Surface = struct {
     output_info: OutputInfo,
     xdg_output: *zxdg.OutputV1,
 
-    config: *Config,
-
     const Self = @This();
 
     pub fn new(
@@ -56,10 +54,8 @@ pub const Surface = struct {
         alloc: mem.Allocator,
         xdg_output: *zxdg.OutputV1,
         output_info: OutputInfo,
-        config_ptr: *Config,
     ) Self {
         return .{
-            .config = config_ptr,
             .egl = egl,
             .surface = surface,
             .layer_surface = layer_surface,
@@ -88,7 +84,7 @@ pub const Surface = struct {
         return a.output_info.y < b.output_info.y;
     }
 
-    pub fn draw(self: *const Self, border_mode: bool, mode: *Mode) void {
+    pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) void {
         c.glUseProgram(self.egl.main_shader_program.*);
         c.glClear(c.GL_COLOR_BUFFER_BIT);
         c.glClearColor(0, 0, 0, 0);
@@ -96,22 +92,22 @@ pub const Surface = struct {
         c.glBindBuffer(c.GL_UNIFORM_BUFFER, self.egl.UBO);
         c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
 
-        self.drawBackground();
-        self.drawGrid(border_mode);
-        if (mode.* == .Region) self.drawSelection(mode);
+        self.drawBackground(config);
+        self.drawGrid(config, border_mode);
+        if (mode.* == .Region) self.drawSelection(config, mode);
     }
 
-    pub fn drawBackground(self: *const Self) void {
-        self.config.background_color.set(self.egl.main_shader_program.*);
+    pub fn drawBackground(self: *const Self, config: *Config) void {
+        config.background_color.set(self.egl.main_shader_program.*);
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[0]);
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
         c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
     }
 
-    pub fn drawSelection(self: *const Self, mode: *const Mode) void {
+    pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void {
         if (mode.Region) |pos| {
-            self.config.grid.selected_color.set(self.egl.main_shader_program.*);
+            config.grid.selected_color.set(self.egl.main_shader_program.*);
 
             const info = self.output_info;
             var vertices: [8]i32 = .{
@@ -120,7 +116,7 @@ pub const Surface = struct {
                 pos[0],              info.y,
                 pos[0],              info.y + info.height,
             };
-            c.glLineWidth(self.config.grid.selected_line_width);
+            c.glLineWidth(config.grid.selected_line_width);
 
             c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.gen_VBO[1]);
             c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
@@ -129,9 +125,9 @@ pub const Surface = struct {
         }
     }
 
-    pub fn drawGrid(self: *const Self, border_mode: bool) void {
+    pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
         const info = &self.output_info;
-        const grid = &self.config.grid;
+        const grid = &config.grid;
 
         c.glLineWidth(grid.line_width);
         grid.color.set(self.egl.main_shader_program.*);
@@ -178,23 +174,6 @@ pub const Surface = struct {
         );
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
         c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
-    }
-
-    pub fn getTextSize(self: *const Self, text: []const u32) i32 {
-        const scale = self.config.font.size / 256.0;
-        var move: f32 = 0;
-        for (text) |char| {
-            const ch = blk: {
-                for (self.config.text.char_info) |ch| {
-                    if (ch.key == char) break :blk ch;
-                } else unreachable; // getTextSize cant be called with a character that is not in char_info
-            };
-
-            const advance: f32 = @floatFromInt(ch.advance[0]);
-            move += advance * scale;
-        }
-
-        return @intFromFloat(move);
     }
 
     pub fn isConfigured(self: *const Self) bool {
@@ -301,18 +280,37 @@ pub fn xdgOutputListener(
                         c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
                     }
 
-                    const projection = math.orthographicProjection(
-                        @floatFromInt(info.x),
-                        @floatFromInt(info.x + info.width),
-                        @floatFromInt(info.y),
-                        @floatFromInt(info.y + info.height),
-                    );
+                    const uniform_object = struct {
+                        projection: math.Mat4,
+                        start_color: [2][4]f32,
+                        end_color: [2][4]f32,
+                        degrees: [2]f32,
+                    }{
+                        .projection = math.orthographicProjection(
+                            @floatFromInt(info.x),
+                            @floatFromInt(info.x + info.width),
+                            @floatFromInt(info.y),
+                            @floatFromInt(info.y + info.height),
+                        ),
+                        .start_color = .{
+                            seto.config.font.color.start_color,
+                            seto.config.font.highlight_color.start_color,
+                        },
+                        .end_color = .{
+                            seto.config.font.color.end_color,
+                            seto.config.font.highlight_color.end_color,
+                        },
+                        .degrees = .{
+                            seto.config.font.color.deg,
+                            seto.config.font.highlight_color.deg,
+                        },
+                    };
 
                     c.glBindBuffer(c.GL_UNIFORM_BUFFER, surface.egl.UBO);
                     c.glBufferData(
                         c.GL_UNIFORM_BUFFER,
-                        @sizeOf(f32) * projection.len * projection[0].len,
-                        @ptrCast(&projection),
+                        @sizeOf(@TypeOf(uniform_object)),
+                        @ptrCast(&uniform_object),
                         c.GL_STATIC_DRAW,
                     );
 
@@ -327,7 +325,7 @@ pub fn xdgOutputListener(
                     seto.tree = Tree.new(
                         seto.config.keys.search,
                         seto.alloc,
-                        &seto.config.grid,
+                        &seto.config,
                         &seto.outputs.items,
                     );
                 },
