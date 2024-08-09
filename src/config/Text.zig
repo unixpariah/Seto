@@ -10,7 +10,7 @@ const Font = @import("Font.zig");
 const LENGTH: comptime_int = 400;
 
 // TODO: when I delete this struct member text rendering in ReleaseSafe breaks (its not referenced anywhere in the code)
-start_color: [93][4]f32 = undefined,
+start_color: [93][4]u17 = undefined,
 
 font: *Font,
 char_info: []Character,
@@ -19,6 +19,8 @@ transform: [LENGTH]math.Mat4,
 color_index: [LENGTH]u32,
 alloc: std.mem.Allocator,
 index: u32,
+scale: f32,
+scale_mat: math.Mat4,
 
 const Self = @This();
 
@@ -93,34 +95,39 @@ pub fn new(alloc: std.mem.Allocator, config: *Config) Self {
         .color_index = color_index,
         .alloc = alloc,
         .index = 0,
+        .scale = config.font.size / 256.0,
+        .scale_mat = math.scale(config.font.size, config.font.size, 0),
     };
 }
 
-pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: u32, shader_program: *c_uint) void {
+const ColorIndex = enum(u1) {
+    color,
+    highlight_color,
+};
+
+pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorIndex, shader_program: *c_uint) void {
     if (text.len == 0) return;
 
-    const scale = self.font.size / 256.0;
     var move: f32 = 0;
     for (text) |char| {
         const ch = blk: {
             for (self.char_info) |ch| {
                 if (ch.key == char) break :blk ch;
-            } else unreachable; // renderText cant be called with a character that is not in char_info
+            } else unreachable; // place cant be called with a character that is not in char_info
         };
 
         const bearing: [2]f32 = .{ @floatFromInt(ch.bearing[0]), @floatFromInt(ch.bearing[1]) };
-        const x_pos = x + bearing[0] * scale + move;
-        const y_pos = y - bearing[1] * scale;
+        const x_pos = x + bearing[0] * self.scale + move;
+        const y_pos = y - bearing[1] * self.scale;
 
-        const scale_mat = math.scale(self.font.size, self.font.size, 0);
         const translate_mat = math.translate(x_pos, y_pos, 0);
 
-        self.transform[self.index] = math.mul(scale_mat, translate_mat);
+        self.transform[self.index] = math.mul(self.scale_mat, translate_mat);
         self.letter_map[self.index] = ch.texture_id;
-        self.color_index[self.index] = color_index;
+        self.color_index[self.index] = @intFromEnum(color_index);
 
         const advance: f32 = @floatFromInt(ch.advance[0]);
-        move += advance * scale;
+        move += advance * self.scale;
         self.index += 1;
         if (self.index == LENGTH) {
             self.renderCall(shader_program);
@@ -150,7 +157,9 @@ pub fn renderCall(self: *Self, shader_program: *c_uint) void {
     self.index = 0;
 }
 
-pub fn getTextSize(self: *Self, text: []const u32) i32 {
+pub fn getSize(self: *Self, text: []const u32) i32 {
+    if (text.len == 0) return 0;
+
     const scale = self.font.size / 256.0;
     var move: f32 = 0;
     for (text) |char| {

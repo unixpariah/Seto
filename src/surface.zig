@@ -10,9 +10,6 @@ const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
 
-const mul = math.mul;
-const translate = math.translate;
-
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("Config.zig");

@@ -82,8 +82,8 @@ fn renderText(surface: *Surface, config: *Config, buffer: []u32, path: []u32, bo
     if (buffer.len > matches) matches = 0;
 
     const coords = blk: {
-        const text_size = config.text.getTextSize(path);
         if (border_mode) {
+            const text_size = config.text.getSize(path);
             break :blk if (coordinates[0] == info.x and coordinates[1] == info.y)
                 .{ coordinates[0] + 5, coordinates[1] + 25 }
             else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1)
@@ -106,15 +106,15 @@ fn renderText(surface: *Surface, config: *Config, buffer: []u32, path: []u32, bo
         path[0..matches],
         @floatFromInt(coords[0]),
         @floatFromInt(coords[1]),
-        1,
+        .highlight_color,
         surface.egl.text_shader_program,
     );
 
     config.text.place(
         path[matches..],
-        @floatFromInt(coords[0] + config.text.getTextSize(path[0..matches])),
+        @floatFromInt(coords[0] + config.text.getSize(path[0..matches])),
         @floatFromInt(coords[1]),
-        0,
+        .color,
         surface.egl.text_shader_program,
     );
 }

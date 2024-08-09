@@ -63,6 +63,7 @@ pub fn build(b: *std.Build) void {
         "src/helpers.zig",
         "src/Tree.zig",
         "src/main.zig",
+        "src/math.zig",
         "tests/integration.zig",
         "src/config/Grid.zig",
     };
