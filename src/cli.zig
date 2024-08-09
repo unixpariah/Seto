@@ -4,7 +4,7 @@ const helpers = @import("helpers");
 
 const Seto = @import("main.zig").Seto;
 const Function = @import("config/Keys.zig").Function;
-const Color = helpers.Color;
+const Color = @import("Color.zig").Color;
 
 const hexToRgba = helpers.hexToRgba;
 

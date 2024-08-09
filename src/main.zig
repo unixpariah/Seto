@@ -162,7 +162,7 @@ pub const Seto = struct {
 
             surface.draw(&self.config, self.state.border_mode, &self.state.mode);
             self.tree.?.drawText(surface, &self.config, self.seat.buffer.items, self.state.border_mode);
-            self.config.text.renderCall(surface.egl.text_shader_program);
+            self.config.text.renderCall(&surface.egl.text_shader_program.gradient);
 
             surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
         }

@@ -4,7 +4,7 @@ const helpers = @import("helpers");
 const hexToRgba = helpers.hexToRgba;
 
 const Lua = @import("ziglua").Lua;
-const Color = helpers.Color;
+const Color = @import("../Color.zig").Color;
 const Font = @import("Font.zig");
 
 max_size: [2]i32 = .{ 1, 1 },

@@ -6,6 +6,12 @@ fn glMessageCallback(source: u32, err_type: u32, id: u32, severity: u32, length:
     std.debug.print("{} {} {} {} {} {s}\n", .{ source, err_type, id, severity, length, message });
 }
 
+const ShaderProgram = struct {
+    solid: c_uint,
+    gradient: c_uint,
+    triple_gradient: c_uint,
+};
+
 pub const EglSurface = struct {
     window: *wl.EglWindow,
     surface: c.EGLSurface,
@@ -13,8 +19,8 @@ pub const EglSurface = struct {
     display: *c.EGLDisplay,
     config: *c.EGLConfig,
     context: *c.EGLContext,
-    main_shader_program: *c_uint,
-    text_shader_program: *c_uint,
+    main_shader_program: *ShaderProgram,
+    text_shader_program: *ShaderProgram,
     VBO: [2]u32,
     gen_VBO: *[3]u32,
     UBO: u32,
@@ -65,11 +71,40 @@ fn compileShader(shader_source: []const u8, shader: c_uint, shader_program: c_ui
     c.glAttachShader(shader_program, shader);
 }
 
+fn createShaderProgram(comptime vertex_path: []const u8, comptime fragment_path: []const u8) !c_uint {
+    const vertex_source = @embedFile(vertex_path);
+    const fragment_source = @embedFile(fragment_path);
+
+    const vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
+    const fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
+
+    defer c.glDeleteShader(vertex_shader);
+    defer c.glDeleteShader(fragment_shader);
+
+    const shader_program = c.glCreateProgram();
+
+    try compileShader(vertex_source, vertex_shader, shader_program);
+    try compileShader(fragment_source, fragment_shader, shader_program);
+
+    c.glLinkProgram(shader_program);
+
+    var link_success: u32 = undefined;
+    c.glGetProgramiv(shader_program, c.GL_LINK_STATUS, @ptrCast(&link_success));
+    if (link_success != c.GL_TRUE) {
+        var info_log: [512]u8 = undefined;
+        c.glGetShaderInfoLog(shader_program, 512, null, @ptrCast(&info_log));
+        std.debug.print("{s}\n", .{info_log});
+        return error.EGLError;
+    }
+
+    return shader_program;
+}
+
 display: c.EGLDisplay,
 config: c.EGLConfig,
 context: c.EGLContext,
-main_shader_program: c_uint,
-text_shader_program: c_uint,
+main_shader_program: ShaderProgram,
+text_shader_program: ShaderProgram,
 VAO: u32,
 VBO: [3]u32,
 EBO: u32,
@@ -137,56 +172,6 @@ pub fn new(display: *wl.Display) !Self {
         c.glDebugMessageCallback(glMessageCallback, null);
     }
 
-    const main_vertex_source = @embedFile("shaders/main.vert");
-    const main_fragment_source = @embedFile("shaders/main.frag");
-
-    const main_vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
-    const main_fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
-
-    defer c.glDeleteShader(main_vertex_shader);
-    defer c.glDeleteShader(main_fragment_shader);
-
-    const main_shader_program = c.glCreateProgram();
-
-    try compileShader(main_vertex_source, main_vertex_shader, main_shader_program);
-    try compileShader(main_fragment_source, main_fragment_shader, main_shader_program);
-
-    c.glLinkProgram(main_shader_program);
-
-    var link_success: u32 = undefined;
-    c.glGetProgramiv(main_shader_program, c.GL_LINK_STATUS, @ptrCast(&link_success));
-    if (link_success != c.GL_TRUE) {
-        var info_log: [512]u8 = undefined;
-        c.glGetShaderInfoLog(main_shader_program, 512, null, @ptrCast(&info_log));
-        std.debug.print("{s}\n", .{info_log});
-        return error.EGLError;
-    }
-
-    const text_vertex_source = @embedFile("shaders/text.vert");
-    const text_fragment_source = @embedFile("shaders/text.frag");
-
-    const text_vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
-    const text_fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
-
-    defer c.glDeleteShader(text_vertex_shader);
-    defer c.glDeleteShader(text_fragment_shader);
-
-    const text_shader_program = c.glCreateProgram();
-
-    try compileShader(text_vertex_source, text_vertex_shader, text_shader_program);
-    try compileShader(text_fragment_source, text_fragment_shader, text_shader_program);
-
-    c.glLinkProgram(text_shader_program);
-
-    link_success = undefined;
-    c.glGetProgramiv(text_shader_program, c.GL_LINK_STATUS, @ptrCast(&link_success));
-    if (link_success != c.GL_TRUE) {
-        var info_log: [512]u8 = undefined;
-        c.glGetShaderInfoLog(text_shader_program, 512, null, @ptrCast(&info_log));
-        std.debug.print("{s}\n", .{info_log});
-        return error.EGLError;
-    }
-
     var VAO: u32 = undefined;
     c.glGenVertexArrays(1, &VAO);
     c.glBindVertexArray(VAO);
@@ -219,6 +204,38 @@ pub fn new(display: *wl.Display) !Self {
 
     c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
     c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
+
+    const text_shader_program = ShaderProgram{
+        .solid = try createShaderProgram(
+            "shaders/text/solid.vert",
+            "shaders/text/solid.frag",
+        ),
+        .gradient = try createShaderProgram(
+            "shaders/text/gradient.vert",
+            "shaders/text/gradient.frag",
+        ),
+        .triple_gradient = try createShaderProgram(
+            "shaders/text/triple_gradient.vert",
+            "shaders/text/triple_gradient.frag",
+        ),
+    };
+
+    const main_shader_program = ShaderProgram{
+        .solid = try createShaderProgram(
+            "shaders/main/solid.vert",
+            "shaders/main/solid.frag",
+        ),
+        .gradient = try createShaderProgram(
+            "shaders/main/gradient.vert",
+            "shaders/main/gradient.frag",
+        ),
+        .triple_gradient = 0,
+        // TODO: implement triple gradient for main shader program
+        // .triple_gradient = try createShaderProgram(
+        //     "shaders/main/triple_gradient.vert",
+        //     "shaders/main/triple_gradient.frag",
+        // ),
+    };
 
     return .{
         .display = egl_display,

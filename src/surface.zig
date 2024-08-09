@@ -15,7 +15,6 @@ const Seto = @import("main.zig").Seto;
 const Config = @import("Config.zig");
 const EglSurface = @import("Egl.zig").EglSurface;
 const Tree = @import("Tree.zig");
-const Color = helpers.Color;
 
 pub const OutputInfo = struct {
     id: u32,
@@ -82,7 +81,7 @@ pub const Surface = struct {
     }
 
     pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) void {
-        c.glUseProgram(self.egl.main_shader_program.*);
+        c.glUseProgram(self.egl.main_shader_program.gradient);
         c.glClear(c.GL_COLOR_BUFFER_BIT);
         c.glClearColor(0, 0, 0, 0);
 
@@ -95,7 +94,7 @@ pub const Surface = struct {
     }
 
     pub fn drawBackground(self: *const Self, config: *Config) void {
-        config.background_color.set(self.egl.main_shader_program.*);
+        config.background_color.set(self.egl.main_shader_program.gradient);
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[0]);
         c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
@@ -104,7 +103,7 @@ pub const Surface = struct {
 
     pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void {
         if (mode.Region) |pos| {
-            config.grid.selected_color.set(self.egl.main_shader_program.*);
+            config.grid.selected_color.set(self.egl.main_shader_program.gradient);
 
             const info = self.output_info;
             var vertices: [8]i32 = .{
@@ -127,7 +126,7 @@ pub const Surface = struct {
         const grid = &config.grid;
 
         c.glLineWidth(grid.line_width);
-        grid.color.set(self.egl.main_shader_program.*);
+        grid.color.set(self.egl.main_shader_program.gradient);
 
         if (border_mode) {
             c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
@@ -290,16 +289,16 @@ pub fn xdgOutputListener(
                             @floatFromInt(info.y + info.height),
                         ),
                         .start_color = .{
-                            seto.config.font.color.start_color,
-                            seto.config.font.highlight_color.start_color,
+                            seto.config.font.color.gradient.start_color,
+                            seto.config.font.highlight_color.gradient.start_color,
                         },
                         .end_color = .{
-                            seto.config.font.color.end_color,
-                            seto.config.font.highlight_color.end_color,
+                            seto.config.font.color.gradient.end_color,
+                            seto.config.font.highlight_color.gradient.end_color,
                         },
                         .degrees = .{
-                            seto.config.font.color.deg,
-                            seto.config.font.highlight_color.deg,
+                            seto.config.font.color.gradient.deg,
+                            seto.config.font.highlight_color.gradient.deg,
                         },
                     };
 
@@ -313,8 +312,8 @@ pub fn xdgOutputListener(
 
                     c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, surface.egl.UBO);
                     c.glUniformBlockBinding(
-                        surface.egl.main_shader_program.*,
-                        c.glGetUniformBlockIndex(surface.egl.main_shader_program.*, "UniformBlock"),
+                        surface.egl.main_shader_program.gradient,
+                        c.glGetUniformBlockIndex(surface.egl.main_shader_program.gradient, "UniformBlock"),
                         0,
                     );
 

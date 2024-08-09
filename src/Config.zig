@@ -10,7 +10,7 @@ const Keys = @import("config//Keys.zig");
 const Grid = @import("config/Grid.zig");
 const Function = @import("config/Keys.zig").Function;
 const Text = @import("config/Text.zig");
-const Color = helpers.Color;
+const Color = @import("Color.zig").Color;
 
 output_format: []const u8 = "%x,%y %wx%h\n",
 background_color: Color,

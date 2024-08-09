@@ -4,7 +4,7 @@ const helpers = @import("helpers");
 const hexToRgba = helpers.hexToRgba;
 
 const Lua = @import("ziglua").Lua;
-const Color = helpers.Color;
+const Color = @import("../Color.zig").Color;
 
 weight: ?f32 = null,
 color: Color,

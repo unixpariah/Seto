@@ -49,7 +49,7 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
 }
 
 pub fn drawText(self: *Self, surface: *Surface, config: *Config, buffer: []u32, border_mode: bool) void {
-    c.glUseProgram(surface.egl.text_shader_program.*);
+    c.glUseProgram(surface.egl.text_shader_program.*.gradient);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.gen_VBO[2]);
     c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
 
@@ -107,7 +107,7 @@ fn renderText(surface: *Surface, config: *Config, buffer: []u32, path: []u32, bo
         @floatFromInt(coords[0]),
         @floatFromInt(coords[1]),
         .highlight_color,
-        surface.egl.text_shader_program,
+        &surface.egl.text_shader_program.gradient,
     );
 
     config.text.place(
@@ -115,7 +115,7 @@ fn renderText(surface: *Surface, config: *Config, buffer: []u32, path: []u32, bo
         @floatFromInt(coords[0] + config.text.getSize(path[0..matches])),
         @floatFromInt(coords[1]),
         .color,
-        surface.egl.text_shader_program,
+        &surface.egl.text_shader_program.gradient,
     );
 }
 
