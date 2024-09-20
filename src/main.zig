@@ -9,17 +9,16 @@ const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
 
 const Tree = @import("Tree.zig");
-const OutputInfo = @import("surface.zig").OutputInfo;
-const Surface = @import("surface.zig").Surface;
-const SurfaceIterator = @import("surface.zig").SurfaceIterator;
+const OutputInfo = @import("Output.zig").OutputInfo;
+const Output = @import("Output.zig");
 const Seat = @import("seat.zig").Seat;
 const Config = @import("Config.zig");
 const Egl = @import("Egl.zig");
 const Text = @import("config/Text.zig");
 
 const handleKey = @import("seat.zig").handleKey;
-const xdgOutputListener = @import("surface.zig").xdgOutputListener;
-const layerSurfaceListener = @import("surface.zig").layerSurfaceListener;
+const xdgOutputListener = @import("Output.zig").xdgOutputListener;
+const layerSurfaceListener = @import("Output.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
 const inPlaceReplace = @import("helpers").inPlaceReplace;
@@ -50,7 +49,7 @@ pub const Seto = struct {
     layer_shell: ?*zwlr.LayerShellV1 = null,
     output_manager: ?*zxdg.OutputManagerV1 = null,
     seat: Seat,
-    outputs: std.ArrayList(Surface),
+    outputs: std.ArrayList(Output),
     config: Config,
     alloc: mem.Allocator,
     tree: ?Tree = null,
@@ -62,7 +61,7 @@ pub const Seto = struct {
     fn new(alloc: mem.Allocator, display: *wl.Display) !Self {
         var seto = Seto{
             .seat = Seat.new(alloc),
-            .outputs = std.ArrayList(Surface).init(alloc),
+            .outputs = std.ArrayList(Output).init(alloc),
             .alloc = alloc,
             .egl = try Egl.new(display),
             .config = Config.load(alloc),
@@ -84,29 +83,26 @@ pub const Seto = struct {
 
     pub fn updateDimensions(self: *Self) void {
         // Sort outputs from left to right row by row
-        std.mem.sort(Surface, self.outputs.items, self.outputs.items[0], Surface.cmp);
+        std.mem.sort(Output, self.outputs.items, self.outputs.items[0], Output.cmp);
 
-        const first = self.outputs.items[0].output_info;
-        const last = self.outputs.getLast().output_info;
+        const first = self.outputs.items[0].info;
+        const last = self.outputs.getLast().info;
 
         self.total_dimensions = .{ (last.x + last.width) - first.x, (last.y + last.height) - first.y };
     }
 
     fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
-        var surf_iter = SurfaceIterator.new(&self.outputs.items);
-        while (surf_iter.next()) |surface| {
-            if (!surface.isConfigured()) continue;
+        for (self.outputs.items) |output| {
+            if (!output.isConfigured()) continue;
 
-            const info = surface.output_info;
-
-            if (surface.posInSurface(top_left)) {
-                const relative_pos = .{ top_left[0] - info.x, top_left[1] - info.y };
+            if (output.posInSurface(top_left)) {
+                const relative_pos = .{ top_left[0] - output.info.x, top_left[1] - output.info.y };
                 const relative_size = .{
-                    @abs(top_left[0] - @min((info.x + info.width), top_left[0] + size[0])),
-                    @abs(top_left[1] - @min((info.y + info.height), top_left[1] + size[1])),
+                    @abs(top_left[0] - @min((output.info.x + output.info.width), top_left[0] + size[0])),
+                    @abs(top_left[1] - @min((output.info.y + output.info.height), top_left[1] + size[1])),
                 };
 
-                const output_name = if (info.name) |name| name else "<unkown>";
+                const output_name = if (output.info.name) |name| name else "<unkown>";
 
                 inPlaceReplace([]const u8, arena.allocator(), &self.config.output_format, "%o", output_name);
                 inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%X", relative_pos[0]);
@@ -152,25 +148,24 @@ pub const Seto = struct {
         self.state.exit = true;
     }
 
-    fn render(self: *Self) !void {
-        if (!self.shouldDraw()) return;
-
-        var surf_iter = SurfaceIterator.new(&self.outputs.items);
-        while (surf_iter.next()) |surface| {
-            if (!surface.isConfigured()) continue;
-            surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
-
-            surface.draw(&self.config, self.state.border_mode, &self.state.mode);
-            self.tree.?.drawText(surface, &self.config, self.seat.buffer.items, self.state.border_mode);
-            self.config.text.renderCall(surface.egl.text_shader_program);
-
-            surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
-        }
-    }
-
     fn shouldDraw(self: *Self) bool {
         defer self.state.first_draw = false;
         return self.seat.repeat.key != null or self.state.first_draw;
+    }
+
+    pub fn render(self: *Self) !void {
+        if (!self.shouldDraw()) return;
+
+        for (self.outputs.items) |*output| {
+            if (!output.isConfigured()) continue;
+            output.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
+
+            output.draw(&self.config, self.state.border_mode, &self.state.mode);
+            self.tree.?.drawText(output, &self.config, self.seat.buffer.items, self.state.border_mode);
+            self.config.text.renderCall(output.egl.text_shader_program);
+
+            output.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
+        }
     }
 
     fn destroy(self: *Self) void {
@@ -214,11 +209,10 @@ pub fn main() !void {
         try seto.render();
     }
 
-    var surf_iter = SurfaceIterator.new(&seto.outputs.items);
-    while (surf_iter.next()) |surface| {
-        surface.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
+    for (seto.outputs.items) |output| {
+        output.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
         c.glClear(c.GL_COLOR_BUFFER_BIT);
-        surface.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
+        output.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
     }
 
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
@@ -273,7 +267,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 
                     const egl_surface = seto.egl.newSurface(surface, .{ 1, 1 }) catch @panic("Failed to create egl surface");
 
-                    const output = Surface.new(
+                    const output = Output.new(
                         egl_surface,
                         surface,
                         layer_surface,
@@ -305,7 +299,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
         },
         .global_remove => |global| {
             for (seto.outputs.items, 0..) |*output, i| {
-                if (output.output_info.id == global.name) {
+                if (output.info.id == global.name) {
                     output.destroy();
                     _ = seto.outputs.swapRemove(i);
                     seto.updateDimensions();

@@ -3,9 +3,8 @@ const c = @import("ffi");
 const helpers = @import("helpers");
 
 const Seto = @import("main.zig").Seto;
-const Surface = @import("surface.zig").Surface;
+const Output = @import("Output.zig");
 const Grid = @import("config/Grid.zig");
-const SurfaceIterator = @import("surface.zig").SurfaceIterator;
 const Config = @import("Config.zig");
 
 children: []Node,
@@ -15,7 +14,7 @@ arena: std.heap.ArenaAllocator,
 
 const Self = @This();
 
-pub fn new(keys: []const u32, alloc: std.mem.Allocator, config: *Config, outputs: *[]Surface) Self {
+pub fn new(keys: []const u32, alloc: std.mem.Allocator, config: *Config, outputs: *[]Output) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, keys.len) catch @panic("OOM");
     for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -48,20 +47,20 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, surface: *Surface, config: *Config, buffer: []u32, border_mode: bool) void {
-    c.glUseProgram(surface.egl.text_shader_program.*);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, surface.egl.gen_VBO[2]);
+pub fn drawText(self: *Self, output: *Output, config: *Config, buffer: []u32, border_mode: bool) void {
+    c.glUseProgram(output.egl.text_shader_program.*);
+    c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.gen_VBO[2]);
     c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
 
     const path = self.arena.allocator().alloc(u32, self.depth) catch @panic("OOM");
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.drawText(config, path, 1, surface, buffer, border_mode);
+            child.drawText(config, path, 1, output, buffer, border_mode);
         } else {
             if (child.coordinates) |coordinates| {
                 renderText(
-                    surface,
+                    output,
                     config,
                     buffer,
                     path,
@@ -73,8 +72,7 @@ pub fn drawText(self: *Self, surface: *Surface, config: *Config, buffer: []u32, 
     }
 }
 
-fn renderText(surface: *Surface, config: *Config, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]i32) void {
-    const info = surface.output_info;
+fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]i32) void {
     var matches: u8 = 0;
     for (buffer, 0..) |char, i| {
         if (path[i] == char) matches += 1 else break;
@@ -84,13 +82,13 @@ fn renderText(surface: *Surface, config: *Config, buffer: []u32, path: []u32, bo
     const coords = blk: {
         if (border_mode) {
             const text_size = config.text.getSize(path);
-            break :blk if (coordinates[0] == info.x and coordinates[1] == info.y)
+            break :blk if (coordinates[0] == output.info.x and coordinates[1] == output.info.y)
                 .{ coordinates[0] + 5, coordinates[1] + 25 }
-            else if (coordinates[0] == info.x and coordinates[1] == info.y + info.height - 1)
+            else if (coordinates[0] == output.info.x and coordinates[1] == output.info.y + output.info.height - 1)
                 .{ coordinates[0] + 5, coordinates[1] - 15 }
-            else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y)
+            else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y)
                 .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 }
-            else if (coordinates[0] == info.x + info.width - 1 and coordinates[1] == info.y + info.height - 1)
+            else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y + output.info.height - 1)
                 .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 }
             else
                 return;
@@ -107,7 +105,7 @@ fn renderText(surface: *Surface, config: *Config, buffer: []u32, path: []u32, bo
         @floatFromInt(coords[0]),
         @floatFromInt(coords[1]),
         .highlight_color,
-        surface.egl.text_shader_program,
+        output.egl.text_shader_program,
     );
 
     config.text.place(
@@ -115,7 +113,7 @@ fn renderText(surface: *Surface, config: *Config, buffer: []u32, path: []u32, bo
         @floatFromInt(coords[0] + config.text.getSize(path[0..matches])),
         @floatFromInt(coords[1]),
         .color,
-        surface.egl.text_shader_program,
+        output.egl.text_shader_program,
     );
 }
 
@@ -123,15 +121,14 @@ pub fn updateCoordinates(
     self: *Self,
     config: *Config,
     border_mode: bool,
-    outputs: *[]Surface,
+    outputs: *[]Output,
     buffer: *std.ArrayList(u32),
 ) void {
     var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
     defer intersections.deinit();
 
-    var surf_iter = SurfaceIterator.new(outputs);
-    while (surf_iter.next()) |surface| {
-        const info = surface.output_info;
+    for (outputs.*) |output| {
+        const info = output.info;
 
         if (border_mode) {
             intersections.appendSlice(&[_][2]i32{
@@ -151,8 +148,8 @@ pub fn updateCoordinates(
             hor_line_count * config.grid.size[1] + config.grid.offset[1],
         };
 
-        if (start_pos[0] < surface.output_info.x) start_pos[0] += config.grid.size[0];
-        if (start_pos[1] < surface.output_info.y) start_pos[1] += config.grid.size[1];
+        if (start_pos[0] < output.info.x) start_pos[0] += config.grid.size[0];
+        if (start_pos[1] < output.info.y) start_pos[1] += config.grid.size[1];
 
         var i = start_pos[0];
         while (i <= info.x + info.width - 1) : (i += config.grid.size[0]) {
@@ -242,14 +239,14 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn drawText(self: *Node, config: *Config, path: []u32, index: u8, surface: *Surface, buffer: []u32, border_mode: bool) void {
+    fn drawText(self: *Node, config: *Config, path: []u32, index: u8, output: *Output, buffer: []u32, border_mode: bool) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
 
                 if (child.coordinates) |coordinates| {
                     renderText(
-                        surface,
+                        output,
                         config,
                         buffer,
                         path,
@@ -257,7 +254,7 @@ const Node = struct {
                         coordinates,
                     );
                 } else {
-                    child.drawText(config, path, index + 1, surface, buffer, border_mode);
+                    child.drawText(config, path, index + 1, output, buffer, border_mode);
                 }
             }
         }

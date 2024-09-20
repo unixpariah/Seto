@@ -1,5 +1,4 @@
 const std = @import("std");
-const posix = std.posix;
 
 const xkb = @import("xkbcommon");
 const wayland = @import("wayland");
@@ -70,12 +69,12 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         .enter => {},
         .leave => {},
         .keymap => |ev| {
-            defer posix.close(ev.fd);
+            defer std.posix.close(ev.fd);
 
             if (ev.format != .xkb_v1) return;
 
-            const keymap_string = posix.mmap(null, ev.size, posix.PROT.READ, posix.MAP{ .TYPE = .PRIVATE }, ev.fd, 0) catch return;
-            defer posix.munmap(keymap_string);
+            const keymap_string = std.posix.mmap(null, ev.size, std.posix.PROT.READ, std.posix.MAP{ .TYPE = .PRIVATE }, ev.fd, 0) catch return;
+            defer std.posix.munmap(keymap_string);
 
             const keymap = xkb.Keymap.newFromBuffer(
                 seto.seat.xkb_context,
@@ -137,7 +136,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 fn moveSelection(seto: *Seto, value: [2]i32) void {
     if (seto.state.mode == .Single) return;
     if (seto.state.mode.Region) |*position| {
-        const info: [2]i32 = .{ seto.outputs.items[0].output_info.x, seto.outputs.items[0].output_info.y };
+        const info: [2]i32 = .{ seto.outputs.items[0].info.x, seto.outputs.items[0].info.y };
         for (position, 0..) |*pos, i| {
             pos.* += value[i];
 
@@ -162,41 +161,37 @@ pub fn handleKey(self: *Seto) void {
     const keysym: xkb.Keysym = @enumFromInt(key);
     const buffer = keysym.toUTF32();
 
-    {
-        if (buffer == 'c' and ctrl_active) self.state.exit = true;
-        if (self.config.keys.bindings.get(@intCast(buffer))) |function| {
-            switch (function) {
-                .move => |value| grid.move(value),
-                .resize => |value| grid.resize(value),
-                .remove => _ = self.seat.buffer.popOrNull(),
-                .cancel_selection => if (self.state.mode == Mode.Region) {
-                    self.state.mode = Mode{ .Region = null };
-                },
-                .move_selection => |value| moveSelection(self, value),
-                .border_mode => self.state.border_mode = !self.state.border_mode,
-                .quit => self.state.exit = true,
-            }
-
-            self.tree.?.updateCoordinates(
-                &self.config,
-                self.state.border_mode,
-                &self.outputs.items,
-                &self.seat.buffer,
-            );
-
-            return;
-        }
-    }
-
-    self.seat.buffer.append(buffer) catch @panic("OOM");
-
-    self.printToStdout() catch |err| {
-        switch (err) {
-            error.KeyNotFound => {
-                _ = self.seat.buffer.popOrNull();
-                return;
+    if (buffer == 'c' and ctrl_active) self.state.exit = true;
+    if (self.config.keys.bindings.get(@intCast(buffer))) |function| {
+        switch (function) {
+            .move => |value| grid.move(value),
+            .resize => |value| grid.resize(value),
+            .remove => _ = self.seat.buffer.popOrNull(),
+            .cancel_selection => if (self.state.mode == Mode.Region) {
+                self.state.mode = Mode{ .Region = null };
             },
-            else => {},
+            .move_selection => |value| moveSelection(self, value),
+            .border_mode => self.state.border_mode = !self.state.border_mode,
+            .quit => self.state.exit = true,
         }
-    };
+
+        self.tree.?.updateCoordinates(
+            &self.config,
+            self.state.border_mode,
+            &self.outputs.items,
+            &self.seat.buffer,
+        );
+    } else {
+        self.seat.buffer.append(buffer) catch @panic("OOM");
+
+        self.printToStdout() catch |err| {
+            switch (err) {
+                error.KeyNotFound => {
+                    _ = self.seat.buffer.popOrNull();
+                    return;
+                },
+                else => {},
+            }
+        };
+    }
 }
