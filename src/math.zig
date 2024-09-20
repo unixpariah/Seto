@@ -40,7 +40,7 @@ pub fn orthographicProjection(left: f32, right: f32, top: f32, bottom: f32) Mat4
     };
 }
 
-pub fn translate(x: f32, y: f32, z: f32) Mat4 {
+pub inline fn translate(x: f32, y: f32, z: f32) Mat4 {
     return .{
         .{ 1, 0, 0, 0 },
         .{ 0, 1, 0, 0 },

@@ -148,14 +148,7 @@ pub const Seto = struct {
         self.state.exit = true;
     }
 
-    fn shouldDraw(self: *Self) bool {
-        defer self.state.first_draw = false;
-        return self.seat.repeat.key != null or self.state.first_draw;
-    }
-
     pub fn render(self: *Self) !void {
-        if (!self.shouldDraw()) return;
-
         for (self.outputs.items) |*output| {
             if (!output.isConfigured()) continue;
             output.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
@@ -210,9 +203,9 @@ pub fn main() !void {
     }
 
     for (seto.outputs.items) |output| {
-        output.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
+        try output.egl.makeCurrent();
         c.glClear(c.GL_COLOR_BUFFER_BIT);
-        output.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
+        try output.egl.swapBuffers();
     }
 
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;

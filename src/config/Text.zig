@@ -71,9 +71,14 @@ pub fn new(alloc: std.mem.Allocator, config: *Config) Self {
         null,
     );
 
-    var char_info = alloc.alloc(Character, config.keys.search.len) catch @panic("OOM");
+    var max_char = config.keys.search[0];
+    for (config.keys.search) |char| {
+        if (char > max_char) max_char = char;
+    }
+
+    var char_info = alloc.alloc(Character, max_char + 1) catch @panic("OOM");
     for (config.keys.search, 0..) |key, i| {
-        char_info[i] = Character.new(face, key, &config.font, @intCast(i));
+        char_info[key] = Character.new(face, key, &config.font, @intCast(i));
     }
 
     var letter_map: [LENGTH]u32 = undefined;
@@ -110,11 +115,7 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorI
 
     var move: f32 = 0;
     for (text) |char| {
-        const ch = blk: {
-            for (self.char_info) |ch| {
-                if (ch.key == char) break :blk ch;
-            } else unreachable; // place cant be called with a character that is not in char_info
-        };
+        const ch = self.char_info[char];
 
         const bearing: [2]f32 = .{ @floatFromInt(ch.bearing[0]), @floatFromInt(ch.bearing[1]) };
         const x_pos = x + bearing[0] * self.scale + move;
@@ -163,11 +164,7 @@ pub fn getSize(self: *Self, text: []const u32) i32 {
     const scale = self.font.size / 256.0;
     var move: f32 = 0;
     for (text) |char| {
-        const ch = blk: {
-            for (self.char_info) |ch| {
-                if (ch.key == char) break :blk ch;
-            } else unreachable; // getTextSize cant be called with a character that is not in char_info
-        };
+        const ch = self.char_info[char];
 
         const advance: f32 = @floatFromInt(ch.advance[0]);
         move += advance * scale;
