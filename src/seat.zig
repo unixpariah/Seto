@@ -10,7 +10,6 @@ const Seto = @import("main.zig").Seto;
 const Repeat = struct {
     timer: ?std.time.Timer = null,
     delay: ?i32 = null,
-    rate: ?i32 = null,
     keys: std.ArrayList(u32),
 
     const Self = @This();
@@ -156,7 +155,6 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.delay = repeat_key.delay;
-            seto.seat.repeat.rate = repeat_key.rate;
         },
     }
 }
@@ -205,6 +203,17 @@ pub fn handleKey(self: *Seto) void {
                 .quit => self.state.exit = true,
             }
 
+            switch (function) {
+                .remove, .cancel_selection, .border_mode => {
+                    for (self.seat.repeat.keys.items, 0..) |k, i| {
+                        if (k == @intFromEnum(keysym)) {
+                            _ = self.seat.repeat.keys.swapRemove(i);
+                        }
+                    }
+                },
+                else => {},
+            }
+
             self.tree.?.updateCoordinates(
                 &self.config,
                 self.state.border_mode,
@@ -224,7 +233,6 @@ pub fn handleKey(self: *Seto) void {
                 }
             };
 
-            // TODO: this needs a better solution
             for (self.seat.repeat.keys.items, 0..) |k, i| {
                 if (k == @intFromEnum(keysym)) {
                     _ = self.seat.repeat.keys.swapRemove(i);
