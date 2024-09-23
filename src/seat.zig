@@ -10,14 +10,10 @@ const Seto = @import("main.zig").Seto;
 const Repeat = struct {
     delay: ?i32 = null,
     rate: ?i32 = null,
-    keys: std.ArrayList(u32),
+    key: ?u32 = null,
     tfd: i32,
 
     const Self = @This();
-
-    pub fn destroy(self: *Self) void {
-        self.keys.deinit();
-    }
 };
 
 pub const Seat = struct {
@@ -38,18 +34,8 @@ pub const Seat = struct {
             .xkb_context = xkb.Context.new(.no_flags) orelse @panic(""),
             .buffer = std.ArrayList(u32).init(alloc),
             .alloc = alloc,
-            .repeat = Repeat{
-                .keys = std.ArrayList(u32).init(alloc),
-                .tfd = @intCast(tfd),
-            },
+            .repeat = Repeat{ .tfd = @intCast(tfd) },
         };
-    }
-
-    pub fn repeatKey(self: *Self) bool {
-        var timer = self.repeat.timer orelse return false;
-        const delay = self.repeat.delay orelse return false;
-
-        return timer.read() / std.time.ns_per_ms > delay;
     }
 
     pub fn destroy(self: *Self) void {
@@ -58,7 +44,6 @@ pub const Seat = struct {
         self.xkb_state.?.unref();
         self.buffer.deinit();
         self.xkb_context.unref();
-        self.repeat.destroy();
     }
 };
 
@@ -129,46 +114,41 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     const keysym = xkb_state.keyGetOneSym(keycode);
                     if (keysym == .NoSymbol) return;
 
-                    for (seto.seat.repeat.keys.items, 0..) |key, i| {
-                        if (key == @intFromEnum(keysym)) {
-                            _ = seto.seat.repeat.keys.swapRemove(i);
-                        }
-                    }
+                    if (keysym.toUTF32() != seto.seat.repeat.key) return;
 
-                    if (seto.seat.repeat.keys.items.len == 0) {
-                        const new_value = std.os.linux.itimerspec{
-                            .it_value = .{
-                                .tv_sec = 0,
-                                .tv_nsec = 0,
-                            },
-                            .it_interval = .{
-                                .tv_sec = 0,
-                                .tv_nsec = 0,
-                            },
-                        };
+                    const new_value = std.os.linux.itimerspec{
+                        .it_value = .{
+                            .tv_sec = 0,
+                            .tv_nsec = 0,
+                        },
+                        .it_interval = .{
+                            .tv_sec = 0,
+                            .tv_nsec = 0,
+                        },
+                    };
 
-                        _ = std.os.linux.timerfd_settime(@intCast(seto.seat.repeat.tfd), .{}, &new_value, null);
-                    }
+                    _ = std.os.linux.timerfd_settime(@intCast(seto.seat.repeat.tfd), .{}, &new_value, null);
                 },
                 .pressed => {
-                    if (seto.seat.repeat.keys.items.len == 0) {
-                        const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
-                        const new_value = std.os.linux.itimerspec{
-                            .it_value = .{
-                                .tv_sec = @divTrunc(seto.seat.repeat.delay.?, 1000),
-                                .tv_nsec = @mod(seto.seat.repeat.delay.?, 1000) * std.time.ns_per_ms,
-                            },
-                            .it_interval = .{
-                                .tv_sec = 0,
-                                .tv_nsec = @intFromFloat(1 / rate * std.time.ns_per_s),
-                            },
-                        };
+                    const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
+                    const new_value = std.os.linux.itimerspec{
+                        .it_value = .{
+                            .tv_sec = @divTrunc(seto.seat.repeat.delay.?, 1000),
+                            .tv_nsec = @mod(seto.seat.repeat.delay.?, 1000) * std.time.ns_per_ms,
+                        },
+                        .it_interval = .{
+                            .tv_sec = 0,
+                            .tv_nsec = @intFromFloat(1 / rate * std.time.ns_per_s),
+                        },
+                    };
 
-                        const ret = std.os.linux.timerfd_settime(@intCast(seto.seat.repeat.tfd), .{}, &new_value, null);
-                        if (ret < 0) {
-                            std.debug.print("OOpsie\n", .{});
-                        }
-                    }
+                    const ret = std.os.linux.timerfd_settime(
+                        @intCast(seto.seat.repeat.tfd),
+                        .{},
+                        &new_value,
+                        null,
+                    );
+                    if (ret < 0) return;
 
                     const xkb_state = seto.seat.xkb_state orelse return;
 
@@ -179,8 +159,9 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     const keysym = xkb_state.keyGetOneSym(keycode);
                     if (keysym == .NoSymbol) return;
 
-                    seto.seat.repeat.keys.append(@intFromEnum(keysym)) catch return;
+                    seto.seat.repeat.key = @intFromEnum(keysym);
                     handleKey(seto);
+                    seto.render() catch unreachable;
                 },
                 _ => {},
             }
@@ -209,8 +190,7 @@ fn moveSelection(seto: *Seto, value: [2]i32) void {
 }
 
 pub fn handleKey(self: *Seto) void {
-    const keys = self.seat.repeat.keys;
-    if (keys.items.len == 0) return;
+    const key = self.seat.repeat.key orelse return;
     const grid = &self.config.grid;
 
     const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
@@ -218,61 +198,40 @@ pub fn handleKey(self: *Seto) void {
         @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
     ) == 1;
 
-    for (keys.items) |key| {
-        const keysym: xkb.Keysym = @enumFromInt(key);
-        const utf32_keysym = keysym.toUTF32();
+    const keysym: xkb.Keysym = @enumFromInt(key);
+    const utf32_keysym = keysym.toUTF32();
 
-        if (utf32_keysym == 'c' and ctrl_active) self.state.exit = true;
-        if (self.config.keys.bindings.get(@intCast(utf32_keysym))) |function| {
-            switch (function) {
-                .move => |value| grid.move(value),
-                .resize => |value| grid.resize(value),
-                .remove => _ = self.seat.buffer.popOrNull(),
-                .cancel_selection => if (self.state.mode == Mode.Region) {
-                    self.state.mode = Mode{ .Region = null };
-                },
-                .move_selection => |value| moveSelection(self, value),
-                .border_mode => self.state.border_mode = !self.state.border_mode,
-                .quit => self.state.exit = true,
-            }
+    if (utf32_keysym == 'c' and ctrl_active) self.state.exit = true;
+    if (self.config.keys.bindings.get(@intCast(utf32_keysym))) |function| {
+        switch (function) {
+            .move => |value| grid.move(value),
+            .resize => |value| grid.resize(value),
+            .remove => _ = self.seat.buffer.popOrNull(),
+            .cancel_selection => if (self.state.mode == Mode.Region) {
+                self.state.mode = Mode{ .Region = null };
+            },
+            .move_selection => |value| moveSelection(self, value),
+            .border_mode => self.state.border_mode = !self.state.border_mode,
+            .quit => self.state.exit = true,
+        }
 
-            switch (function) {
-                .remove, .cancel_selection, .border_mode => {
-                    for (self.seat.repeat.keys.items, 0..) |k, i| {
-                        if (k == @intFromEnum(keysym)) {
-                            _ = self.seat.repeat.keys.swapRemove(i);
-                        }
-                    }
+        self.tree.?.updateCoordinates(
+            &self.config,
+            self.state.border_mode,
+            &self.outputs.items,
+            &self.seat.buffer,
+        );
+    } else {
+        self.seat.buffer.append(utf32_keysym) catch @panic("OOM");
+
+        self.printToStdout() catch |err| {
+            switch (err) {
+                error.KeyNotFound => {
+                    _ = self.seat.buffer.popOrNull();
+                    return;
                 },
                 else => {},
             }
-
-            self.tree.?.updateCoordinates(
-                &self.config,
-                self.state.border_mode,
-                &self.outputs.items,
-                &self.seat.buffer,
-            );
-        } else {
-            self.seat.buffer.append(utf32_keysym) catch @panic("OOM");
-
-            self.printToStdout() catch |err| {
-                switch (err) {
-                    error.KeyNotFound => {
-                        _ = self.seat.buffer.popOrNull();
-                        continue;
-                    },
-                    else => {},
-                }
-            };
-
-            for (self.seat.repeat.keys.items, 0..) |k, i| {
-                if (k == @intFromEnum(keysym)) {
-                    _ = self.seat.repeat.keys.swapRemove(i);
-                }
-            }
-        }
+        };
     }
-
-    try self.render();
 }

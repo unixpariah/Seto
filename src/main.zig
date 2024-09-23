@@ -151,13 +151,15 @@ pub const Seto = struct {
     pub fn render(self: *Self) !void {
         for (self.outputs.items) |*output| {
             if (!output.isConfigured()) continue;
-            output.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
+            try output.egl.makeCurrent();
+
+            _ = c.eglSwapInterval(output.egl.display.*, 0);
 
             output.draw(&self.config, self.state.border_mode, &self.state.mode);
             self.tree.?.drawText(output, &self.config, self.seat.buffer.items, self.state.border_mode);
             self.config.text.renderCall(output.egl.text_shader_program);
 
-            output.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
+            try output.egl.swapBuffers();
         }
     }
 
@@ -218,9 +220,11 @@ pub fn main() !void {
 
             if (fds[1].revents & std.os.linux.POLL.IN != 0) {
                 var repeats: u64 = 0;
-                _ = std.os.linux.read(seto.seat.repeat.tfd, @ptrCast(&repeats), @sizeOf(u64));
+                const nread = std.os.linux.read(seto.seat.repeat.tfd, @ptrCast(&repeats), @sizeOf(u64));
+                if (nread != @sizeOf(u64)) return error.FdReadError;
 
-                handleKey(&seto);
+                for (0..repeats) |_| handleKey(&seto);
+                try seto.render();
             }
         }
     }
