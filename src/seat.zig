@@ -27,11 +27,11 @@ pub const Seat = struct {
 
     const Self = @This();
 
-    pub fn new(alloc: std.mem.Allocator) Self {
-        const tfd = std.os.linux.timerfd_create(std.os.linux.CLOCK.MONOTONIC, .{ .CLOEXEC = true, .NONBLOCK = true });
+    pub fn new(alloc: std.mem.Allocator) !Self {
+        const tfd = try std.posix.timerfd_create(std.posix.CLOCK.MONOTONIC, .{ .CLOEXEC = true, .NONBLOCK = true });
 
         return .{
-            .xkb_context = xkb.Context.new(.no_flags) orelse @panic(""),
+            .xkb_context = xkb.Context.new(.no_flags) orelse return error.XkbError,
             .buffer = std.ArrayList(u32).init(alloc),
             .alloc = alloc,
             .repeat = Repeat{ .tfd = @intCast(tfd) },
@@ -127,7 +127,12 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                         },
                     };
 
-                    _ = std.os.linux.timerfd_settime(@intCast(seto.seat.repeat.tfd), .{}, &new_value, null);
+                    _ = std.posix.timerfd_settime(
+                        @intCast(seto.seat.repeat.tfd),
+                        .{},
+                        &new_value,
+                        null,
+                    ) catch return;
                 },
                 .pressed => {
                     const xkb_state = seto.seat.xkb_state orelse return;
@@ -164,13 +169,12 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                             },
                         };
 
-                    const ret = std.os.linux.timerfd_settime(
+                    std.posix.timerfd_settime(
                         @intCast(seto.seat.repeat.tfd),
                         .{},
                         &new_value,
                         null,
-                    );
-                    if (ret < 0) return;
+                    ) catch return;
 
                     seto.seat.repeat.key = @intFromEnum(keysym);
                     handleKey(seto);

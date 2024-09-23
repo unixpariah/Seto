@@ -60,7 +60,7 @@ pub const Seto = struct {
 
     fn new(alloc: mem.Allocator, display: *wl.Display) !Self {
         var seto = Seto{
-            .seat = Seat.new(alloc),
+            .seat = try Seat.new(alloc),
             .outputs = std.ArrayList(Output).init(alloc),
             .alloc = alloc,
             .egl = try Egl.new(display),
@@ -194,13 +194,13 @@ pub fn main() !void {
     var seto = try Seto.new(alloc, display);
     defer seto.destroy();
 
-    var fds = [_]std.os.linux.pollfd{ .{
+    var fds = [_]std.posix.pollfd{ .{
         .fd = display.getFd(),
-        .events = std.os.linux.POLL.IN,
+        .events = std.posix.POLL.IN,
         .revents = 0,
     }, .{
         .fd = seto.seat.repeat.tfd,
-        .events = std.os.linux.POLL.IN,
+        .events = std.posix.POLL.IN,
         .revents = 0,
     } };
 
@@ -212,16 +212,15 @@ pub fn main() !void {
     try seto.render();
 
     while (!seto.state.exit) {
-        const poll = std.os.linux.poll(&fds, 2, -1);
+        const poll = try std.posix.poll(&fds, -1);
         if (poll > 0) {
-            if (fds[0].revents & std.os.linux.POLL.IN != 0) {
+            if (fds[0].revents & std.posix.POLL.IN != 0) {
                 if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
             }
 
-            if (fds[1].revents & std.os.linux.POLL.IN != 0) {
+            if (fds[1].revents & std.posix.POLL.IN != 0) {
                 var repeats: u64 = 0;
-                const nread = std.os.linux.read(seto.seat.repeat.tfd, @ptrCast(&repeats), @sizeOf(u64));
-                if (nread != @sizeOf(u64)) return error.FdReadError;
+                _ = try std.posix.read(seto.seat.repeat.tfd, std.mem.asBytes(&repeats));
 
                 for (0..repeats) |_| handleKey(&seto);
                 try seto.render();
