@@ -12,12 +12,11 @@ const Self = @This();
 
 pub fn default(alloc: std.mem.Allocator) Self {
     var bindings = std.AutoHashMap(u32, Function).init(alloc);
-    bindings.ensureTotalCapacity(6) catch @panic("OOM");
+    bindings.ensureTotalCapacity(5) catch @panic("OOM");
     bindings.putAssumeCapacity('H', .{ .move = .{ -5, 0 } });
     bindings.putAssumeCapacity('J', .{ .move = .{ 0, 5 } });
     bindings.putAssumeCapacity('K', .{ .move = .{ 0, -5 } });
     bindings.putAssumeCapacity('L', .{ .move = .{ 5, 0 } });
-    bindings.putAssumeCapacity(8, .remove);
     bindings.putAssumeCapacity('b', .border_mode);
 
     const keys = [_]u32{ 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l' };
@@ -114,13 +113,10 @@ pub const Function = union(enum) {
     move_selection: [2]i32,
     border_mode,
     cancel_selection,
-    remove,
     quit,
 
     pub fn stringToFunction(string: []const u8, value: ?[2]i32) !Function {
-        if (std.mem.eql(u8, string, "remove")) {
-            return .remove;
-        } else if (std.mem.eql(u8, string, "quit")) {
+        if (std.mem.eql(u8, string, "quit")) {
             return .quit;
         } else if (std.mem.eql(u8, string, "cancel_selection")) {
             return .cancel_selection;

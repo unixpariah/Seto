@@ -227,9 +227,7 @@ pub fn parseArgs(seto: *Seto) void {
                     std.process.exit(1);
                 };
 
-                _ = decoded_key;
-                _ = func;
-                //seto.config.keys.bindings.put(decoded_key, func) catch @panic("OOM");
+                seto.config.keys.bindings.put(decoded_key, func) catch @panic("OOM");
             },
         }
     }

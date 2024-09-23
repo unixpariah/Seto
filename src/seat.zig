@@ -130,26 +130,6 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     _ = std.os.linux.timerfd_settime(@intCast(seto.seat.repeat.tfd), .{}, &new_value, null);
                 },
                 .pressed => {
-                    const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
-                    const new_value = std.os.linux.itimerspec{
-                        .it_value = .{
-                            .tv_sec = @divTrunc(seto.seat.repeat.delay.?, 1000),
-                            .tv_nsec = @mod(seto.seat.repeat.delay.?, 1000) * std.time.ns_per_ms,
-                        },
-                        .it_interval = .{
-                            .tv_sec = 0,
-                            .tv_nsec = @intFromFloat(1 / rate * std.time.ns_per_s),
-                        },
-                    };
-
-                    const ret = std.os.linux.timerfd_settime(
-                        @intCast(seto.seat.repeat.tfd),
-                        .{},
-                        &new_value,
-                        null,
-                    );
-                    if (ret < 0) return;
-
                     const xkb_state = seto.seat.xkb_state orelse return;
 
                     // The wayland protocol gives us an input event code. To convert this to an xkb
@@ -158,6 +138,28 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 
                     const keysym = xkb_state.keyGetOneSym(keycode);
                     if (keysym == .NoSymbol) return;
+
+                    if (xkb_state.getKeymap().keyRepeats(@intFromEnum(keysym)) == 1) {
+                        const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
+                        const new_value = std.os.linux.itimerspec{
+                            .it_value = .{
+                                .tv_sec = @divTrunc(seto.seat.repeat.delay.?, 1000),
+                                .tv_nsec = @mod(seto.seat.repeat.delay.?, 1000) * std.time.ns_per_ms,
+                            },
+                            .it_interval = .{
+                                .tv_sec = 0,
+                                .tv_nsec = @intFromFloat(1 / rate * std.time.ns_per_s),
+                            },
+                        };
+
+                        const ret = std.os.linux.timerfd_settime(
+                            @intCast(seto.seat.repeat.tfd),
+                            .{},
+                            &new_value,
+                            null,
+                        );
+                        if (ret < 0) return;
+                    }
 
                     seto.seat.repeat.key = @intFromEnum(keysym);
                     handleKey(seto);
@@ -201,12 +203,14 @@ pub fn handleKey(self: *Seto) void {
     const keysym: xkb.Keysym = @enumFromInt(key);
     const utf32_keysym = keysym.toUTF32();
 
-    if (utf32_keysym == 'c' and ctrl_active) self.state.exit = true;
-    if (self.config.keys.bindings.get(@intCast(utf32_keysym))) |function| {
+    if (key == xkb.Keysym.BackSpace) {
+        _ = self.seat.buffer.popOrNull();
+    } else if (utf32_keysym == 'c' and ctrl_active) {
+        self.state.exit = true;
+    } else if (self.config.keys.bindings.get(@intCast(utf32_keysym))) |function| {
         switch (function) {
             .move => |value| grid.move(value),
             .resize => |value| grid.resize(value),
-            .remove => _ = self.seat.buffer.popOrNull(),
             .cancel_selection => if (self.state.mode == Mode.Region) {
                 self.state.mode = Mode{ .Region = null };
             },

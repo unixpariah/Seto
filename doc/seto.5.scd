@@ -168,7 +168,6 @@ following sections describe the configurable options.
 		K = { move_selection = { 0, -5 } },
 		L = { move_selection = { 5, 0 } },
 		c = "cancel_selection",
-		["Backspace"] = "remove",
 		q = "quit",
 	}
 	```
@@ -192,19 +191,17 @@ move_selection _x,y_		Move selected position when using *--region* option by spe
 
 cancel_selection		Cancel selected position when using *--region*.
 
-remove				Remove last character from buffer.
-
 quit					Cancel the selection and exit seto.
 
 By default, there are 6 functions bound:
 
-- `Ctrl+C`: Quit (This binding cannot be overwritten or unbound)
+- `Ctrl+C`: Quit
+- `Backspace`: Remove last character entered into buffer
 - `Shift+H`: Move grid left
 - `Shift+J`: Move grid down
 - `Shift+K`: Move grid up
 - `Shift+L`: Move grid right
 - `b`: Enter border mode
-- `Backspace`: Remove last character entered into buffer
 
 Keys to be bound can be:
 
@@ -248,7 +245,6 @@ return {
 			L = { move_selection = { 5, 0 } },
 			c = "cancel_selection",
 			o = "border_mode",
-			[8] = "remove",
 			q = "quit",
 		},
 	},
