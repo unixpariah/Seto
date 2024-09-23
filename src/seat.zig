@@ -139,27 +139,38 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     const keysym = xkb_state.keyGetOneSym(keycode);
                     if (keysym == .NoSymbol) return;
 
-                    if (xkb_state.getKeymap().keyRepeats(@intFromEnum(keysym)) == 1) {
-                        const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
-                        const new_value = std.os.linux.itimerspec{
+                    const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
+                    const new_value: std.os.linux.itimerspec =
+                        if (xkb_state.getKeymap().keyRepeats(keycode) == 1)
+                        .{
                             .it_value = .{
                                 .tv_sec = @divTrunc(seto.seat.repeat.delay.?, 1000),
                                 .tv_nsec = @mod(seto.seat.repeat.delay.?, 1000) * std.time.ns_per_ms,
                             },
                             .it_interval = .{
+                                .tv_sec = @intFromFloat(@divTrunc(1000 / rate, 1000)),
+                                .tv_nsec = @intFromFloat(@mod(1000 / rate, 1000) * std.time.ns_per_ms),
+                            },
+                        }
+                    else
+                        .{
+                            .it_value = .{
                                 .tv_sec = 0,
-                                .tv_nsec = @intFromFloat(1 / rate * std.time.ns_per_s),
+                                .tv_nsec = 0,
+                            },
+                            .it_interval = .{
+                                .tv_sec = 0,
+                                .tv_nsec = 0,
                             },
                         };
 
-                        const ret = std.os.linux.timerfd_settime(
-                            @intCast(seto.seat.repeat.tfd),
-                            .{},
-                            &new_value,
-                            null,
-                        );
-                        if (ret < 0) return;
-                    }
+                    const ret = std.os.linux.timerfd_settime(
+                        @intCast(seto.seat.repeat.tfd),
+                        .{},
+                        &new_value,
+                        null,
+                    );
+                    if (ret < 0) return;
 
                     seto.seat.repeat.key = @intFromEnum(keysym);
                     handleKey(seto);

@@ -212,8 +212,8 @@ pub fn main() !void {
     try seto.render();
 
     while (!seto.state.exit) {
-        const poll_ret = std.os.linux.poll(&fds, 2, -1);
-        if (poll_ret > 0) {
+        const poll = std.os.linux.poll(&fds, 2, -1);
+        if (poll > 0) {
             if (fds[0].revents & std.os.linux.POLL.IN != 0) {
                 if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
             }
@@ -225,6 +225,7 @@ pub fn main() !void {
 
                 for (0..repeats) |_| handleKey(&seto);
                 try seto.render();
+                _ = try display.sync();
             }
         }
     }
