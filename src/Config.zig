@@ -22,7 +22,7 @@ alloc: std.mem.Allocator,
 
 const Self = @This();
 
-pub fn load(alloc: std.mem.Allocator) Self {
+pub fn load(alloc: std.mem.Allocator) !Self {
     const config_path = getPath(alloc) catch {
         return .{
             .alloc = alloc,
@@ -50,7 +50,7 @@ pub fn load(alloc: std.mem.Allocator) Self {
         .alloc = alloc,
         .grid = Grid.new(lua, alloc),
         .font = font,
-        .keys = Keys.new(lua, alloc),
+        .keys = try Keys.new(lua, alloc),
         .background_color = Color.parse(background_color, alloc) catch @panic("Failed to parse color"),
     };
 }

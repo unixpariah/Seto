@@ -8,9 +8,10 @@ const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 
 const Repeat = struct {
-    timer: ?std.time.Timer = null,
     delay: ?i32 = null,
+    rate: ?i32 = null,
     keys: std.ArrayList(u32),
+    tfd: i32,
 
     const Self = @This();
 
@@ -31,11 +32,16 @@ pub const Seat = struct {
     const Self = @This();
 
     pub fn new(alloc: std.mem.Allocator) Self {
+        const tfd = std.os.linux.timerfd_create(std.os.linux.CLOCK.MONOTONIC, .{ .CLOEXEC = true, .NONBLOCK = true });
+
         return .{
             .xkb_context = xkb.Context.new(.no_flags) orelse @panic(""),
             .buffer = std.ArrayList(u32).init(alloc),
             .alloc = alloc,
-            .repeat = Repeat{ .keys = std.ArrayList(u32).init(alloc) },
+            .repeat = Repeat{
+                .keys = std.ArrayList(u32).init(alloc),
+                .tfd = @intCast(tfd),
+            },
         };
     }
 
@@ -130,12 +136,38 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     }
 
                     if (seto.seat.repeat.keys.items.len == 0) {
-                        seto.seat.repeat.timer = null;
+                        const new_value = std.os.linux.itimerspec{
+                            .it_value = .{
+                                .tv_sec = 0,
+                                .tv_nsec = 0,
+                            },
+                            .it_interval = .{
+                                .tv_sec = 0,
+                                .tv_nsec = 0,
+                            },
+                        };
+
+                        _ = std.os.linux.timerfd_settime(@intCast(seto.seat.repeat.tfd), .{}, &new_value, null);
                     }
                 },
                 .pressed => {
                     if (seto.seat.repeat.keys.items.len == 0) {
-                        seto.seat.repeat.timer = std.time.Timer.start() catch return;
+                        const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
+                        const new_value = std.os.linux.itimerspec{
+                            .it_value = .{
+                                .tv_sec = @divTrunc(seto.seat.repeat.delay.?, 1000),
+                                .tv_nsec = @mod(seto.seat.repeat.delay.?, 1000) * std.time.ns_per_ms,
+                            },
+                            .it_interval = .{
+                                .tv_sec = 0,
+                                .tv_nsec = @intFromFloat(1 / rate * std.time.ns_per_s),
+                            },
+                        };
+
+                        const ret = std.os.linux.timerfd_settime(@intCast(seto.seat.repeat.tfd), .{}, &new_value, null);
+                        if (ret < 0) {
+                            std.debug.print("OOpsie\n", .{});
+                        }
                     }
 
                     const xkb_state = seto.seat.xkb_state orelse return;
@@ -155,6 +187,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.delay = repeat_key.delay;
+            seto.seat.repeat.rate = repeat_key.rate;
         },
     }
 }
@@ -240,4 +273,6 @@ pub fn handleKey(self: *Seto) void {
             }
         }
     }
+
+    try self.render();
 }

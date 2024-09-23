@@ -64,7 +64,7 @@ pub const Seto = struct {
             .outputs = std.ArrayList(Output).init(alloc),
             .alloc = alloc,
             .egl = try Egl.new(display),
-            .config = Config.load(alloc),
+            .config = try Config.load(alloc),
         };
 
         parseArgs(&seto);
@@ -192,14 +192,37 @@ pub fn main() !void {
     var seto = try Seto.new(alloc, display);
     defer seto.destroy();
 
+    var fds = [_]std.os.linux.pollfd{ .{
+        .fd = display.getFd(),
+        .events = std.os.linux.POLL.IN,
+        .revents = 0,
+    }, .{
+        .fd = seto.seat.repeat.tfd,
+        .events = std.os.linux.POLL.IN,
+        .revents = 0,
+    } };
+
     registry.setListener(*Seto, registryListener, &seto);
-    if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
+    if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
 
     if (seto.compositor == null or seto.layer_shell == null) @panic("Compositor or layer shell not bound");
 
-    while (display.dispatch() == .SUCCESS and !seto.state.exit) {
-        if (seto.seat.repeatKey()) handleKey(&seto);
-        try seto.render();
+    try seto.render();
+
+    while (!seto.state.exit) {
+        const poll_ret = std.os.linux.poll(&fds, 2, -1);
+        if (poll_ret > 0) {
+            if (fds[0].revents & std.os.linux.POLL.IN != 0) {
+                if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
+            }
+
+            if (fds[1].revents & std.os.linux.POLL.IN != 0) {
+                var repeats: u64 = 0;
+                _ = std.os.linux.read(seto.seat.repeat.tfd, @ptrCast(&repeats), @sizeOf(u64));
+
+                handleKey(&seto);
+            }
+        }
     }
 
     for (seto.outputs.items) |output| {
