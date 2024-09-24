@@ -14,7 +14,7 @@ arena: std.heap.ArenaAllocator,
 
 const Self = @This();
 
-pub fn new(keys: []const u32, alloc: std.mem.Allocator, config: *Config, outputs: *[]Output) Self {
+pub fn init(keys: []const u32, alloc: std.mem.Allocator, config: *Config, outputs: *[]Output) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, keys.len) catch @panic("OOM");
     for (keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -32,7 +32,7 @@ pub fn new(keys: []const u32, alloc: std.mem.Allocator, config: *Config, outputs
     return tree;
 }
 
-pub fn destroy(self: *const Self) void {
+pub fn deinit(self: *const Self) void {
     self.arena.deinit();
 }
 

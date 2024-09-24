@@ -27,7 +27,7 @@ pub const OutputInfo = struct {
     y: f32 = 0,
     refresh: f32 = 0,
 
-    fn destroy(self: *OutputInfo, alloc: mem.Allocator) void {
+    fn deinit(self: *OutputInfo, alloc: mem.Allocator) void {
         alloc.free(self.name.?);
         alloc.free(self.description.?);
     }
@@ -40,10 +40,11 @@ alloc: mem.Allocator,
 info: OutputInfo,
 xdg_output: *zxdg.OutputV1,
 wl_output: *wl.Output,
+tree: Tree = undefined,
 
 const Self = @This();
 
-pub fn new(
+pub fn init(
     egl: EglSurface,
     surface: *wl.Surface,
     layer_surface: *zwlr.LayerSurfaceV1,
@@ -174,12 +175,12 @@ pub fn isConfigured(self: *const Self) bool {
     return self.info.width > 0 and self.info.height > 0;
 }
 
-pub fn destroy(self: *Self) void {
+pub fn deinit(self: *Self) void {
     self.layer_surface.destroy();
     self.surface.destroy();
-    self.info.destroy(self.alloc);
+    self.info.deinit(self.alloc);
     self.xdg_output.destroy();
-    self.egl.destroy();
+    self.egl.deinit();
 }
 
 pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, seto: *Seto) void {
@@ -286,8 +287,8 @@ pub fn xdgOutputListener(
                         0,
                     );
 
-                    if (seto.tree) |tree| tree.destroy();
-                    seto.tree = Tree.new(
+                    if (seto.tree) |tree| tree.deinit();
+                    seto.tree = Tree.init(
                         seto.config.keys.search,
                         seto.alloc,
                         &seto.config,

@@ -60,12 +60,12 @@ pub const Seto = struct {
 
     const Self = @This();
 
-    fn new(alloc: mem.Allocator, display: *wl.Display) !Self {
+    fn init(alloc: mem.Allocator, display: *wl.Display) !Self {
         var seto = Seto{
-            .seat = try Seat.new(alloc),
+            .seat = try Seat.init(alloc),
             .outputs = std.ArrayList(Output).init(alloc),
             .alloc = alloc,
-            .egl = try Egl.new(display),
+            .egl = try Egl.init(display),
             .config = try Config.load(alloc),
         };
 
@@ -77,7 +77,7 @@ pub const Seto = struct {
         }
 
         seto.config.grid.max_size[1] = seto.config.font.size + seto.config.font.offset[1];
-        seto.config.text = Text.new(alloc, &seto.config);
+        seto.config.text = Text.init(alloc, &seto.config);
 
         return seto;
     }
@@ -158,23 +158,21 @@ pub const Seto = struct {
             self.tree.?.drawText(output, &self.config, self.seat.buffer.items, self.state.border_mode);
 
             try output.egl.swapBuffers();
-
-            //std.debug.print("{}\n", .{5 / output.info.refresh});
         }
     }
 
-    fn destroy(self: *Self) void {
+    fn deinit(self: *Self) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
         for (self.outputs.items) |*output| {
-            output.destroy();
+            output.deinit();
         }
         self.outputs.deinit();
-        self.seat.destroy();
-        self.config.destroy();
+        self.seat.deinit();
+        self.config.deinit();
         self.tree.?.arena.deinit();
-        self.egl.destroy();
+        self.egl.deinit();
     }
 };
 
@@ -191,8 +189,8 @@ pub fn main() !void {
     };
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
-    var seto = try Seto.new(alloc, display);
-    defer seto.destroy();
+    var seto = try Seto.init(alloc, display);
+    defer seto.deinit();
 
     const timer = &seto.seat.repeat.timer;
 
@@ -204,8 +202,8 @@ pub fn main() !void {
 
     try seto.render();
 
-    var event_loop = EventLoop.new(alloc);
-    defer event_loop.destroy();
+    var event_loop = EventLoop.init(alloc);
+    defer event_loop.deinit();
 
     try event_loop.insertSource(display.getFd(), *wl.Display, dispatchDisplay, display);
     try event_loop.insertSource(timer.getFd(), *Seto, handleRepeat, &seto);
@@ -289,9 +287,9 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
 
                     const xdg_output = seto.output_manager.?.getXdgOutput(wl_output) catch @panic("Failed to get xdg output global");
 
-                    const egl_surface = seto.egl.newSurface(surface, .{ 1, 1 }) catch @panic("Failed to create egl surface");
+                    const egl_surface = seto.egl.surfaceInit(surface, .{ 1, 1 }) catch @panic("Failed to create egl surface");
 
-                    const output = Output.new(
+                    const output = Output.init(
                         egl_surface,
                         surface,
                         layer_surface,
@@ -325,7 +323,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
         .global_remove => |global| {
             for (seto.outputs.items, 0..) |*output, i| {
                 if (output.info.id == global.name) {
-                    output.destroy();
+                    output.deinit();
                     _ = seto.outputs.swapRemove(i);
                     seto.updateDimensions();
                     return;

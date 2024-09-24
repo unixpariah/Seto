@@ -5,7 +5,7 @@ polldata: std.ArrayList(PollData),
 
 const Self = @This();
 
-pub fn new(alloc: std.mem.Allocator) Self {
+pub fn init(alloc: std.mem.Allocator) Self {
     return .{
         .pollfds = std.ArrayList(std.posix.pollfd).init(alloc),
         .polldata = std.ArrayList(PollData).init(alloc),
@@ -35,7 +35,7 @@ pub fn poll(self: *Self) !void {
     }
 }
 
-pub fn destroy(self: *Self) void {
+pub fn deinit(self: *Self) void {
     self.polldata.deinit();
     self.pollfds.deinit();
 }
