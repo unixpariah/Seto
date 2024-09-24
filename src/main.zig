@@ -15,6 +15,7 @@ const Seat = @import("seat.zig").Seat;
 const Config = @import("Config.zig");
 const Egl = @import("Egl.zig");
 const Text = @import("config/Text.zig");
+const EventLoop = @import("EventLoop.zig");
 
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("Output.zig").xdgOutputListener;
@@ -193,15 +194,7 @@ pub fn main() !void {
     var seto = try Seto.new(alloc, display);
     defer seto.destroy();
 
-    var fds = [_]std.posix.pollfd{ .{
-        .fd = display.getFd(),
-        .events = std.posix.POLL.IN,
-        .revents = 0,
-    }, .{
-        .fd = seto.seat.repeat.tfd,
-        .events = std.posix.POLL.IN,
-        .revents = 0,
-    } };
+    const timer = &seto.seat.repeat.timer;
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
@@ -211,22 +204,13 @@ pub fn main() !void {
 
     try seto.render();
 
-    while (!seto.state.exit) {
-        const poll = try std.posix.poll(&fds, -1);
-        if (poll > 0) {
-            if (fds[0].revents & std.posix.POLL.IN != 0) {
-                if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
-            }
+    var event_loop = EventLoop.new(alloc);
+    defer event_loop.destroy();
 
-            if (fds[1].revents & std.posix.POLL.IN != 0) {
-                var repeats: u64 = 0;
-                _ = try std.posix.read(seto.seat.repeat.tfd, std.mem.asBytes(&repeats));
+    try event_loop.insertSource(display.getFd(), *wl.Display, dispatchDisplay, display);
+    try event_loop.insertSource(timer.getFd(), *Seto, handleRepeat, &seto);
 
-                for (0..repeats) |_| handleKey(&seto);
-                try seto.render();
-            }
-        }
-    }
+    while (!seto.state.exit) : (try event_loop.poll()) {}
 
     for (seto.outputs.items) |output| {
         try output.egl.makeCurrent();
@@ -235,6 +219,26 @@ pub fn main() !void {
     }
 
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
+}
+
+fn dispatchDisplay(display: *wl.Display) void {
+    if (display.dispatch() != .SUCCESS) {
+        std.log.err("Failed to dispatch events", .{});
+        return;
+    }
+}
+
+fn handleRepeat(seto: *Seto) void {
+    const repeats = seto.seat.repeat.timer.read() catch {
+        std.log.err("Failed to read timer fd", .{});
+        return;
+    };
+
+    for (0..repeats) |_| handleKey(seto);
+    seto.render() catch {
+        std.log.err("Failed to render", .{});
+        return;
+    };
 }
 
 fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Seto) void {

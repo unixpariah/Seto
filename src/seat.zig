@@ -6,12 +6,13 @@ const wl = wayland.client.wl;
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
+const Timer = @import("Timer.zig");
 
 const Repeat = struct {
     delay: ?i32 = null,
     rate: ?i32 = null,
     key: ?u32 = null,
-    tfd: i32,
+    timer: Timer,
 
     const Self = @This();
 };
@@ -28,13 +29,11 @@ pub const Seat = struct {
     const Self = @This();
 
     pub fn new(alloc: std.mem.Allocator) !Self {
-        const tfd = try std.posix.timerfd_create(std.posix.CLOCK.MONOTONIC, .{ .CLOEXEC = true });
-
         return .{
             .xkb_context = xkb.Context.new(.no_flags) orelse return error.XkbError,
             .buffer = std.ArrayList(u32).init(alloc),
             .alloc = alloc,
-            .repeat = Repeat{ .tfd = @intCast(tfd) },
+            .repeat = Repeat{ .timer = try Timer.new() },
         };
     }
 
@@ -116,23 +115,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 
                     if (keysym.toUTF32() != seto.seat.repeat.key) return;
 
-                    const new_value = std.os.linux.itimerspec{
-                        .it_value = .{
-                            .tv_sec = 0,
-                            .tv_nsec = 0,
-                        },
-                        .it_interval = .{
-                            .tv_sec = 0,
-                            .tv_nsec = 0,
-                        },
-                    };
-
-                    _ = std.posix.timerfd_settime(
-                        @intCast(seto.seat.repeat.tfd),
-                        .{},
-                        &new_value,
-                        null,
-                    ) catch return;
+                    seto.seat.repeat.timer.stop() catch return;
                 },
                 .pressed => {
                     const xkb_state = seto.seat.xkb_state orelse return;
@@ -145,36 +128,12 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     if (keysym == .NoSymbol) return;
 
                     const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
-                    const new_value: std.os.linux.itimerspec =
-                        if (xkb_state.getKeymap().keyRepeats(keycode) == 1)
-                        .{
-                            .it_value = .{
-                                .tv_sec = @divTrunc(seto.seat.repeat.delay.?, 1000),
-                                .tv_nsec = @mod(seto.seat.repeat.delay.?, 1000) * std.time.ns_per_ms,
-                            },
-                            .it_interval = .{
-                                .tv_sec = @intFromFloat(@divTrunc(1000 / rate, 1000)),
-                                .tv_nsec = @intFromFloat(@mod(1000 / rate, 1000) * std.time.ns_per_ms),
-                            },
-                        }
-                    else
-                        .{
-                            .it_value = .{
-                                .tv_sec = 0,
-                                .tv_nsec = 0,
-                            },
-                            .it_interval = .{
-                                .tv_sec = 0,
-                                .tv_nsec = 0,
-                            },
-                        };
 
-                    std.posix.timerfd_settime(
-                        @intCast(seto.seat.repeat.tfd),
-                        .{},
-                        &new_value,
-                        null,
-                    ) catch return;
+                    if (xkb_state.getKeymap().keyRepeats(keycode) == 1) {
+                        seto.seat.repeat.timer.start(seto.seat.repeat.delay.?, rate) catch return;
+                    } else {
+                        seto.seat.repeat.timer.stop() catch return;
+                    }
 
                     seto.seat.repeat.key = @intFromEnum(keysym);
                     handleKey(seto);
