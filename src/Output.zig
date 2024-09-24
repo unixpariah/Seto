@@ -21,10 +21,11 @@ pub const OutputInfo = struct {
     id: u32,
     name: ?[]const u8 = null,
     description: ?[]const u8 = null,
-    height: i32 = 0,
-    width: i32 = 0,
-    x: i32 = 0,
-    y: i32 = 0,
+    height: f32 = 0,
+    width: f32 = 0,
+    x: f32 = 0,
+    y: f32 = 0,
+    refresh: f32 = 0,
 
     fn destroy(self: *OutputInfo, alloc: mem.Allocator) void {
         alloc.free(self.name.?);
@@ -38,6 +39,7 @@ surface: *wl.Surface,
 alloc: mem.Allocator,
 info: OutputInfo,
 xdg_output: *zxdg.OutputV1,
+wl_output: *wl.Output,
 
 const Self = @This();
 
@@ -47,6 +49,7 @@ pub fn new(
     layer_surface: *zwlr.LayerSurfaceV1,
     alloc: mem.Allocator,
     xdg_output: *zxdg.OutputV1,
+    wl_output: *wl.Output,
     output_info: OutputInfo,
 ) Self {
     return .{
@@ -56,18 +59,19 @@ pub fn new(
         .alloc = alloc,
         .info = output_info,
         .xdg_output = xdg_output,
+        .wl_output = wl_output,
     };
 }
 
-fn posInY(self: *const Self, coordinates: [2]i32) bool {
+fn posInY(self: *const Self, coordinates: [2]f32) bool {
     return coordinates[1] < self.info.y + self.info.height and coordinates[1] >= self.info.y;
 }
 
-fn posInX(self: *const Self, coordinates: [2]i32) bool {
+fn posInX(self: *const Self, coordinates: [2]f32) bool {
     return coordinates[0] < self.info.x + self.info.width and coordinates[0] >= self.info.x;
 }
 
-pub fn posInSurface(self: *const Self, coordinates: [2]i32) bool {
+pub fn posInSurface(self: *const Self, coordinates: [2]f32) bool {
     return self.posInX(coordinates) and self.posInY(coordinates);
 }
 
@@ -93,7 +97,7 @@ pub fn drawBackground(self: *const Self, config: *Config) void {
     config.background_color.set(self.egl.main_shader_program.*);
 
     c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[0]);
-    c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
     c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
 }
 
@@ -101,7 +105,7 @@ pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void
     if (mode.Region) |pos| {
         config.grid.selected_color.set(self.egl.main_shader_program.*);
 
-        var vertices: [8]i32 = .{
+        var vertices: [8]f32 = .{
             self.info.x + self.info.width, pos[1],
             self.info.x,                   pos[1],
             pos[0],                        self.info.y,
@@ -110,8 +114,8 @@ pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void
         c.glLineWidth(config.grid.selected_line_width);
 
         c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.gen_VBO[1]);
-        c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(i32) * vertices.len, &vertices);
-        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+        c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(f32) * vertices.len, &vertices);
+        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
         c.glDrawArrays(c.GL_LINES, 0, vertices.len >> 1);
     }
 }
@@ -124,7 +128,7 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
 
     if (border_mode) {
         c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
-        c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
         c.glDrawElements(c.GL_LINE_LOOP, 5, c.GL_UNSIGNED_INT, null);
 
         return;
@@ -133,23 +137,23 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
     const vert_line_count = @divFloor(self.info.x, grid.size[0]);
     const hor_line_count = @divFloor(self.info.y, grid.size[1]);
 
-    var start_pos: [2]i32 = .{
+    var start_pos: [2]f32 = .{
         vert_line_count * grid.size[0] + grid.offset[0],
         hor_line_count * grid.size[1] + grid.offset[1],
     };
 
-    var vertices = std.ArrayList(i32).init(self.alloc);
+    var vertices = std.ArrayList(f32).init(self.alloc);
     defer vertices.deinit();
 
     while (start_pos[0] <= self.info.x + self.info.width) : (start_pos[0] += grid.size[0]) {
-        vertices.appendSlice(&[_]i32{
+        vertices.appendSlice(&[_]f32{
             start_pos[0], self.info.y,
             start_pos[0], self.info.y + self.info.height,
         }) catch @panic("OOM");
     }
 
     while (start_pos[1] <= self.info.y + self.info.height) : (start_pos[1] += grid.size[1]) {
-        vertices.appendSlice(&[_]i32{
+        vertices.appendSlice(&[_]f32{
             self.info.x,                   start_pos[1],
             self.info.x + self.info.width, start_pos[1],
         }) catch @panic("OOM");
@@ -158,11 +162,11 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
     c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.gen_VBO[0]);
     c.glBufferData(
         c.GL_ARRAY_BUFFER,
-        @intCast(@sizeOf(i32) * vertices.items.len),
+        @intCast(@sizeOf(f32) * vertices.items.len),
         @ptrCast(vertices.items),
         c.GL_STATIC_DRAW,
     );
-    c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
     c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
 }
 
@@ -208,17 +212,17 @@ pub fn xdgOutputListener(
                     output.info.description = seto.alloc.dupe(u8, mem.span(e.description)) catch @panic("OOM");
                 },
                 .logical_position => |pos| {
-                    output.info.x = pos.x;
-                    output.info.y = pos.y;
+                    output.info.x = @floatFromInt(pos.x);
+                    output.info.y = @floatFromInt(pos.y);
                 },
                 .logical_size => |size| {
-                    output.info.height = size.height;
-                    output.info.width = size.width;
+                    output.info.height = @floatFromInt(size.height);
+                    output.info.width = @floatFromInt(size.width);
 
                     seto.updateDimensions();
 
                     { // Background VBO
-                        const vertices = [_]i32{
+                        const vertices = [_]f32{
                             output.info.x,                     output.info.y,
                             output.info.x + output.info.width, output.info.y,
                             output.info.x,                     output.info.y + output.info.height,
@@ -226,11 +230,11 @@ pub fn xdgOutputListener(
                         };
 
                         c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.VBO[0]);
-                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
                     }
 
                     { // Border VBO
-                        const vertices = [_]i32{
+                        const vertices = [_]f32{
                             output.info.x,                     output.info.y,
                             output.info.x + output.info.width, output.info.y,
                             output.info.x,                     output.info.y + output.info.height,
@@ -238,7 +242,7 @@ pub fn xdgOutputListener(
                         };
 
                         c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.VBO[1]);
-                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
                     }
 
                     const uniform_object = struct {
@@ -248,10 +252,10 @@ pub fn xdgOutputListener(
                         degrees: [2]f32,
                     }{
                         .projection = math.orthographicProjection(
-                            @floatFromInt(output.info.x),
-                            @floatFromInt(output.info.x + output.info.width),
-                            @floatFromInt(output.info.y),
-                            @floatFromInt(output.info.y + output.info.height),
+                            output.info.x,
+                            output.info.x + output.info.width,
+                            output.info.y,
+                            output.info.y + output.info.height,
                         ),
                         .start_color = .{
                             seto.config.font.color.start_color,
@@ -293,5 +297,19 @@ pub fn xdgOutputListener(
                 .done => {},
             }
         }
+    }
+}
+
+pub fn wlOutputListener(wl_output: *wl.Output, event: wl.Output.Event, seto: *Seto) void {
+    var output = for (seto.outputs.items) |*output| {
+        if (output.wl_output == wl_output) break output;
+    } else unreachable; // It'd be very weird if this event was called on output that doesn't exist
+
+    switch (event) {
+        .mode => |mode| {
+            const refresh: f32 = @floatFromInt(mode.refresh);
+            output.info.refresh = @divTrunc(refresh, 1000);
+        },
+        else => {},
     }
 }

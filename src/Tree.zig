@@ -9,7 +9,7 @@ const Config = @import("Config.zig");
 
 children: []Node,
 keys: []const u32,
-depth: u8,
+depth: f32,
 arena: std.heap.ArenaAllocator,
 
 const Self = @This();
@@ -36,7 +36,7 @@ pub fn destroy(self: *const Self) void {
     self.arena.deinit();
 }
 
-pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
+pub fn find(self: *Self, buffer: *[]u32) ![2]f32 {
     if (buffer.len == 0) return error.EndNotReached;
     for (self.children) |*child| {
         if (child.key == buffer.*[0]) {
@@ -50,9 +50,9 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]i32 {
 pub fn drawText(self: *Self, output: *Output, config: *Config, buffer: []u32, border_mode: bool) void {
     c.glUseProgram(output.egl.text_shader_program.*);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.gen_VBO[2]);
-    c.glVertexAttribPointer(0, 2, c.GL_INT, c.GL_FALSE, 0, null);
+    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
-    const path = self.arena.allocator().alloc(u32, self.depth) catch @panic("OOM");
+    const path = self.arena.allocator().alloc(u32, @intFromFloat(self.depth)) catch @panic("OOM");
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
@@ -70,9 +70,11 @@ pub fn drawText(self: *Self, output: *Output, config: *Config, buffer: []u32, bo
             }
         }
     }
+
+    config.text.renderCall(output.egl.text_shader_program);
 }
 
-fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]i32) void {
+fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]f32) void {
     var matches: u8 = 0;
     for (buffer, 0..) |char, i| {
         if (path[i] == char) matches += 1 else break;
@@ -102,16 +104,16 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, bord
 
     config.text.place(
         path[0..matches],
-        @floatFromInt(coords[0]),
-        @floatFromInt(coords[1]),
+        coords[0],
+        coords[1],
         .highlight_color,
         output.egl.text_shader_program,
     );
 
     config.text.place(
         path[matches..],
-        @floatFromInt(coords[0] + config.text.getSize(path[0..matches])),
-        @floatFromInt(coords[1]),
+        coords[0] + config.text.getSize(path[0..matches]),
+        coords[1],
         .color,
         output.egl.text_shader_program,
     );
@@ -124,26 +126,24 @@ pub fn updateCoordinates(
     outputs: *[]Output,
     buffer: *std.ArrayList(u32),
 ) void {
-    var intersections = std.ArrayList([2]i32).init(self.arena.allocator());
+    var intersections = std.ArrayList([2]f32).init(self.arena.allocator());
     defer intersections.deinit();
 
     for (outputs.*) |output| {
-        const info = output.info;
-
         if (border_mode) {
-            intersections.appendSlice(&[_][2]i32{
-                .{ info.x, info.y },
-                .{ info.x, info.y + info.height - 1 },
-                .{ info.x + info.width - 1, info.y },
-                .{ info.x + info.width - 1, info.y + info.height - 1 },
+            intersections.appendSlice(&[_][2]f32{
+                .{ output.info.x, output.info.y },
+                .{ output.info.x, output.info.y + output.info.height - 1 },
+                .{ output.info.x + output.info.width - 1, output.info.y },
+                .{ output.info.x + output.info.width - 1, output.info.y + output.info.height - 1 },
             }) catch @panic("OOM");
             continue;
         }
 
-        const vert_line_count = @divFloor(info.x, config.grid.size[0]);
-        const hor_line_count = @divFloor(info.y, config.grid.size[1]);
+        const vert_line_count = @divFloor(output.info.x, config.grid.size[0]);
+        const hor_line_count = @divFloor(output.info.y, config.grid.size[1]);
 
-        var start_pos: [2]i32 = .{
+        var start_pos: [2]f32 = .{
             vert_line_count * config.grid.size[0] + config.grid.offset[0],
             hor_line_count * config.grid.size[1] + config.grid.offset[1],
         };
@@ -152,27 +152,24 @@ pub fn updateCoordinates(
         if (start_pos[1] < output.info.y) start_pos[1] += config.grid.size[1];
 
         var i = start_pos[0];
-        while (i <= info.x + info.width - 1) : (i += config.grid.size[0]) {
+        while (i <= output.info.x + output.info.width - 1) : (i += config.grid.size[0]) {
             var j = start_pos[1];
-            while (j <= info.y + info.height - 1) : (j += config.grid.size[1]) {
+            while (j <= output.info.y + output.info.height - 1) : (j += config.grid.size[1]) {
                 intersections.append(.{ i, j }) catch @panic("OOM");
             }
         }
     }
 
-    const depth: u8 = depth: {
-        const items_len: f64 = @floatFromInt(intersections.items.len);
-        const keys_len: f64 = @floatFromInt(self.keys.len);
-        const depth = std.math.log(f64, keys_len, items_len);
-        break :depth @intFromFloat(std.math.ceil(depth));
+    const depth: f32 = depth: {
+        const depth = std.math.log(f32, @floatFromInt(self.keys.len), @floatFromInt(intersections.items.len));
+        break :depth std.math.ceil(depth);
     };
 
-    var char_size: i32 = 0;
+    var char_size: f32 = 0;
     for (config.text.char_info) |char| {
         const scale = config.font.size / 256.0;
-        const size: f32 = @floatFromInt(char.advance[0]);
 
-        const final_size: i32 = @intFromFloat(size * scale);
+        const final_size = char.advance[0] * scale;
 
         if (final_size > char_size) char_size = final_size;
     }
@@ -180,10 +177,10 @@ pub fn updateCoordinates(
     config.*.grid.max_size[0] = char_size * (depth + 1) + config.font.offset[0];
 
     if (depth < self.depth) {
-        for (depth..self.depth) |_| self.decreaseDepth();
+        for (@intFromFloat(depth)..@intFromFloat(self.depth)) |_| self.decreaseDepth();
         buffer.clearAndFree();
     } else if (depth > self.depth) {
-        for (self.depth..depth) |_| self.increaseDepth();
+        for (@intFromFloat(self.depth)..@intFromFloat(depth)) |_| self.increaseDepth();
         buffer.clearAndFree();
     }
 
@@ -210,7 +207,7 @@ fn decreaseDepth(self: *Self) void {
 const Node = struct {
     key: u32,
     children: ?[]Node = null,
-    coordinates: ?[2]i32 = null,
+    coordinates: ?[2]f32 = null,
 
     fn checkIfOnScreen(self: *Node) !void {
         if (self.children) |children| {
@@ -221,7 +218,7 @@ const Node = struct {
         }
     }
 
-    fn find(self: *Node, buffer: *[]u32, index: usize) ![2]i32 {
+    fn find(self: *Node, buffer: *[]u32, index: usize) ![2]f32 {
         if (self.coordinates) |coordinates| return coordinates;
         if (self.children == null) return error.KeyNotFound;
         if (buffer.*.len <= index) {
@@ -260,7 +257,7 @@ const Node = struct {
         }
     }
 
-    fn updateCoordinates(self: *Node, intersections: [][2]i32, index: *usize) void {
+    fn updateCoordinates(self: *Node, intersections: [][2]f32, index: *usize) void {
         if (self.children == null) {
             if (index.* < intersections.len) {
                 self.coordinates = intersections[index.*];

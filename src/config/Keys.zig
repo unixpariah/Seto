@@ -64,7 +64,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
             else
                 (try lua.toString(4))[0];
 
-            const value: std.meta.Tuple(&.{ [*:0]const u8, ?[2]i32 }) = x: {
+            const value: std.meta.Tuple(&.{ [*:0]const u8, ?[2]f32 }) = x: {
                 if (lua.isString(5)) {
                     break :x .{ try lua.toString(5), null };
                 } else {
@@ -74,12 +74,12 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
                     _ = lua.getTable(5);
                     _ = lua.pushNil();
                     if (lua.next(5)) {
-                        var move_value: [2]i32 = undefined;
+                        var move_value: [2]f32 = undefined;
                         var index: u8 = 0;
                         _ = lua.pushNil();
                         const function = try lua.toString(7);
                         while (lua.next(8)) : (index += 1) {
-                            move_value[index] = @intFromFloat(lua.toNumber(10) catch {
+                            move_value[index] = @floatCast(lua.toNumber(10) catch {
                                 std.log.err("{s} expected number\n", .{function});
                                 std.process.exit(1);
                             });
@@ -108,14 +108,14 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) !Self {
 }
 
 pub const Function = union(enum) {
-    resize: [2]i32,
-    move: [2]i32,
-    move_selection: [2]i32,
+    resize: [2]f32,
+    move: [2]f32,
+    move_selection: [2]f32,
     border_mode,
     cancel_selection,
     quit,
 
-    pub fn stringToFunction(string: []const u8, value: ?[2]i32) !Function {
+    pub fn stringToFunction(string: []const u8, value: ?[2]f32) !Function {
         if (std.mem.eql(u8, string, "quit")) {
             return .quit;
         } else if (std.mem.eql(u8, string, "cancel_selection")) {

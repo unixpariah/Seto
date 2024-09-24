@@ -7,11 +7,11 @@ const Lua = @import("ziglua").Lua;
 const Color = helpers.Color;
 const Font = @import("Font.zig");
 
-max_size: [2]i32 = .{ 1, 1 },
+max_size: [2]f32 = .{ 1, 1 },
 color: Color,
 selected_color: Color,
-size: [2]i32 = .{ 80, 80 },
-offset: [2]i32 = .{ 0, 0 },
+size: [2]f32 = .{ 80, 80 },
+offset: [2]f32 = .{ 0, 0 },
 line_width: f32 = 2,
 selected_line_width: f32 = 2,
 
@@ -54,7 +54,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         var index: u8 = 0;
         while (lua.next(3)) : (index += 1) {
             if (index > 1) @panic("Grid size should be in a {{ width, height }} format\n");
-            grid.size[index] = @intFromFloat(lua.toNumber(5) catch @panic("grid.size expected list of numbers"));
+            grid.size[index] = @floatCast(lua.toNumber(5) catch @panic("grid.size expected list of numbers"));
             lua.pop(1);
         }
         if (index < 2) @panic("Grid size should be in a {{ width, height }} format\n");
@@ -71,7 +71,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
                 std.log.err("Grid offset should be in a {{ x, y }} format\n", .{});
                 std.process.exit(1);
             }
-            grid.offset[index] = @intFromFloat(lua.toNumber(5) catch unreachable);
+            grid.offset[index] = @floatCast(lua.toNumber(5) catch unreachable);
             lua.pop(1);
         }
         if (index < 2) {
@@ -100,7 +100,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     return grid;
 }
 
-pub fn move(self: *Self, value: [2]i32) void {
+pub fn move(self: *Self, value: [2]f32) void {
     for (value, 0..) |val, i| {
         var new_offset = self.offset[i] + val;
 
@@ -114,7 +114,7 @@ pub fn move(self: *Self, value: [2]i32) void {
     }
 }
 
-pub fn resize(self: *Self, value: [2]i32) void {
+pub fn resize(self: *Self, value: [2]f32) void {
     for (value, 0..) |val, i| {
         const new_size = self.size[i] + val;
         if (new_size < self.max_size[i] and val <= 0) continue;

@@ -197,17 +197,17 @@ pub fn new(display: *wl.Display) !Self {
 
     // Selection VBO
     c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[1]);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_DYNAMIC_DRAW);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * 8, null, c.GL_DYNAMIC_DRAW);
 
     // Text VBO
-    const vertices = [_]i32{
+    const vertices = [_]f32{
         0, 0,
         1, 0,
         0, 1,
         1, 1,
     };
     c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[2]);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
 
     var EBO: u32 = undefined;
     c.glGenBuffers(1, &EBO);

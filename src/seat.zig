@@ -28,7 +28,7 @@ pub const Seat = struct {
     const Self = @This();
 
     pub fn new(alloc: std.mem.Allocator) !Self {
-        const tfd = try std.posix.timerfd_create(std.posix.CLOCK.MONOTONIC, .{ .CLOEXEC = true, .NONBLOCK = true });
+        const tfd = try std.posix.timerfd_create(std.posix.CLOCK.MONOTONIC, .{ .CLOEXEC = true });
 
         return .{
             .xkb_context = xkb.Context.new(.no_flags) orelse return error.XkbError,
@@ -178,7 +178,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 
                     seto.seat.repeat.key = @intFromEnum(keysym);
                     handleKey(seto);
-                    seto.render() catch unreachable;
+                    seto.render() catch return;
                 },
                 _ => {},
             }
@@ -190,10 +190,10 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
     }
 }
 
-fn moveSelection(seto: *Seto, value: [2]i32) void {
+fn moveSelection(seto: *Seto, value: [2]f32) void {
     if (seto.state.mode == .Single) return;
     if (seto.state.mode.Region) |*position| {
-        const info: [2]i32 = .{ seto.outputs.items[0].info.x, seto.outputs.items[0].info.y };
+        const info: [2]f32 = .{ seto.outputs.items[0].info.x, seto.outputs.items[0].info.y };
         for (position, 0..) |*pos, i| {
             pos.* += value[i];
 

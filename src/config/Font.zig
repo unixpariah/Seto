@@ -6,10 +6,9 @@ const hexToRgba = helpers.hexToRgba;
 const Lua = @import("ziglua").Lua;
 const Color = helpers.Color;
 
-weight: ?f32 = null,
 color: Color,
 highlight_color: Color,
-offset: [2]i32 = .{ 5, 5 },
+offset: [2]f32 = .{ 5, 5 },
 size: f32 = 20,
 family: [:0]const u8,
 
@@ -53,13 +52,6 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     }
     lua.pop(1);
 
-    _ = lua.pushString("weight");
-    _ = lua.getTable(2);
-    if (!lua.isNil(3)) {
-        font.weight = @floatCast(lua.toNumber(3) catch @panic("font.weight expected number"));
-    }
-    lua.pop(1);
-
     _ = lua.pushString("family");
     _ = lua.getTable(2);
     if (!lua.isNil(3)) {
@@ -77,7 +69,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         while (lua.next(3)) : (index += 1) {
             if (index > 1) @panic("font.offset expected {{ x, y }} format");
             const coordinate = lua.toNumber(5) catch @panic("font.offset expected list of numbers");
-            font.offset[index] = @intFromFloat(coordinate);
+            font.offset[index] = @floatCast(coordinate);
             lua.pop(1);
         }
         if (index < 2) @panic("font.offset expected {{ x, y }} format");
