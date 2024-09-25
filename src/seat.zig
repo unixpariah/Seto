@@ -6,18 +6,15 @@ const wl = wayland.client.wl;
 
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
+const Timer = @import("Timer.zig");
 
 const Repeat = struct {
-    timer: ?std.time.Timer = null,
-    delay: ?i32 = null,
-    rate: ?i32 = null,
-    keys: std.ArrayList(u32),
+    delay: ?f32 = null,
+    rate: ?f32 = null,
+    key: ?u32 = null,
+    timer: Timer,
 
     const Self = @This();
-
-    pub fn destroy(self: *Self) void {
-        self.keys.deinit();
-    }
 };
 
 pub const Seat = struct {
@@ -31,29 +28,21 @@ pub const Seat = struct {
 
     const Self = @This();
 
-    pub fn new(alloc: std.mem.Allocator) Self {
+    pub fn init(alloc: std.mem.Allocator) !Self {
         return .{
-            .xkb_context = xkb.Context.new(.no_flags) orelse @panic(""),
+            .xkb_context = xkb.Context.new(.no_flags) orelse return error.XkbError,
             .buffer = std.ArrayList(u32).init(alloc),
             .alloc = alloc,
-            .repeat = Repeat{ .keys = std.ArrayList(u32).init(alloc) },
+            .repeat = Repeat{ .timer = try Timer.init() },
         };
     }
 
-    pub fn repeatKey(self: *Self) bool {
-        var timer = self.repeat.timer orelse return false;
-        const delay = self.repeat.delay orelse return false;
-
-        return timer.read() / std.time.ns_per_ms > delay;
-    }
-
-    pub fn destroy(self: *Self) void {
+    pub fn deinit(self: *Self) void {
         self.wl_seat.?.destroy();
         self.wl_keyboard.?.destroy();
         self.xkb_state.?.unref();
         self.buffer.deinit();
         self.xkb_context.unref();
-        self.repeat.destroy();
     }
 };
 
@@ -124,21 +113,11 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     const keysym = xkb_state.keyGetOneSym(keycode);
                     if (keysym == .NoSymbol) return;
 
-                    for (seto.seat.repeat.keys.items, 0..) |key, i| {
-                        if (key == @intFromEnum(keysym)) {
-                            _ = seto.seat.repeat.keys.swapRemove(i);
-                        }
-                    }
+                    if (keysym.toUTF32() != seto.seat.repeat.key) return;
 
-                    if (seto.seat.repeat.keys.items.len == 0) {
-                        seto.seat.repeat.timer = null;
-                    }
+                    seto.seat.repeat.timer.stop() catch return;
                 },
                 .pressed => {
-                    if (seto.seat.repeat.keys.items.len == 0) {
-                        seto.seat.repeat.timer = std.time.Timer.start() catch return;
-                    }
-
                     const xkb_state = seto.seat.xkb_state orelse return;
 
                     // The wayland protocol gives us an input event code. To convert this to an xkb
@@ -148,23 +127,33 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     const keysym = xkb_state.keyGetOneSym(keycode);
                     if (keysym == .NoSymbol) return;
 
-                    seto.seat.repeat.keys.append(@intFromEnum(keysym)) catch return;
+                    if (xkb_state.getKeymap().keyRepeats(keycode) == 1) {
+                        seto.seat.repeat.timer.start(
+                            seto.seat.repeat.delay.?,
+                            1000 / seto.seat.repeat.rate.?,
+                        ) catch return;
+                    } else {
+                        seto.seat.repeat.timer.stop() catch return;
+                    }
+
+                    seto.seat.repeat.key = @intFromEnum(keysym);
                     handleKey(seto);
+                    seto.render() catch return;
                 },
                 _ => {},
             }
         },
         .repeat_info => |repeat_key| {
-            seto.seat.repeat.delay = repeat_key.delay;
-            seto.seat.repeat.rate = repeat_key.rate;
+            seto.seat.repeat.delay = @floatFromInt(repeat_key.delay);
+            seto.seat.repeat.rate = 60; //@floatFromInt(repeat_key.rate);
         },
     }
 }
 
-fn moveSelection(seto: *Seto, value: [2]i32) void {
+fn moveSelection(seto: *Seto, value: [2]f32) void {
     if (seto.state.mode == .Single) return;
     if (seto.state.mode.Region) |*position| {
-        const info: [2]i32 = .{ seto.outputs.items[0].info.x, seto.outputs.items[0].info.y };
+        const info: [2]f32 = .{ seto.outputs.items[0].info.x, seto.outputs.items[0].info.y };
         for (position, 0..) |*pos, i| {
             pos.* += value[i];
 
@@ -178,8 +167,7 @@ fn moveSelection(seto: *Seto, value: [2]i32) void {
 }
 
 pub fn handleKey(self: *Seto) void {
-    const keys = self.seat.repeat.keys;
-    if (keys.items.len == 0) return;
+    const key = self.seat.repeat.key orelse return;
     const grid = &self.config.grid;
 
     const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
@@ -187,49 +175,37 @@ pub fn handleKey(self: *Seto) void {
         @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
     ) == 1;
 
-    for (keys.items) |key| {
-        const keysym: xkb.Keysym = @enumFromInt(key);
-        const utf32_keysym = keysym.toUTF32();
+    const keysym: xkb.Keysym = @enumFromInt(key);
+    const utf32_keysym = keysym.toUTF32();
 
-        if (utf32_keysym == 'c' and ctrl_active) self.state.exit = true;
-        if (self.config.keys.bindings.get(@intCast(utf32_keysym))) |function| {
-            switch (function) {
-                .move => |value| grid.move(value),
-                .resize => |value| grid.resize(value),
-                .remove => _ = self.seat.buffer.popOrNull(),
-                .cancel_selection => if (self.state.mode == Mode.Region) {
-                    self.state.mode = Mode{ .Region = null };
-                },
-                .move_selection => |value| moveSelection(self, value),
-                .border_mode => self.state.border_mode = !self.state.border_mode,
-                .quit => self.state.exit = true,
-            }
-
-            self.tree.?.updateCoordinates(
-                &self.config,
-                self.state.border_mode,
-                &self.outputs.items,
-                &self.seat.buffer,
-            );
-        } else {
-            self.seat.buffer.append(utf32_keysym) catch @panic("OOM");
-
-            self.printToStdout() catch |err| {
-                switch (err) {
-                    error.KeyNotFound => {
-                        _ = self.seat.buffer.popOrNull();
-                        continue;
-                    },
-                    else => {},
-                }
-            };
-
-            // TODO: this needs a better solution
-            for (self.seat.repeat.keys.items, 0..) |k, i| {
-                if (k == @intFromEnum(keysym)) {
-                    _ = self.seat.repeat.keys.swapRemove(i);
-                }
-            }
+    if (key == xkb.Keysym.BackSpace) {
+        _ = self.seat.buffer.popOrNull();
+    } else if (utf32_keysym == 'c' and ctrl_active) {
+        self.state.exit = true;
+    } else if (self.config.keys.bindings.get(@intCast(utf32_keysym))) |function| {
+        switch (function) {
+            .move => |value| grid.move(value),
+            .resize => |value| grid.resize(value),
+            .cancel_selection => if (self.state.mode == Mode.Region) {
+                self.state.mode = Mode{ .Region = null };
+            },
+            .move_selection => |value| moveSelection(self, value),
+            .border_mode => self.state.border_mode = !self.state.border_mode,
+            .quit => self.state.exit = true,
         }
+
+        self.tree.?.updateCoordinates();
+    } else {
+        self.seat.buffer.append(utf32_keysym) catch @panic("OOM");
+
+        self.printToStdout() catch |err| {
+            switch (err) {
+                error.KeyNotFound => {
+                    _ = self.seat.buffer.popOrNull();
+                    return;
+                },
+                else => {},
+            }
+        };
     }
 }

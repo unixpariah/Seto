@@ -15,6 +15,7 @@ const Seat = @import("seat.zig").Seat;
 const Config = @import("Config.zig");
 const Egl = @import("Egl.zig");
 const Text = @import("config/Text.zig");
+const EventLoop = @import("EventLoop.zig");
 
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("Output.zig").xdgOutputListener;
@@ -22,6 +23,7 @@ const layerSurfaceListener = @import("Output.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
 const parseArgs = @import("cli.zig").parseArgs;
 const inPlaceReplace = @import("helpers").inPlaceReplace;
+const wlOutputListener = @import("Output.zig").wlOutputListener;
 
 const EventInterfaces = enum {
     wl_compositor,
@@ -32,7 +34,7 @@ const EventInterfaces = enum {
 };
 
 pub const Mode = union(enum) {
-    Region: ?[2]i32,
+    Region: ?[2]f32,
     Single,
 };
 
@@ -52,19 +54,19 @@ pub const Seto = struct {
     outputs: std.ArrayList(Output),
     config: Config,
     alloc: mem.Allocator,
-    tree: ?Tree = null,
-    total_dimensions: [2]i32 = .{ 0, 0 },
+    total_dimensions: [2]f32 = .{ 0, 0 },
     state: State = State{},
+    tree: ?Tree = null,
 
     const Self = @This();
 
-    fn new(alloc: mem.Allocator, display: *wl.Display) !Self {
+    fn init(alloc: mem.Allocator, display: *wl.Display) !Self {
         var seto = Seto{
-            .seat = Seat.new(alloc),
+            .seat = try Seat.init(alloc),
             .outputs = std.ArrayList(Output).init(alloc),
             .alloc = alloc,
-            .egl = try Egl.new(display),
-            .config = Config.load(alloc),
+            .egl = try Egl.init(display),
+            .config = try Config.load(alloc),
         };
 
         parseArgs(&seto);
@@ -74,9 +76,8 @@ pub const Seto = struct {
             std.process.exit(1);
         }
 
-        const font_size: i32 = @intFromFloat(seto.config.font.size);
-        seto.config.grid.max_size[1] = font_size + seto.config.font.offset[1];
-        seto.config.text = Text.new(alloc, &seto.config);
+        seto.config.grid.max_size[1] = seto.config.font.size + seto.config.font.offset[1];
+        seto.config.text = Text.init(alloc, &seto.config);
 
         return seto;
     }
@@ -91,7 +92,7 @@ pub const Seto = struct {
         self.total_dimensions = .{ (last.x + last.width) - first.x, (last.y + last.height) - first.y };
     }
 
-    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]i32, size: [2]i32) void {
+    fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]f32, size: [2]f32) void {
         for (self.outputs.items) |output| {
             if (!output.isConfigured()) continue;
 
@@ -105,15 +106,15 @@ pub const Seto = struct {
                 const output_name = if (output.info.name) |name| name else "<unkown>";
 
                 inPlaceReplace([]const u8, arena.allocator(), &self.config.output_format, "%o", output_name);
-                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%X", relative_pos[0]);
-                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%Y", relative_pos[1]);
-                inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%W", relative_size[0]);
-                inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%H", relative_size[1]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%X", @intFromFloat(relative_pos[0]));
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%Y", @intFromFloat(relative_pos[1]));
+                inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%W", @intFromFloat(relative_size[0]));
+                inPlaceReplace(u32, arena.allocator(), &self.config.output_format, "%H", @intFromFloat(relative_size[1]));
 
-                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%x", top_left[0]);
-                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%y", top_left[1]);
-                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%w", size[0]);
-                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%h", size[1]);
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%x", @intFromFloat(top_left[0]));
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%y", @intFromFloat(top_left[1]));
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%w", @intFromFloat(size[0]));
+                inPlaceReplace(i32, arena.allocator(), &self.config.output_format, "%h", @intFromFloat(size[1]));
 
                 return;
             }
@@ -128,13 +129,13 @@ pub const Seto = struct {
         switch (self.state.mode) {
             .Single => self.formatOutput(&arena, coords, .{ 1, 1 }),
             .Region => |positions| if (positions) |pos| {
-                const top_left: [2]i32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
-                const bottom_right: [2]i32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
+                const top_left: [2]f32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
+                const bottom_right: [2]f32 = .{ @max(coords[0], pos[0]), @max(coords[1], pos[1]) };
 
                 const width = bottom_right[0] - top_left[0];
                 const height = bottom_right[1] - top_left[1];
 
-                const size: [2]i32 = .{ if (width == 0) 1 else width, if (height == 0) 1 else height };
+                const size: [2]f32 = .{ if (width == 0) 1 else width, if (height == 0) 1 else height };
 
                 self.formatOutput(&arena, top_left, size);
             } else {
@@ -151,28 +152,27 @@ pub const Seto = struct {
     pub fn render(self: *Self) !void {
         for (self.outputs.items) |*output| {
             if (!output.isConfigured()) continue;
-            output.egl.makeCurrent() catch @panic("Failed to attach egl rendering context to EGL surface");
+            try output.egl.makeCurrent();
 
             output.draw(&self.config, self.state.border_mode, &self.state.mode);
             self.tree.?.drawText(output, &self.config, self.seat.buffer.items, self.state.border_mode);
-            self.config.text.renderCall(output.egl.text_shader_program);
 
-            output.egl.swapBuffers() catch @panic("Failed to post EGL surface color buffer to a native window ");
+            try output.egl.swapBuffers();
         }
     }
 
-    fn destroy(self: *Self) void {
+    fn deinit(self: *Self) void {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
         for (self.outputs.items) |*output| {
-            output.destroy();
+            output.deinit();
         }
         self.outputs.deinit();
-        self.seat.destroy();
-        self.config.destroy();
-        self.tree.?.arena.deinit();
-        self.egl.destroy();
+        self.seat.deinit();
+        self.config.deinit();
+        self.egl.deinit();
+        self.tree.?.deinit();
     }
 };
 
@@ -189,18 +189,26 @@ pub fn main() !void {
     };
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
-    var seto = try Seto.new(alloc, display);
-    defer seto.destroy();
+    var seto = try Seto.init(alloc, display);
+    defer seto.deinit();
+
+    const timer = &seto.seat.repeat.timer;
 
     registry.setListener(*Seto, registryListener, &seto);
-    if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
+    if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
+    if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
 
-    if (seto.compositor == null or seto.layer_shell == null) @panic("Compositor or layer shell not bound");
+    if (seto.layer_shell == null) @panic("wlr_layer_shell not supported");
 
-    while (display.dispatch() == .SUCCESS and !seto.state.exit) {
-        if (seto.seat.repeatKey()) handleKey(&seto);
-        try seto.render();
-    }
+    try seto.render();
+
+    var event_loop = EventLoop.init(alloc);
+    defer event_loop.deinit();
+
+    try event_loop.insertSource(display.getFd(), *wl.Display, dispatchDisplay, display);
+    try event_loop.insertSource(timer.getFd(), *Seto, handleRepeat, &seto);
+
+    while (!seto.state.exit) : (try event_loop.poll()) {}
 
     for (seto.outputs.items) |output| {
         try output.egl.makeCurrent();
@@ -209,6 +217,26 @@ pub fn main() !void {
     }
 
     if (display.roundtrip() != .SUCCESS) return error.DispatchFailed;
+}
+
+fn dispatchDisplay(display: *wl.Display) void {
+    if (display.dispatch() != .SUCCESS) {
+        std.log.err("Failed to dispatch events", .{});
+        return;
+    }
+}
+
+fn handleRepeat(seto: *Seto) void {
+    const repeats = seto.seat.repeat.timer.read() catch {
+        std.log.err("Failed to read timer fd", .{});
+        return;
+    };
+
+    for (0..repeats) |_| handleKey(seto);
+    seto.render() catch {
+        std.log.err("Failed to render", .{});
+        return;
+    };
 }
 
 fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Seto) void {
@@ -221,27 +249,28 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         global.name,
                         wl.Compositor,
                         wl.Compositor.generated_version,
-                    ) catch @panic("Failed to bind compositor global");
+                    ) catch @panic("Failed to bind wl_compositor");
                 },
                 .zwlr_layer_shell_v1 => {
                     seto.layer_shell = registry.bind(
                         global.name,
                         zwlr.LayerShellV1,
                         zwlr.LayerShellV1.generated_version,
-                    ) catch @panic("Failed to bind layer shell global");
+                    ) catch @panic("Failed to bind zwl_layer_shell");
                 },
                 .wl_output => {
-                    const global_output = registry.bind(
+                    const wl_output = registry.bind(
                         global.name,
                         wl.Output,
                         wl.Output.generated_version,
-                    ) catch @panic("Failed to bind output global");
+                    ) catch @panic("Failed to bind wl_output");
+                    wl_output.setListener(*Seto, wlOutputListener, seto);
 
                     const surface = seto.compositor.?.createSurface() catch @panic("Failed to create surface");
 
                     const layer_surface = seto.layer_shell.?.getLayerSurface(
                         surface,
-                        global_output,
+                        wl_output,
                         .overlay,
                         "seto",
                     ) catch @panic("Failed to get layer surface");
@@ -256,16 +285,17 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     layer_surface.setKeyboardInteractivity(.exclusive);
                     surface.commit();
 
-                    const xdg_output = seto.output_manager.?.getXdgOutput(global_output) catch @panic("Failed to get xdg output global");
+                    const xdg_output = seto.output_manager.?.getXdgOutput(wl_output) catch @panic("Failed to get xdg output global");
 
-                    const egl_surface = seto.egl.newSurface(surface, .{ 1, 1 }) catch @panic("Failed to create egl surface");
+                    const egl_surface = seto.egl.surfaceInit(surface, .{ 1, 1 }) catch @panic("Failed to create egl surface");
 
-                    const output = Output.new(
+                    const output = Output.init(
                         egl_surface,
                         surface,
                         layer_surface,
                         seto.alloc,
                         xdg_output,
+                        wl_output,
                         OutputInfo{ .id = global.name },
                     );
 
@@ -293,7 +323,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
         .global_remove => |global| {
             for (seto.outputs.items, 0..) |*output, i| {
                 if (output.info.id == global.name) {
-                    output.destroy();
+                    output.deinit();
                     _ = seto.outputs.swapRemove(i);
                     seto.updateDimensions();
                     return;

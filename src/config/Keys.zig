@@ -12,12 +12,12 @@ const Self = @This();
 
 pub fn default(alloc: std.mem.Allocator) Self {
     var bindings = std.AutoHashMap(u32, Function).init(alloc);
-    bindings.put('H', .{ .move = .{ -5, 0 } }) catch @panic("OOM");
-    bindings.put('J', .{ .move = .{ 0, 5 } }) catch @panic("OOM");
-    bindings.put('K', .{ .move = .{ 0, -5 } }) catch @panic("OOM");
-    bindings.put('L', .{ .move = .{ 5, 0 } }) catch @panic("OOM");
-    bindings.put(8, .remove) catch @panic("OOM");
-    bindings.put('b', .border_mode) catch @panic("OOM");
+    bindings.ensureTotalCapacity(5) catch @panic("OOM");
+    bindings.putAssumeCapacity('H', .{ .move = .{ -5, 0 } });
+    bindings.putAssumeCapacity('J', .{ .move = .{ 0, 5 } });
+    bindings.putAssumeCapacity('K', .{ .move = .{ 0, -5 } });
+    bindings.putAssumeCapacity('L', .{ .move = .{ 5, 0 } });
+    bindings.putAssumeCapacity('b', .border_mode);
 
     const keys = [_]u32{ 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l' };
     const search = alloc.alloc(u32, 9) catch @panic("OOM");
@@ -30,7 +30,7 @@ pub fn default(alloc: std.mem.Allocator) Self {
     };
 }
 
-pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
+pub fn init(lua: *Lua, alloc: std.mem.Allocator) !Self {
     var keys_s = Self.default(alloc);
 
     _ = lua.pushString("keys");
@@ -40,16 +40,16 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
     _ = lua.getTable(2);
     if (lua.isString(3)) {
         alloc.free(keys_s.search);
-        const keys = lua.toString(3) catch unreachable; // Already checked if string
-        const utf8_view = std.unicode.Utf8View.init(keys) catch @panic("Failed to initialize utf8 view");
+        const keys = try lua.toString(3);
+        const utf8_view = try std.unicode.Utf8View.init(keys);
 
         var buffer = std.ArrayList(u32).init(alloc);
         var iter = utf8_view.iterator();
         while (iter.nextCodepoint()) |codepoint| {
-            buffer.append(codepoint) catch @panic("OOM");
+            try buffer.append(codepoint);
         }
 
-        keys_s.search = buffer.toOwnedSlice() catch @panic("OOM");
+        keys_s.search = try buffer.toOwnedSlice();
     }
     lua.pop(1);
 
@@ -60,13 +60,13 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
         lua.pushNil();
         while (lua.next(3)) {
             const key: u8 = if (lua.isNumber(4))
-                @intFromFloat(lua.toNumber(4) catch unreachable)
+                @intFromFloat(try lua.toNumber(4))
             else
-                (lua.toString(4) catch unreachable)[0];
+                (try lua.toString(4))[0];
 
-            const value: std.meta.Tuple(&.{ [*:0]const u8, ?[2]i32 }) = x: {
+            const value: std.meta.Tuple(&.{ [*:0]const u8, ?[2]f32 }) = x: {
                 if (lua.isString(5)) {
-                    break :x .{ lua.toString(5) catch unreachable, null };
+                    break :x .{ try lua.toString(5), null };
                 } else {
                     defer lua.pop(3);
                     const inner_key: [2]u8 = .{ key, 0 };
@@ -74,12 +74,12 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
                     _ = lua.getTable(5);
                     _ = lua.pushNil();
                     if (lua.next(5)) {
-                        var move_value: [2]i32 = undefined;
+                        var move_value: [2]f32 = undefined;
                         var index: u8 = 0;
                         _ = lua.pushNil();
-                        const function = lua.toString(7) catch unreachable;
+                        const function = try lua.toString(7);
                         while (lua.next(8)) : (index += 1) {
-                            move_value[index] = @intFromFloat(lua.toNumber(10) catch {
+                            move_value[index] = @floatCast(lua.toNumber(10) catch {
                                 std.log.err("{s} expected number\n", .{function});
                                 std.process.exit(1);
                             });
@@ -98,7 +98,7 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
                 }
                 std.process.exit(1);
             };
-            keys_s.bindings.put(key, func) catch @panic("OOM");
+            try keys_s.bindings.put(key, func);
             lua.pop(1);
         }
     }
@@ -108,18 +108,15 @@ pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
 }
 
 pub const Function = union(enum) {
-    resize: [2]i32,
-    move: [2]i32,
-    move_selection: [2]i32,
+    resize: [2]f32,
+    move: [2]f32,
+    move_selection: [2]f32,
     border_mode,
     cancel_selection,
-    remove,
     quit,
 
-    pub fn stringToFunction(string: []const u8, value: ?[2]i32) !Function {
-        if (std.mem.eql(u8, string, "remove")) {
-            return .remove;
-        } else if (std.mem.eql(u8, string, "quit")) {
+    pub fn stringToFunction(string: []const u8, value: ?[2]f32) !Function {
+        if (std.mem.eql(u8, string, "quit")) {
             return .quit;
         } else if (std.mem.eql(u8, string, "cancel_selection")) {
             return .cancel_selection;

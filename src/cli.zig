@@ -8,17 +8,17 @@ const Color = helpers.Color;
 
 const hexToRgba = helpers.hexToRgba;
 
-fn parseIntArray(arg: ?[]const u8, separator: []const u8) ![2]i32 {
+fn parseFloatArray(arg: ?[]const u8, separator: []const u8) ![2]f32 {
     var iter = std.mem.split(
         u8,
         arg orelse return error.ArgumentMissing,
         separator,
     );
-    var result: [2]i32 = undefined;
+    var result: [2]f32 = undefined;
     var i: usize = 0;
     while (iter.next()) |value| {
         if (i >= 2) break;
-        result[i] = try std.fmt.parseInt(i32, value, 10);
+        result[i] = try std.fmt.parseFloat(f32, value);
         i += 1;
     }
     return result;
@@ -42,7 +42,6 @@ const Arguments = enum {
     @"--highlight-color",
     @"--font-color",
     @"--font-size",
-    @"--font-weight",
     @"--font-family",
     @"--font-offset",
 
@@ -117,13 +116,6 @@ pub fn parseArgs(seto: *Seto) void {
                 };
                 seto.config.font.size = std.fmt.parseFloat(f32, font_size) catch @panic("Failed to parse font-size");
             },
-            .@"--font-weight" => {
-                const font_weight = args.next() orelse {
-                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
-                    std.process.exit(1);
-                };
-                seto.config.font.weight = std.fmt.parseFloat(f32, font_weight) catch @panic("Failed to parse font-weight");
-            },
             .@"--font-family" => {
                 seto.alloc.free(seto.config.font.family);
                 const font_family = args.next() orelse {
@@ -137,7 +129,7 @@ pub fn parseArgs(seto: *Seto) void {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.font.offset = parseIntArray(font_offset, ",") catch @panic("Failed to parse font-offset");
+                seto.config.font.offset = parseFloatArray(font_offset, ",") catch @panic("Failed to parse font-offset");
             },
 
             .@"--grid-color" => {
@@ -149,14 +141,14 @@ pub fn parseArgs(seto: *Seto) void {
             },
             .@"--grid-size" => {
                 const grid_size = args.next();
-                seto.config.grid.size = parseIntArray(grid_size, ",") catch @panic("Failed to parse grid-size");
+                seto.config.grid.size = parseFloatArray(grid_size, ",") catch @panic("Failed to parse grid-size");
             },
             .@"--grid-offset" => {
                 const grid_offset = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.grid.offset = parseIntArray(grid_offset, ",") catch @panic("Failed to parse grid-offset");
+                seto.config.grid.offset = parseFloatArray(grid_offset, ",") catch @panic("Failed to parse grid-offset");
             },
             .@"--grid-selected-color" => {
                 const grid_selected_color = args.next() orelse {
@@ -214,7 +206,7 @@ pub fn parseArgs(seto: *Seto) void {
                 if (value != null and std.meta.stringToEnum(Arguments, value.?) != null) {
                     value = null;
                 }
-                const final = if (value) |v| parseIntArray(v, ",") catch {
+                const final = if (value) |v| parseFloatArray(v, ",") catch {
                     std.log.err("Failed to parse arguments to {s} function\n", .{function});
                     std.process.exit(1);
                 } else null;
@@ -253,7 +245,6 @@ const help_message =
     \\  --highlight-color <HEX>                    Set highlighted color
     \\  --font-color <HEX>                         Set font color
     \\  --font-size <INT>                          Set font size
-    \\  --font-weight <INT>                        Set font weight
     \\  --font-family <STRING>                     Set font family
     \\  --font-offset <INT,INT>                    Change position of text on grid
     \\

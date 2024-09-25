@@ -22,7 +22,7 @@ alloc: std.mem.Allocator,
 
 const Self = @This();
 
-pub fn load(alloc: std.mem.Allocator) Self {
+pub fn load(alloc: std.mem.Allocator) !Self {
     const config_path = getPath(alloc) catch {
         return .{
             .alloc = alloc,
@@ -45,20 +45,20 @@ pub fn load(alloc: std.mem.Allocator) Self {
 
     lua.pop(1);
 
-    const font = Font.new(lua, alloc);
+    const font = Font.init(lua, alloc);
     return .{
         .alloc = alloc,
-        .grid = Grid.new(lua, alloc),
+        .grid = Grid.init(lua, alloc),
         .font = font,
-        .keys = Keys.new(lua, alloc),
+        .keys = try Keys.init(lua, alloc),
         .background_color = Color.parse(background_color, alloc) catch @panic("Failed to parse color"),
     };
 }
 
-pub fn destroy(self: *Self) void {
+pub fn deinit(self: *Self) void {
     self.alloc.free(self.keys.search);
     self.alloc.free(self.font.family);
-    self.text.destroy();
+    self.text.deinit();
     self.keys.bindings.deinit();
 }
 

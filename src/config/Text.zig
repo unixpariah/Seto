@@ -9,9 +9,6 @@ const Font = @import("Font.zig");
 
 const LENGTH: comptime_int = 400;
 
-// TODO: when I delete this struct member text rendering in ReleaseSafe breaks (its not referenced anywhere in the code)
-start_color: [93][4]u17 = undefined,
-
 font: *Font,
 char_info: []Character,
 letter_map: [LENGTH]u32,
@@ -24,7 +21,7 @@ scale_mat: math.Mat4,
 
 const Self = @This();
 
-pub fn new(alloc: std.mem.Allocator, config: *Config) Self {
+pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
     var ft: c.FT_Library = undefined;
     defer _ = c.FT_Done_FreeType(ft);
 
@@ -78,7 +75,7 @@ pub fn new(alloc: std.mem.Allocator, config: *Config) Self {
 
     var char_info = alloc.alloc(Character, max_char + 1) catch @panic("OOM");
     for (config.keys.search, 0..) |key, i| {
-        char_info[key] = Character.new(face, key, &config.font, @intCast(i));
+        char_info[key] = Character.init(face, key, @intCast(i));
     }
 
     var letter_map: [LENGTH]u32 = undefined;
@@ -117,9 +114,8 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorI
     for (text) |char| {
         const ch = self.char_info[char];
 
-        const bearing: [2]f32 = .{ @floatFromInt(ch.bearing[0]), @floatFromInt(ch.bearing[1]) };
-        const x_pos = x + bearing[0] * self.scale + move;
-        const y_pos = y - bearing[1] * self.scale;
+        const x_pos = x + ch.bearing[0] * self.scale + move;
+        const y_pos = y - ch.bearing[1] * self.scale;
 
         const translate_mat = math.translate(x_pos, y_pos, 0);
 
@@ -127,8 +123,7 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorI
         self.letter_map[self.index] = ch.texture_id;
         self.color_index[self.index] = @intFromEnum(color_index);
 
-        const advance: f32 = @floatFromInt(ch.advance[0]);
-        move += advance * self.scale;
+        move += ch.advance[0] * self.scale;
         self.index += 1;
         if (self.index == LENGTH) {
             self.renderCall(shader_program);
@@ -158,7 +153,7 @@ pub fn renderCall(self: *Self, shader_program: *c_uint) void {
     self.index = 0;
 }
 
-pub fn getSize(self: *Self, text: []const u32) i32 {
+pub fn getSize(self: *Self, text: []const u32) f32 {
     if (text.len == 0) return 0;
 
     const scale = self.font.size / 256.0;
@@ -166,14 +161,13 @@ pub fn getSize(self: *Self, text: []const u32) i32 {
     for (text) |char| {
         const ch = self.char_info[char];
 
-        const advance: f32 = @floatFromInt(ch.advance[0]);
-        move += advance * scale;
+        move += ch.advance[0] * scale;
     }
 
-    return @intFromFloat(move);
+    return move;
 }
 
-pub fn destroy(self: *Self) void {
+pub fn deinit(self: *Self) void {
     self.alloc.free(self.char_info);
 }
 
@@ -211,17 +205,15 @@ fn getFontPath(alloc: std.mem.Allocator, font_name: [:0]const u8) ![]const u8 {
 pub const Character = struct {
     texture_id: u32,
     key: u32,
-    size: [2]i32,
-    bearing: [2]i32,
-    advance: [2]u32,
+    size: [2]f32,
+    bearing: [2]f32,
+    advance: [2]f32,
 
-    fn new(face: c.FT_Face, key: u32, font: *const Font, index: u32) Character {
+    fn init(face: c.FT_Face, key: u32, index: u32) Character {
         if (c.FT_Load_Char(face, key, c.FT_LOAD_DEFAULT) == 1) {
             std.log.err("Failed to load glyph for character {}\n", .{key});
             std.process.exit(1);
         }
-
-        if (font.weight) |weight| _ = c.FT_Outline_Embolden(&face.*.glyph.*.outline, @intFromFloat(weight));
 
         if (c.FT_Render_Glyph(face.*.glyph, c.FT_RENDER_MODE_NORMAL) == 1) {
             std.log.err("Failed to render glyph for character {}\n", .{key});
@@ -251,16 +243,16 @@ pub const Character = struct {
             .key = key,
             .texture_id = index,
             .size = .{
-                @intCast(face.*.glyph.*.bitmap.width),
-                @intCast(face.*.glyph.*.bitmap.rows),
+                @floatFromInt(face.*.glyph.*.bitmap.width),
+                @floatFromInt(face.*.glyph.*.bitmap.rows),
             },
             .bearing = .{
-                @intCast(face.*.glyph.*.bitmap_left),
-                @intCast(face.*.glyph.*.bitmap_top),
+                @floatFromInt(face.*.glyph.*.bitmap_left),
+                @floatFromInt(face.*.glyph.*.bitmap_top),
             },
             .advance = .{
-                @intCast(face.*.glyph.*.advance.x >> 6),
-                @intCast(face.*.glyph.*.advance.y >> 6),
+                @floatFromInt(face.*.glyph.*.advance.x >> 6),
+                @floatFromInt(face.*.glyph.*.advance.y >> 6),
             },
         };
     }

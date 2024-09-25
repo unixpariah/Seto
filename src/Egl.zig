@@ -36,7 +36,7 @@ pub const EglSurface = struct {
         if (c.eglSwapBuffers(self.display.*, self.surface) != c.EGL_TRUE) return error.EGLError;
     }
 
-    pub fn destroy(self: *EglSurface) void {
+    pub fn deinit(self: *EglSurface) void {
         c.glDeleteBuffers(2, &self.VBO);
         if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) @panic("Failed to destroy egl surface");
         self.window.destroy();
@@ -76,7 +76,7 @@ EBO: u32,
 
 const Self = @This();
 
-pub fn new(display: *wl.Display) !Self {
+pub fn init(display: *wl.Display) !Self {
     if (c.eglBindAPI(c.EGL_OPENGL_API) == 0) return error.EGLError;
     const egl_display = c.eglGetPlatformDisplay(
         c.EGL_PLATFORM_WAYLAND_EXT,
@@ -197,17 +197,17 @@ pub fn new(display: *wl.Display) !Self {
 
     // Selection VBO
     c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[1]);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * 8, null, c.GL_DYNAMIC_DRAW);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * 8, null, c.GL_DYNAMIC_DRAW);
 
     // Text VBO
-    const vertices = [_]i32{
+    const vertices = [_]f32{
         0, 0,
         1, 0,
         0, 1,
         1, 1,
     };
     c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[2]);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(i32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
 
     var EBO: u32 = undefined;
     c.glGenBuffers(1, &EBO);
@@ -232,7 +232,7 @@ pub fn new(display: *wl.Display) !Self {
     };
 }
 
-pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface {
+pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface {
     const egl_window = try wl.EglWindow.create(surface, size[0], size[1]);
 
     const egl_surface = c.eglCreatePlatformWindowSurface(
@@ -262,7 +262,7 @@ pub fn newSurface(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface
     };
 }
 
-pub fn destroy(self: *Self) void {
+pub fn deinit(self: *Self) void {
     c.glDeleteBuffers(1, &self.EBO);
     c.glDeleteBuffers(3, &self.VBO);
     c.glDeleteBuffers(1, &self.VAO);
