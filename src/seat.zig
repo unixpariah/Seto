@@ -9,8 +9,8 @@ const Seto = @import("main.zig").Seto;
 const Timer = @import("Timer.zig");
 
 const Repeat = struct {
-    delay: ?i32 = null,
-    rate: ?i32 = null,
+    delay: ?f32 = null,
+    rate: ?f32 = null,
     key: ?u32 = null,
     timer: Timer,
 
@@ -28,16 +28,16 @@ pub const Seat = struct {
 
     const Self = @This();
 
-    pub fn new(alloc: std.mem.Allocator) !Self {
+    pub fn init(alloc: std.mem.Allocator) !Self {
         return .{
             .xkb_context = xkb.Context.new(.no_flags) orelse return error.XkbError,
             .buffer = std.ArrayList(u32).init(alloc),
             .alloc = alloc,
-            .repeat = Repeat{ .timer = try Timer.new() },
+            .repeat = Repeat{ .timer = try Timer.init() },
         };
     }
 
-    pub fn destroy(self: *Self) void {
+    pub fn deinit(self: *Self) void {
         self.wl_seat.?.destroy();
         self.wl_keyboard.?.destroy();
         self.xkb_state.?.unref();
@@ -127,10 +127,11 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     const keysym = xkb_state.keyGetOneSym(keycode);
                     if (keysym == .NoSymbol) return;
 
-                    const rate: f32 = @floatFromInt(seto.seat.repeat.rate.?);
-
                     if (xkb_state.getKeymap().keyRepeats(keycode) == 1) {
-                        seto.seat.repeat.timer.start(seto.seat.repeat.delay.?, rate) catch return;
+                        seto.seat.repeat.timer.start(
+                            seto.seat.repeat.delay.?,
+                            1000 / seto.seat.repeat.rate.?,
+                        ) catch return;
                     } else {
                         seto.seat.repeat.timer.stop() catch return;
                     }
@@ -143,8 +144,8 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
             }
         },
         .repeat_info => |repeat_key| {
-            seto.seat.repeat.delay = repeat_key.delay;
-            seto.seat.repeat.rate = repeat_key.rate;
+            seto.seat.repeat.delay = @floatFromInt(repeat_key.delay);
+            seto.seat.repeat.rate = 60; //@floatFromInt(repeat_key.rate);
         },
     }
 }
@@ -193,12 +194,7 @@ pub fn handleKey(self: *Seto) void {
             .quit => self.state.exit = true,
         }
 
-        self.tree.?.updateCoordinates(
-            &self.config,
-            self.state.border_mode,
-            &self.outputs.items,
-            &self.seat.buffer,
-        );
+        self.tree.?.updateCoordinates();
     } else {
         self.seat.buffer.append(utf32_keysym) catch @panic("OOM");
 

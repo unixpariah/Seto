@@ -24,7 +24,7 @@ pub fn default(alloc: std.mem.Allocator) Self {
     };
 }
 
-pub fn new(lua: *Lua, alloc: std.mem.Allocator) Self {
+pub fn init(lua: *Lua, alloc: std.mem.Allocator) Self {
     var grid = Self.default(alloc);
 
     _ = lua.pushString("grid");
