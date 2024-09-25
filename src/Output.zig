@@ -40,7 +40,6 @@ alloc: mem.Allocator,
 info: OutputInfo,
 xdg_output: *zxdg.OutputV1,
 wl_output: *wl.Output,
-tree: Tree = undefined,
 
 const Self = @This();
 
@@ -288,12 +287,7 @@ pub fn xdgOutputListener(
                     );
 
                     if (seto.tree) |tree| tree.deinit();
-                    seto.tree = Tree.init(
-                        seto.config.keys.search,
-                        seto.alloc,
-                        &seto.config,
-                        &seto.outputs.items,
-                    );
+                    seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
                 },
                 .done => {},
             }

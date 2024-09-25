@@ -145,7 +145,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.delay = @floatFromInt(repeat_key.delay);
-            seto.seat.repeat.rate = 60; //repeat_key.rate;
+            seto.seat.repeat.rate = 60; //@floatFromInt(repeat_key.rate);
         },
     }
 }
@@ -194,12 +194,7 @@ pub fn handleKey(self: *Seto) void {
             .quit => self.state.exit = true,
         }
 
-        // self.tree.?.updateCoordinates(
-        //     &self.config,
-        //     self.state.border_mode,
-        //     &self.outputs.items,
-        //     &self.seat.buffer,
-        // );
+        self.tree.?.updateCoordinates();
     } else {
         self.seat.buffer.append(utf32_keysym) catch @panic("OOM");
 

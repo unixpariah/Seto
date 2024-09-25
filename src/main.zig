@@ -54,9 +54,9 @@ pub const Seto = struct {
     outputs: std.ArrayList(Output),
     config: Config,
     alloc: mem.Allocator,
-    tree: ?Tree = null,
     total_dimensions: [2]f32 = .{ 0, 0 },
     state: State = State{},
+    tree: ?Tree = null,
 
     const Self = @This();
 
@@ -171,8 +171,8 @@ pub const Seto = struct {
         self.outputs.deinit();
         self.seat.deinit();
         self.config.deinit();
-        self.tree.?.arena.deinit();
         self.egl.deinit();
+        self.tree.?.deinit();
     }
 };
 

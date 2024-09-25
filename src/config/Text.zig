@@ -9,9 +9,6 @@ const Font = @import("Font.zig");
 
 const LENGTH: comptime_int = 400;
 
-// TODO: when I delete this struct member text rendering in ReleaseSafe breaks (its not referenced anywhere in the code)
-start_color: [93][4]u17 = undefined,
-
 font: *Font,
 char_info: []Character,
 letter_map: [LENGTH]u32,
