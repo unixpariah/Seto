@@ -110,11 +110,9 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     // keycode we must add 8.
                     const keycode = ev.key + 8;
 
-                    const keysym = xkb_state.keyGetOneSym(keycode);
-                    if (keysym == .NoSymbol) return;
+                    if (xkb_state.keyGetUtf32(keycode) != seto.seat.repeat.key) return;
 
-                    if (keysym.toUTF32() != seto.seat.repeat.key) return;
-
+                    seto.seat.repeat.key = null;
                     seto.seat.repeat.timer.stop() catch return;
                 },
                 .pressed => {
@@ -124,8 +122,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                     // keycode we must add 8.
                     const keycode = ev.key + 8;
 
-                    const keysym = xkb_state.keyGetOneSym(keycode);
-                    if (keysym == .NoSymbol) return;
+                    const keysym = xkb_state.keyGetUtf32(keycode);
 
                     if (xkb_state.getKeymap().keyRepeats(keycode) == 1) {
                         seto.seat.repeat.timer.start(
@@ -136,7 +133,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
                         seto.seat.repeat.timer.stop() catch return;
                     }
 
-                    seto.seat.repeat.key = @intFromEnum(keysym);
+                    seto.seat.repeat.key = keysym;
                     handleKey(seto);
                     seto.render() catch return;
                 },
@@ -175,14 +172,11 @@ pub fn handleKey(self: *Seto) void {
         @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
     ) == 1;
 
-    const keysym: xkb.Keysym = @enumFromInt(key);
-    const utf32_keysym = keysym.toUTF32();
-
-    if (key == xkb.Keysym.BackSpace) {
+    if (key == 8) { // Backspace keycode
         _ = self.seat.buffer.popOrNull();
-    } else if (utf32_keysym == 'c' and ctrl_active) {
+    } else if (key == 'c' and ctrl_active) {
         self.state.exit = true;
-    } else if (self.config.keys.bindings.get(@intCast(utf32_keysym))) |function| {
+    } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
         switch (function) {
             .move => |value| grid.move(value),
             .resize => |value| grid.resize(value),
@@ -198,7 +192,7 @@ pub fn handleKey(self: *Seto) void {
             tree.updateCoordinates(self.state.border_mode, &self.outputs.items);
         }
     } else {
-        self.seat.buffer.append(utf32_keysym) catch @panic("OOM");
+        self.seat.buffer.append(key) catch @panic("OOM");
 
         self.printToStdout() catch |err| {
             switch (err) {
