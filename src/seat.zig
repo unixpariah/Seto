@@ -194,7 +194,9 @@ pub fn handleKey(self: *Seto) void {
             .quit => self.state.exit = true,
         }
 
-        self.tree.?.updateCoordinates();
+        if (self.tree) |*tree| {
+            tree.updateCoordinates(self.state.border_mode, &self.outputs.items);
+        }
     } else {
         self.seat.buffer.append(utf32_keysym) catch @panic("OOM");
 

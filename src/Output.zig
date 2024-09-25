@@ -28,8 +28,8 @@ pub const OutputInfo = struct {
     refresh: f32 = 0,
 
     fn deinit(self: *OutputInfo, alloc: mem.Allocator) void {
-        alloc.free(self.name.?);
-        alloc.free(self.description.?);
+        if (self.name) |name| alloc.free(name);
+        if (self.description) |description| alloc.free(description);
     }
 };
 

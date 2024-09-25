@@ -74,6 +74,9 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
     }
 
     var char_info = alloc.alloc(Character, max_char + 1) catch @panic("OOM");
+    for (char_info, 0..) |_, i| {
+        char_info[i] = Character{ .key = 0, .size = .{ 0, 0 }, .texture_id = 0, .bearing = .{ 0, 0 }, .advance = .{ 0, 0 } };
+    }
     for (config.keys.search, 0..) |key, i| {
         char_info[key] = Character.init(face, key, @intCast(i));
     }

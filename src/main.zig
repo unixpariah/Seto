@@ -172,7 +172,9 @@ pub const Seto = struct {
         self.seat.deinit();
         self.config.deinit();
         self.egl.deinit();
-        self.tree.?.deinit();
+        if (self.tree) |tree| {
+            tree.deinit();
+        }
     }
 };
 

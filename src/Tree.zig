@@ -26,7 +26,7 @@ pub fn init(alloc: std.mem.Allocator, config: *const Config, outputs: *const []O
     var index = outputs.len - 1;
     const last = while (index >= 0) : (index -= 1) {
         if (outputs.*[index].isConfigured()) break outputs.*[index].info;
-    } else unreachable;
+    } else unreachable; // There has to be at least one output
 
     var tree = Self{
         .children = nodes,
@@ -37,24 +37,35 @@ pub fn init(alloc: std.mem.Allocator, config: *const Config, outputs: *const []O
         .config_ptr = config,
     };
 
-    tree.updateCoordinates();
+    tree.updateCoordinates(false, outputs);
 
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self) void {
+pub fn updateCoordinates(self: *Self, border_mode: bool, outputs: *const []Output) void {
     var intersections = std.ArrayList([2]f32).init(self.arena.allocator());
     defer intersections.deinit();
 
-    const start_pos: [2]f32 = .{
-        self.total_dimensions[0] + self.config_ptr.grid.offset[0],
-        self.total_dimensions[1] + self.config_ptr.grid.offset[1],
-    };
-    var i = start_pos[0];
-    while (i <= self.total_dimensions[2] - 1) : (i += self.config_ptr.grid.size[0]) {
-        var j = start_pos[1];
-        while (j <= self.total_dimensions[3] - 1) : (j += self.config_ptr.grid.size[1]) {
-            intersections.append(.{ i, j }) catch @panic("OOM");
+    if (border_mode) {
+        for (outputs.*) |output| {
+            intersections.appendSlice(&[_][2]f32{
+                .{ output.info.x, output.info.y },
+                .{ output.info.x, output.info.y + output.info.height - 1 },
+                .{ output.info.x + output.info.width - 1, output.info.y },
+                .{ output.info.x + output.info.width - 1, output.info.y + output.info.height - 1 },
+            }) catch @panic("OOM");
+        }
+    } else {
+        const start_pos: [2]f32 = .{
+            self.total_dimensions[0] + self.config_ptr.grid.offset[0],
+            self.total_dimensions[1] + self.config_ptr.grid.offset[1],
+        };
+        var i = start_pos[0];
+        while (i <= self.total_dimensions[2] - 1) : (i += self.config_ptr.grid.size[0]) {
+            var j = start_pos[1];
+            while (j <= self.total_dimensions[3] - 1) : (j += self.config_ptr.grid.size[1]) {
+                intersections.append(.{ i, j }) catch @panic("OOM");
+            }
         }
     }
 
@@ -70,7 +81,9 @@ pub fn updateCoordinates(self: *Self) void {
     }
 
     var char_size: f32 = 0;
-    for (self.config_ptr.text.char_info) |char| {
+    for (self.config_ptr.keys.search) |key| {
+        const char = self.config_ptr.text.char_info[key];
+
         const scale = self.config_ptr.font.size / 256.0;
 
         const final_size = char.advance[0] * scale;
