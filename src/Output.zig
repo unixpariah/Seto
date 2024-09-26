@@ -209,96 +209,97 @@ pub fn xdgOutputListener(
     event: zxdg.OutputV1.Event,
     seto: *Seto,
 ) void {
-    for (seto.outputs.items) |*output| {
+    const output = for (seto.outputs.items) |*output| {
         if (output.xdg_output == xdg_output) {
-            switch (event) {
-                .name => |e| {
-                    output.info.name = seto.alloc.dupe(u8, mem.span(e.name)) catch @panic("OOM");
-                },
-                .description => |e| {
-                    output.info.description = seto.alloc.dupe(u8, mem.span(e.description)) catch @panic("OOM");
-                },
-                .logical_position => |pos| {
-                    output.info.x = @floatFromInt(pos.x);
-                    output.info.y = @floatFromInt(pos.y);
-                },
-                .logical_size => |size| {
-                    output.info.height = @floatFromInt(size.height);
-                    output.info.width = @floatFromInt(size.width);
-
-                    seto.updateDimensions();
-
-                    { // Background VBO
-                        const vertices = [_]f32{
-                            output.info.x,                     output.info.y,
-                            output.info.x + output.info.width, output.info.y,
-                            output.info.x,                     output.info.y + output.info.height,
-                            output.info.x + output.info.width, output.info.y + output.info.height,
-                        };
-
-                        c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.VBO[0]);
-                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
-                    }
-
-                    { // Border VBO
-                        const vertices = [_]f32{
-                            output.info.x,                     output.info.y,
-                            output.info.x + output.info.width, output.info.y,
-                            output.info.x,                     output.info.y + output.info.height,
-                            output.info.x + output.info.width, output.info.y + output.info.height,
-                        };
-
-                        c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.VBO[1]);
-                        c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
-                    }
-
-                    const uniform_object = struct {
-                        projection: math.Mat4,
-                        start_color: [2][4]f32,
-                        end_color: [2][4]f32,
-                        degrees: [2]f32,
-                    }{
-                        .projection = math.orthographicProjection(
-                            output.info.x,
-                            output.info.x + output.info.width,
-                            output.info.y,
-                            output.info.y + output.info.height,
-                        ),
-                        .start_color = .{
-                            seto.config.font.color.start_color,
-                            seto.config.font.highlight_color.start_color,
-                        },
-                        .end_color = .{
-                            seto.config.font.color.end_color,
-                            seto.config.font.highlight_color.end_color,
-                        },
-                        .degrees = .{
-                            seto.config.font.color.deg,
-                            seto.config.font.highlight_color.deg,
-                        },
-                    };
-
-                    c.glBindBuffer(c.GL_UNIFORM_BUFFER, output.egl.UBO);
-                    c.glBufferData(
-                        c.GL_UNIFORM_BUFFER,
-                        @sizeOf(@TypeOf(uniform_object)),
-                        @ptrCast(&uniform_object),
-                        c.GL_STATIC_DRAW,
-                    );
-
-                    c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, output.egl.UBO);
-                    c.glUniformBlockBinding(
-                        output.egl.main_shader_program.*,
-                        c.glGetUniformBlockIndex(output.egl.main_shader_program.*, "UniformBlock"),
-                        0,
-                    );
-
-                    if (seto.tree) |tree| tree.deinit();
-                    seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
-                },
-                .done => {},
-            }
+            break output;
         }
+    } else unreachable;
+
+    switch (event) {
+        .name => |e| {
+            output.info.name = seto.alloc.dupe(u8, mem.span(e.name)) catch @panic("OOM");
+        },
+        .description => |e| {
+            output.info.description = seto.alloc.dupe(u8, mem.span(e.description)) catch @panic("OOM");
+        },
+        .logical_position => |pos| {
+            output.info.x = @floatFromInt(pos.x);
+            output.info.y = @floatFromInt(pos.y);
+        },
+        .logical_size => |size| {
+            output.info.height = @floatFromInt(size.height);
+            output.info.width = @floatFromInt(size.width);
+
+            { // Background VBO
+                const vertices = [_]f32{
+                    output.info.x,                     output.info.y,
+                    output.info.x + output.info.width, output.info.y,
+                    output.info.x,                     output.info.y + output.info.height,
+                    output.info.x + output.info.width, output.info.y + output.info.height,
+                };
+
+                c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.VBO[0]);
+                c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+            }
+
+            { // Border VBO
+                const vertices = [_]f32{
+                    output.info.x,                     output.info.y,
+                    output.info.x + output.info.width, output.info.y,
+                    output.info.x,                     output.info.y + output.info.height,
+                    output.info.x + output.info.width, output.info.y + output.info.height,
+                };
+
+                c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.VBO[1]);
+                c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+            }
+
+            const uniform_object = struct {
+                projection: math.Mat4,
+                start_color: [2][4]f32,
+                end_color: [2][4]f32,
+                degrees: [2]f32,
+            }{
+                .projection = math.orthographicProjection(
+                    output.info.x,
+                    output.info.x + output.info.width,
+                    output.info.y,
+                    output.info.y + output.info.height,
+                ),
+                .start_color = .{
+                    seto.config.font.color.start_color,
+                    seto.config.font.highlight_color.start_color,
+                },
+                .end_color = .{
+                    seto.config.font.color.end_color,
+                    seto.config.font.highlight_color.end_color,
+                },
+                .degrees = .{
+                    seto.config.font.color.deg,
+                    seto.config.font.highlight_color.deg,
+                },
+            };
+
+            c.glBindBuffer(c.GL_UNIFORM_BUFFER, output.egl.UBO);
+            c.glBufferData(
+                c.GL_UNIFORM_BUFFER,
+                @sizeOf(@TypeOf(uniform_object)),
+                @ptrCast(&uniform_object),
+                c.GL_STATIC_DRAW,
+            );
+
+            c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, output.egl.UBO);
+            c.glUniformBlockBinding(
+                output.egl.main_shader_program.*,
+                c.glGetUniformBlockIndex(output.egl.main_shader_program.*, "UniformBlock"),
+                0,
+            );
+
+            seto.updateDimensions();
+            if (seto.tree) |tree| tree.deinit();
+            seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
+        },
+        .done => {},
     }
 }
 

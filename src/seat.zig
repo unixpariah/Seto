@@ -167,11 +167,6 @@ pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
     const grid = &self.config.grid;
 
-    // const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
-    //     xkb.names.mod.ctrl,
-    //     @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
-    // ) == 1;
-
     const keysym_backspace = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.BackSpace));
     const keysym_escape = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.Escape));
     const keysym_interrupt = 3;
