@@ -31,7 +31,6 @@ return {
 			L = { move_selection = { 5, 0 } },
 			c = "cancel_selection",
 			o = "border_mode",
-			q = "quit",
 		},
 	},
 }

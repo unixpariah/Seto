@@ -34,7 +34,7 @@ pub fn load(alloc: std.mem.Allocator) !Self {
     };
     defer alloc.free(config_path);
 
-    var lua = Lua.init(&alloc) catch @panic("OOM");
+    var lua = try Lua.init(&alloc);
     defer lua.deinit();
 
     lua.doFile(config_path) catch @panic("Lua failed to interpret config file");
@@ -74,16 +74,18 @@ fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
 
             if (std.mem.eql(u8, path, "null")) return error.Null;
 
-            const absolute_path = try std.fs.cwd().realpathAlloc(alloc, path);
-            defer alloc.free(absolute_path);
-            const absolute_path_z = try fs.path.joinZ(alloc, &[_][]const u8{absolute_path});
+            const absolute_path = blk: {
+                const absolute_path = try std.fs.cwd().realpathAlloc(alloc, path);
+                defer alloc.free(absolute_path);
+                break :blk try fs.path.joinZ(alloc, &[_][]const u8{absolute_path});
+            };
 
-            _ = fs.accessAbsolute(absolute_path_z, .{}) catch {
+            _ = fs.accessAbsolute(absolute_path, .{}) catch {
                 std.log.err("File config.lua not found in \"{s}\" directory", .{absolute_path});
                 std.process.exit(1);
             };
 
-            return absolute_path_z;
+            return absolute_path;
         }
     }
 

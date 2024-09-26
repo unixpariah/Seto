@@ -13,11 +13,12 @@ keys: []const u32,
 depth: usize,
 arena: std.heap.ArenaAllocator,
 total_dimensions: [4]f32,
-config_ptr: *const Config,
+config_ptr: *Config,
+outputs_ptr: *const []Output,
 
 const Self = @This();
 
-pub fn init(alloc: std.mem.Allocator, config: *const Config, outputs: *const []Output) Self {
+pub fn init(alloc: std.mem.Allocator, config: *Config, outputs: *const []Output) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, config.keys.search.len) catch @panic("OOM");
     for (config.keys.search, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -35,25 +36,40 @@ pub fn init(alloc: std.mem.Allocator, config: *const Config, outputs: *const []O
         .arena = arena,
         .total_dimensions = .{ first.x, first.y, last.x + last.width, last.y + last.height },
         .config_ptr = config,
+        .outputs_ptr = outputs,
     };
 
-    tree.updateCoordinates(false, outputs);
+    tree.updateCoordinates(false);
 
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self, border_mode: bool, outputs: *const []Output) void {
-    var intersections = std.ArrayList([2]f32).init(self.arena.allocator());
+pub fn updateCoordinates(self: *Self, border_mode: bool) void {
+    const total_intersections = blk: {
+        if (border_mode) {
+            break :blk self.outputs_ptr.len * 4;
+        } else {
+            const width = self.total_dimensions[2] - self.total_dimensions[0];
+            const height = self.total_dimensions[3] - self.total_dimensions[1];
+
+            const num_x_steps: usize = @intFromFloat(@ceil(width / self.config_ptr.grid.size[0]));
+            const num_y_steps: usize = @intFromFloat(@ceil(height / self.config_ptr.grid.size[1]));
+
+            break :blk num_x_steps * num_y_steps;
+        }
+    };
+
+    var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections) catch @panic("OOM");
     defer intersections.deinit();
 
     if (border_mode) {
-        for (outputs.*) |output| {
-            intersections.appendSlice(&[_][2]f32{
+        for (self.outputs_ptr.*) |output| {
+            intersections.appendSliceAssumeCapacity(&[_][2]f32{
                 .{ output.info.x, output.info.y },
                 .{ output.info.x, output.info.y + output.info.height - 1 },
                 .{ output.info.x + output.info.width - 1, output.info.y },
                 .{ output.info.x + output.info.width - 1, output.info.y + output.info.height - 1 },
-            }) catch @panic("OOM");
+            });
         }
     } else {
         const start_pos: [2]f32 = .{
@@ -64,7 +80,7 @@ pub fn updateCoordinates(self: *Self, border_mode: bool, outputs: *const []Outpu
         while (i <= self.total_dimensions[2] - 1) : (i += self.config_ptr.grid.size[0]) {
             var j = start_pos[1];
             while (j <= self.total_dimensions[3] - 1) : (j += self.config_ptr.grid.size[1]) {
-                intersections.append(.{ i, j }) catch @panic("OOM");
+                intersections.appendAssumeCapacity(.{ i, j });
             }
         }
     }
@@ -91,8 +107,8 @@ pub fn updateCoordinates(self: *Self, border_mode: bool, outputs: *const []Outpu
         if (final_size > char_size) char_size = final_size;
     }
 
-    //const depth_f: f32 = @floatFromInt(depth);
-    //self.config_ptr.*.grid.max_size[0] = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
+    const depth_f: f32 = @floatFromInt(depth);
+    self.config_ptr.*.grid.max_size[0] = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
 
     var index: usize = 0;
     for (self.children) |*child| {
@@ -115,7 +131,7 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]f32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, output: *Output, config: *Config, buffer: []u32, border_mode: bool) void {
+pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) void {
     c.glUseProgram(output.egl.text_shader_program.*);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.gen_VBO[2]);
     c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
@@ -124,12 +140,12 @@ pub fn drawText(self: *Self, output: *Output, config: *Config, buffer: []u32, bo
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.drawText(config, path, 1, output, buffer, border_mode);
+            child.drawText(self.config_ptr, path, 1, output, buffer, border_mode);
         } else {
             if (child.coordinates) |coordinates| {
                 renderText(
                     output,
-                    config,
+                    self.config_ptr,
                     buffer,
                     path,
                     border_mode,
@@ -139,7 +155,7 @@ pub fn drawText(self: *Self, output: *Output, config: *Config, buffer: []u32, bo
         }
     }
 
-    config.text.renderCall(output.egl.text_shader_program);
+    self.config_ptr.text.renderCall(output.egl.text_shader_program);
 }
 
 fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]f32) void {

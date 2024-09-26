@@ -113,12 +113,9 @@ pub const Function = union(enum) {
     move_selection: [2]f32,
     border_mode,
     cancel_selection,
-    quit,
 
     pub fn stringToFunction(string: []const u8, value: ?[2]f32) !Function {
-        if (std.mem.eql(u8, string, "quit")) {
-            return .quit;
-        } else if (std.mem.eql(u8, string, "cancel_selection")) {
+        if (std.mem.eql(u8, string, "cancel_selection")) {
             return .cancel_selection;
         } else if (std.mem.eql(u8, string, "border_mode")) {
             return .border_mode;

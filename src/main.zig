@@ -154,8 +154,10 @@ pub const Seto = struct {
             if (!output.isConfigured()) continue;
             try output.egl.makeCurrent();
 
+            _ = c.eglSwapInterval(output.egl.display.*, 0);
+
             output.draw(&self.config, self.state.border_mode, &self.state.mode);
-            self.tree.?.drawText(output, &self.config, self.seat.buffer.items, self.state.border_mode);
+            self.tree.?.drawText(output, self.seat.buffer.items, self.state.border_mode);
 
             try output.egl.swapBuffers();
         }

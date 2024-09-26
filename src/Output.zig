@@ -142,21 +142,28 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
         hor_line_count * grid.size[1] + grid.offset[1],
     };
 
-    var vertices = std.ArrayList(f32).init(self.alloc);
+    const vertices_count = blk: {
+        const num_x_steps: usize = @intFromFloat(@ceil((self.info.x + self.info.width - start_pos[0]) / grid.size[0]));
+        const num_y_steps: usize = @intFromFloat(@ceil((self.info.y + self.info.height - start_pos[1]) / grid.size[1]));
+
+        break :blk (num_x_steps + 1 + num_y_steps + 1) * 4;
+    };
+
+    var vertices = std.ArrayList(f32).initCapacity(self.alloc, vertices_count) catch @panic("OOM");
     defer vertices.deinit();
 
     while (start_pos[0] <= self.info.x + self.info.width) : (start_pos[0] += grid.size[0]) {
-        vertices.appendSlice(&[_]f32{
+        vertices.appendSliceAssumeCapacity(&[_]f32{
             start_pos[0], self.info.y,
             start_pos[0], self.info.y + self.info.height,
-        }) catch @panic("OOM");
+        });
     }
 
     while (start_pos[1] <= self.info.y + self.info.height) : (start_pos[1] += grid.size[1]) {
-        vertices.appendSlice(&[_]f32{
+        vertices.appendSliceAssumeCapacity(&[_]f32{
             self.info.x,                   start_pos[1],
             self.info.x + self.info.width, start_pos[1],
-        }) catch @panic("OOM");
+        });
     }
 
     c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.gen_VBO[0]);

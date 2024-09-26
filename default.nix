@@ -20,7 +20,6 @@ stdenv.mkDerivation (finalAttrs: {
   src = ./.;
 
   dontConfigure = true;
-  dontInstall = true;
   doCheck = false;
 
   nativeBuildInputs = [
@@ -44,6 +43,19 @@ stdenv.mkDerivation (finalAttrs: {
     ln -s ${callPackage ./deps.nix {}} .cache/p
     # TODO: Make it into ReleaseSafe after fixing stack corruption
     zig build install --cache-dir $(pwd)/.zig-cache --global-cache-dir $(pwd)/.cache -Dcpu=baseline -Doptimize=ReleaseFast --prefix $out
+  '';
+
+  postInstall = ''
+    for f in doc/*.scd; do
+      local page="doc/$(basename "$f" .scd)"
+      scdoc < "$f" > "$page"
+      installManPage "$page"
+    done
+
+    installShellCompletion --cmd sww \
+      --bash completions/seto.bash \
+      --fish completions/seto.fish \
+      --zsh completions/_seto
   '';
 
   meta = with lib; {

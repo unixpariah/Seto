@@ -74,9 +74,6 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
     }
 
     var char_info = alloc.alloc(Character, max_char + 1) catch @panic("OOM");
-    for (char_info, 0..) |_, i| {
-        char_info[i] = Character{ .key = 0, .size = .{ 0, 0 }, .texture_id = 0, .bearing = .{ 0, 0 }, .advance = .{ 0, 0 } };
-    }
     for (config.keys.search, 0..) |key, i| {
         char_info[key] = Character.init(face, key, @intCast(i));
     }
@@ -156,7 +153,7 @@ pub fn renderCall(self: *Self, shader_program: *c_uint) void {
     self.index = 0;
 }
 
-pub fn getSize(self: *Self, text: []const u32) f32 {
+pub fn getSize(self: *const Self, text: []const u32) f32 {
     if (text.len == 0) return 0;
 
     const scale = self.font.size / 256.0;

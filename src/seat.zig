@@ -167,14 +167,18 @@ pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
     const grid = &self.config.grid;
 
-    const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
-        xkb.names.mod.ctrl,
-        @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
-    ) == 1;
+    // const ctrl_active = self.seat.xkb_state.?.modNameIsActive(
+    //     xkb.names.mod.ctrl,
+    //     @enumFromInt(xkb.State.Component.mods_depressed | xkb.State.Component.mods_latched),
+    // ) == 1;
 
-    if (key == 8) { // Backspace keycode
+    const keysym_backspace = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.BackSpace));
+    const keysym_escape = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.Escape));
+    const keysym_interrupt = 3;
+
+    if (key == keysym_backspace) {
         _ = self.seat.buffer.popOrNull();
-    } else if (key == 'c' and ctrl_active) {
+    } else if (key == keysym_interrupt or key == keysym_escape) {
         self.state.exit = true;
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
         switch (function) {
@@ -185,11 +189,10 @@ pub fn handleKey(self: *Seto) void {
             },
             .move_selection => |value| moveSelection(self, value),
             .border_mode => self.state.border_mode = !self.state.border_mode,
-            .quit => self.state.exit = true,
         }
 
         if (self.tree) |*tree| {
-            tree.updateCoordinates(self.state.border_mode, &self.outputs.items);
+            tree.updateCoordinates(self.state.border_mode);
         }
     } else {
         self.seat.buffer.append(key) catch @panic("OOM");
