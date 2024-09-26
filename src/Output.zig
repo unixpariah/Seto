@@ -80,7 +80,7 @@ pub fn cmp(_: Self, a: Self, b: Self) bool {
     return a.info.y < b.info.y;
 }
 
-pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) void {
+pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode, total_dimensions: [4]f32) void {
     c.glUseProgram(self.egl.main_shader_program.*);
     c.glClear(c.GL_COLOR_BUFFER_BIT);
     c.glClearColor(0, 0, 0, 0);
@@ -89,7 +89,7 @@ pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) 
     c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
 
     self.drawBackground(config);
-    self.drawGrid(config, border_mode);
+    self.drawGrid(config, border_mode, total_dimensions);
     if (mode.* == .Region) self.drawSelection(config, mode);
 }
 
@@ -120,11 +120,9 @@ pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void
     }
 }
 
-pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
-    const grid = &config.grid;
-
-    c.glLineWidth(grid.line_width);
-    grid.color.set(self.egl.main_shader_program.*);
+pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool, total_dimensions: [4]f32) void {
+    c.glLineWidth(config.grid.line_width);
+    config.grid.color.set(self.egl.main_shader_program.*);
 
     if (border_mode) {
         c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
@@ -134,32 +132,32 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
         return;
     }
 
-    const vert_line_count = @divFloor(self.info.x, grid.size[0]);
-    const hor_line_count = @divFloor(self.info.y, grid.size[1]);
+    const num_x_step = @ceil(@abs(total_dimensions[0] - self.info.x) / config.grid.size[0]);
+    const num_y_step = @ceil(@abs(total_dimensions[1] - self.info.y) / config.grid.size[1]);
 
     var start_pos: [2]f32 = .{
-        vert_line_count * grid.size[0] + grid.offset[0],
-        hor_line_count * grid.size[1] + grid.offset[1],
+        total_dimensions[0] + num_x_step * config.grid.size[0] + config.grid.offset[0],
+        total_dimensions[1] + num_y_step * config.grid.size[1] + config.grid.offset[1],
     };
 
-    const vertices_count = blk: {
-        const num_x_steps: usize = @intFromFloat(@ceil((self.info.x + self.info.width - start_pos[0]) / grid.size[0]));
-        const num_y_steps: usize = @intFromFloat(@ceil((self.info.y + self.info.height - start_pos[1]) / grid.size[1]));
+    const vertices_count: usize = blk: {
+        const num_x_steps = @ceil(self.info.width / config.grid.size[0]);
+        const num_y_steps = @ceil(self.info.height / config.grid.size[1]);
 
-        break :blk (num_x_steps + 1 + num_y_steps + 1) * 4;
+        break :blk @intFromFloat((num_x_steps + 1 + num_y_steps + 1) * 4);
     };
 
     var vertices = std.ArrayList(f32).initCapacity(self.alloc, vertices_count) catch @panic("OOM");
     defer vertices.deinit();
 
-    while (start_pos[0] <= self.info.x + self.info.width) : (start_pos[0] += grid.size[0]) {
+    while (start_pos[0] <= self.info.x + self.info.width) : (start_pos[0] += config.grid.size[0]) {
         vertices.appendSliceAssumeCapacity(&[_]f32{
             start_pos[0], self.info.y,
             start_pos[0], self.info.y + self.info.height,
         });
     }
 
-    while (start_pos[1] <= self.info.y + self.info.height) : (start_pos[1] += grid.size[1]) {
+    while (start_pos[1] <= self.info.y + self.info.height) : (start_pos[1] += config.grid.size[1]) {
         vertices.appendSliceAssumeCapacity(&[_]f32{
             self.info.x,                   start_pos[1],
             self.info.x + self.info.width, start_pos[1],

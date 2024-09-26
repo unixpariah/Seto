@@ -156,7 +156,15 @@ pub const Seto = struct {
 
             _ = c.eglSwapInterval(output.egl.display.*, 0);
 
-            output.draw(&self.config, self.state.border_mode, &self.state.mode);
+            const first = self.outputs.items[0].info;
+            var index = self.outputs.items.len - 1;
+            const last = while (index >= 0) : (index -= 1) {
+                if (self.outputs.items[index].isConfigured()) break self.outputs.items[index].info;
+            } else unreachable; // There has to be at least one output
+
+            const total_dimensions = .{ first.x, first.y, last.x + last.width, last.y + last.height };
+
+            output.draw(&self.config, self.state.border_mode, &self.state.mode, total_dimensions);
             self.tree.?.drawText(output, self.seat.buffer.items, self.state.border_mode);
 
             try output.egl.swapBuffers();
@@ -167,16 +175,12 @@ pub const Seto = struct {
         self.compositor.?.destroy();
         self.layer_shell.?.destroy();
         self.output_manager.?.destroy();
-        for (self.outputs.items) |*output| {
-            output.deinit();
-        }
+        for (self.outputs.items) |*output| output.deinit();
         self.outputs.deinit();
         self.seat.deinit();
         self.config.deinit();
         self.egl.deinit();
-        if (self.tree) |tree| {
-            tree.deinit();
-        }
+        if (self.tree) |tree| tree.deinit();
     }
 };
 
