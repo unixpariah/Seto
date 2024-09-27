@@ -38,6 +38,13 @@ pub const Mode = union(enum) {
     Single,
 };
 
+pub const TotalDimensions = struct {
+    x: f32 = 0,
+    y: f32 = 0,
+    width: f32 = 0,
+    height: f32 = 0,
+};
+
 pub const State = struct {
     first_draw: bool = true,
     exit: bool = false,
@@ -54,7 +61,7 @@ pub const Seto = struct {
     outputs: std.ArrayList(Output),
     config: Config,
     alloc: mem.Allocator,
-    total_dimensions: [2]f32 = .{ 0, 0 },
+    total_dimensions: TotalDimensions = .{},
     state: State = State{},
     tree: ?Tree = null,
 
@@ -87,9 +94,19 @@ pub const Seto = struct {
         std.mem.sort(Output, self.outputs.items, self.outputs.items[0], Output.cmp);
 
         const first = self.outputs.items[0].info;
-        const last = self.outputs.getLast().info;
+        var index: usize = self.outputs.items.len - 1;
+        const last = while (index > 0) : (index -= 1) {
+            if (self.outputs.items[index].isConfigured()) {
+                break self.outputs.items[index].info;
+            }
+        } else first;
 
-        self.total_dimensions = .{ (last.x + last.width) - first.x, (last.y + last.height) - first.y };
+        self.total_dimensions = .{
+            .x = first.x,
+            .y = first.y,
+            .width = (last.x + last.width) - first.x,
+            .height = (last.y + last.height) - first.y,
+        };
     }
 
     fn formatOutput(self: *Self, arena: *std.heap.ArenaAllocator, top_left: [2]f32, size: [2]f32) void {
@@ -156,15 +173,7 @@ pub const Seto = struct {
 
             _ = c.eglSwapInterval(output.egl.display.*, 0);
 
-            const first = self.outputs.items[0].info;
-            var index = self.outputs.items.len - 1;
-            const last = while (index >= 0) : (index -= 1) {
-                if (self.outputs.items[index].isConfigured()) break self.outputs.items[index].info;
-            } else unreachable; // There has to be at least one output
-
-            const total_dimensions = .{ first.x, first.y, last.x + last.width, last.y + last.height };
-
-            output.draw(&self.config, self.state.border_mode, &self.state.mode, total_dimensions);
+            output.draw(&self.config, self.state.border_mode, &self.state.mode);
             self.tree.?.drawText(output, self.seat.buffer.items, self.state.border_mode);
 
             try output.egl.swapBuffers();
@@ -296,7 +305,6 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     const xdg_output = seto.output_manager.?.getXdgOutput(wl_output) catch @panic("Failed to get xdg output global");
 
                     const egl_surface = seto.egl.surfaceInit(surface, .{ 1, 1 }) catch @panic("Failed to create egl surface");
-
                     const output = Output.init(
                         egl_surface,
                         surface,
@@ -305,6 +313,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         xdg_output,
                         wl_output,
                         OutputInfo{ .id = global.name },
+                        &seto.total_dimensions,
                     );
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);

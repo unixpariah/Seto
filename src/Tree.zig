@@ -7,12 +7,13 @@ const Output = @import("Output.zig");
 const Grid = @import("config/Grid.zig");
 const Config = @import("Config.zig");
 const OutputInfo = @import("Output.zig").OutputInfo;
+const TotalDimensions = @import("main.zig").TotalDimensions;
 
 children: []Node,
 keys: []const u32,
 depth: usize,
 arena: std.heap.ArenaAllocator,
-total_dimensions: [4]f32,
+total_dimensions: *TotalDimensions,
 config_ptr: *Config,
 outputs_ptr: *const []Output,
 
@@ -23,18 +24,12 @@ pub fn init(alloc: std.mem.Allocator, config: *Config, outputs: *const []Output)
     const nodes = arena.allocator().alloc(Node, config.keys.search.len) catch @panic("OOM");
     for (config.keys.search, 0..) |key, i| nodes[i] = Node{ .key = key };
 
-    const first = outputs.*[0].info;
-    var index = outputs.len - 1;
-    const last = while (index >= 0) : (index -= 1) {
-        if (outputs.*[index].isConfigured()) break outputs.*[index].info;
-    } else unreachable; // There has to be at least one output
-
     var tree = Self{
         .children = nodes,
         .keys = config.keys.search,
         .depth = 1,
         .arena = arena,
-        .total_dimensions = .{ first.x, first.y, last.x + last.width, last.y + last.height },
+        .total_dimensions = outputs.*[0].total_dimensions_ptr,
         .config_ptr = config,
         .outputs_ptr = outputs,
     };
@@ -45,17 +40,17 @@ pub fn init(alloc: std.mem.Allocator, config: *Config, outputs: *const []Output)
 }
 
 pub fn updateCoordinates(self: *Self, border_mode: bool) void {
-    const total_intersections = blk: {
+    const total_intersections: usize = blk: {
         if (border_mode) {
             break :blk self.outputs_ptr.len * 4;
         } else {
-            const width = self.total_dimensions[2] - self.total_dimensions[0];
-            const height = self.total_dimensions[3] - self.total_dimensions[1];
+            const width = self.total_dimensions.width - self.total_dimensions.x;
+            const height = self.total_dimensions.height - self.total_dimensions.y;
 
-            const num_x_steps: usize = @intFromFloat(@ceil(width / self.config_ptr.grid.size[0]));
-            const num_y_steps: usize = @intFromFloat(@ceil(height / self.config_ptr.grid.size[1]));
+            const num_x_steps = @ceil(width / self.config_ptr.grid.size[0]);
+            const num_y_steps = @ceil(height / self.config_ptr.grid.size[1]);
 
-            break :blk num_x_steps * num_y_steps;
+            break :blk @intFromFloat(num_x_steps * num_y_steps);
         }
     };
 
@@ -73,21 +68,20 @@ pub fn updateCoordinates(self: *Self, border_mode: bool) void {
         }
     } else {
         const start_pos: [2]f32 = .{
-            self.total_dimensions[0] + self.config_ptr.grid.offset[0],
-            self.total_dimensions[1] + self.config_ptr.grid.offset[1],
+            self.total_dimensions.x + self.config_ptr.grid.offset[0],
+            self.total_dimensions.y + self.config_ptr.grid.offset[1],
         };
         var i = start_pos[0];
-        while (i <= self.total_dimensions[2] - 1) : (i += self.config_ptr.grid.size[0]) {
+        while (i <= self.total_dimensions.width - 1) : (i += self.config_ptr.grid.size[0]) {
             var j = start_pos[1];
-            while (j <= self.total_dimensions[3] - 1) : (j += self.config_ptr.grid.size[1]) {
+            while (j <= self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
                 intersections.appendAssumeCapacity(.{ i, j });
             }
         }
     }
-
     const depth: usize = depth: {
         const depth = std.math.log(f32, @floatFromInt(self.config_ptr.keys.search.len), @floatFromInt(intersections.items.len));
-        break :depth @intFromFloat(std.math.ceil(depth));
+        break :depth @intFromFloat(@ceil(depth));
     };
 
     if (depth < self.depth) {

@@ -10,6 +10,7 @@ const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
 
+const TotalDimensions = @import("main.zig").TotalDimensions;
 const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("Config.zig");
@@ -40,6 +41,7 @@ alloc: mem.Allocator,
 info: OutputInfo,
 xdg_output: *zxdg.OutputV1,
 wl_output: *wl.Output,
+total_dimensions_ptr: *TotalDimensions,
 
 const Self = @This();
 
@@ -51,6 +53,7 @@ pub fn init(
     xdg_output: *zxdg.OutputV1,
     wl_output: *wl.Output,
     output_info: OutputInfo,
+    total_dimensions_ptr: *TotalDimensions,
 ) Self {
     return .{
         .egl = egl,
@@ -60,6 +63,7 @@ pub fn init(
         .info = output_info,
         .xdg_output = xdg_output,
         .wl_output = wl_output,
+        .total_dimensions_ptr = total_dimensions_ptr,
     };
 }
 
@@ -80,7 +84,7 @@ pub fn cmp(_: Self, a: Self, b: Self) bool {
     return a.info.y < b.info.y;
 }
 
-pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode, total_dimensions: [4]f32) void {
+pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) void {
     c.glUseProgram(self.egl.main_shader_program.*);
     c.glClear(c.GL_COLOR_BUFFER_BIT);
     c.glClearColor(0, 0, 0, 0);
@@ -89,7 +93,7 @@ pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode, 
     c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
 
     self.drawBackground(config);
-    self.drawGrid(config, border_mode, total_dimensions);
+    self.drawGrid(config, border_mode);
     if (mode.* == .Region) self.drawSelection(config, mode);
 }
 
@@ -120,7 +124,7 @@ pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void
     }
 }
 
-pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool, total_dimensions: [4]f32) void {
+pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
     c.glLineWidth(config.grid.line_width);
     config.grid.color.set(self.egl.main_shader_program.*);
 
@@ -132,12 +136,12 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool, total_dim
         return;
     }
 
-    const num_x_step = @ceil(@abs(total_dimensions[0] - self.info.x) / config.grid.size[0]);
-    const num_y_step = @ceil(@abs(total_dimensions[1] - self.info.y) / config.grid.size[1]);
+    const num_x_step = @ceil(@abs(self.total_dimensions_ptr.x - self.info.x) / config.grid.size[0]);
+    const num_y_step = @ceil(@abs(self.total_dimensions_ptr.y - self.info.y) / config.grid.size[1]);
 
     var start_pos: [2]f32 = .{
-        total_dimensions[0] + num_x_step * config.grid.size[0] + config.grid.offset[0],
-        total_dimensions[1] + num_y_step * config.grid.size[1] + config.grid.offset[1],
+        self.total_dimensions_ptr.x + num_x_step * config.grid.size[0] + config.grid.offset[0],
+        self.total_dimensions_ptr.y + num_y_step * config.grid.size[1] + config.grid.offset[1],
     };
 
     const vertices_count: usize = blk: {
@@ -308,8 +312,7 @@ pub fn wlOutputListener(wl_output: *wl.Output, event: wl.Output.Event, seto: *Se
 
     switch (event) {
         .mode => |mode| {
-            const refresh: f32 = @floatFromInt(mode.refresh);
-            output.info.refresh = @divTrunc(refresh, 1000);
+            output.info.refresh = @floatFromInt(@divTrunc(mode.refresh, 1000));
         },
         else => {},
     }

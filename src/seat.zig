@@ -150,15 +150,23 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 fn moveSelection(seto: *Seto, value: [2]f32) void {
     if (seto.state.mode == .Single) return;
     if (seto.state.mode.Region) |*position| {
-        const info: [2]f32 = .{ seto.outputs.items[0].info.x, seto.outputs.items[0].info.y };
-        for (position, 0..) |*pos, i| {
-            pos.* += value[i];
+        position[0] += value[0];
+        position[1] += value[1];
 
-            if (pos.* < info[i]) {
-                pos.* = info[i];
-            } else if (pos.* > info[i] + seto.total_dimensions[i]) {
-                pos.* = info[i] + seto.total_dimensions[i];
-            }
+        if (position[0] < seto.total_dimensions.x) {
+            position[0] = seto.total_dimensions.x;
+        }
+
+        if (position[1] < seto.total_dimensions.y) {
+            position[1] = seto.total_dimensions.y;
+        }
+
+        if (position[0] > seto.total_dimensions.x + seto.total_dimensions.width) {
+            position[0] = seto.total_dimensions.x + seto.total_dimensions.width;
+        }
+
+        if (position[1] > seto.total_dimensions.y + seto.total_dimensions.height) {
+            position[1] = seto.total_dimensions.y + seto.total_dimensions.height;
         }
     }
 }
