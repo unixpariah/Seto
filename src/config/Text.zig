@@ -115,9 +115,7 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorI
         const x_pos = x + ch.bearing[0] * self.scale + move;
         const y_pos = y - ch.bearing[1] * self.scale;
 
-        const translate_mat = math.translate(x_pos, y_pos);
-
-        self.transform[self.index] = math.transform(self.font.size, translate_mat);
+        self.transform[self.index] = math.transform(self.font.size, x_pos, y_pos);
         self.letter_map[self.index] = ch.texture_id;
         self.color_index[self.index] = @intFromEnum(color_index);
 
