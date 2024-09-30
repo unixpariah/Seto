@@ -1,32 +1,29 @@
 const std = @import("std");
 
-pub const Mat3x2 = [3][2]f32;
+pub const Mat4 = [4][4]f32;
+pub const Vec4 = [4]f32;
 
-pub fn mat3x2() Mat3x2 {
-    return .{
-        .{ 1, 0 },
-        .{ 0, 1 },
-        .{ 0, 0 },
-    };
+pub fn transform(font_size: f32, m1: Vec4) Mat4 {
+    var result: Mat4 = undefined;
+    var vx = @shuffle(f32, [4]i32{ 0, 0, 0, 1 }, undefined, [4]i32{ 0, 0, 0, 0 });
+    var vy = @shuffle(f32, [4]i32{ 0, 0, 0, 1 }, undefined, [4]i32{ 1, 1, 1, 1 });
+    var vw = @shuffle(f32, [4]i32{ 0, 0, 0, 1 }, undefined, [4]i32{ 3, 3, 3, 3 });
+    vx = vx * [4]f32{ 1, 0, 0, 0 };
+    vy = vy * [4]f32{ 0, 1, 0, 0 };
+    vw = vw * m1;
+    vy = vy + vw;
+    vx = vx + vy;
+    result[3] = vx;
+
+    result[0] = .{ font_size, 0, 0, 0 };
+    result[1] = .{ 0, font_size, 0, 0 };
+    result[2] = .{ 0, 0, 0, 0 };
+
+    return result;
 }
 
-pub const Mat4 = [4][4]f32;
-
-pub fn mul(m0: Mat4, m1: Mat4) Mat4 {
-    var result: Mat4 = undefined;
-    comptime var row: u32 = 0;
-    inline while (row < 4) : (row += 1) {
-        var vx = @shuffle(f32, m0[row], undefined, [4]i32{ 0, 0, 0, 0 });
-        var vy = @shuffle(f32, m0[row], undefined, [4]i32{ 1, 1, 1, 1 });
-        var vw = @shuffle(f32, m0[row], undefined, [4]i32{ 3, 3, 3, 3 });
-        vx = vx * m1[0];
-        vy = vy * m1[1];
-        vw = vw * m1[3];
-        vy = vy + vw;
-        vx = vx + vy;
-        result[row] = vx;
-    }
-    return result;
+pub fn translate(x: f32, y: f32) Vec4 {
+    return .{ x, y, 0, 1 };
 }
 
 pub fn mat4() Mat4 {
@@ -44,23 +41,5 @@ pub fn orthographicProjection(left: f32, right: f32, top: f32, bottom: f32) Mat4
         .{ 0.0, 2 / (top - bottom), 0.0, 0.0 },
         .{ 0.0, 0.0, 2, 0.0 },
         .{ -(right + left) / (right - left), -(top + bottom) / (top - bottom), -1, 1.0 },
-    };
-}
-
-pub fn translate(x: f32, y: f32) Mat4 {
-    return .{
-        .{ 1, 0, 0, 0 },
-        .{ 0, 1, 0, 0 },
-        .{ 0, 0, 1, 0 },
-        .{ x, y, 0, 1 },
-    };
-}
-
-pub fn scale(x: f32, y: f32) Mat4 {
-    return .{
-        .{ x, 0, 0, 0 },
-        .{ 0, y, 0, 0 },
-        .{ 0, 0, 0, 0 },
-        .{ 0, 0, 0, 1 },
     };
 }

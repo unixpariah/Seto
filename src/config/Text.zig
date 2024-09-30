@@ -17,7 +17,6 @@ color_index: [LENGTH]u32,
 alloc: std.mem.Allocator,
 index: u32,
 scale: f32,
-scale_mat: math.Mat4,
 
 const Self = @This();
 
@@ -98,7 +97,6 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
         .alloc = alloc,
         .index = 0,
         .scale = config.font.size / 256.0,
-        .scale_mat = math.scale(config.font.size, config.font.size),
     };
 }
 
@@ -119,7 +117,7 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorI
 
         const translate_mat = math.translate(x_pos, y_pos);
 
-        self.transform[self.index] = math.mul(self.scale_mat, translate_mat);
+        self.transform[self.index] = math.transform(self.font.size, translate_mat);
         self.letter_map[self.index] = ch.texture_id;
         self.color_index[self.index] = @intFromEnum(color_index);
 
