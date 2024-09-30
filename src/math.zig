@@ -4,14 +4,11 @@ pub const Mat4 = [4][4]f32;
 const Vector = @Vector(2, f32);
 
 pub fn transform(font_size: f32, x: f32, y: f32) Mat4 {
-    var vw: Vector = [2]f32{ 1, 1 };
-    vw = vw * [2]f32{ x, y };
-
     return .{
         .{ font_size, 0, 0, 0 },
         .{ 0, font_size, 0, 0 },
         .{ 0, 0, 0, 0 },
-        .{ vw[0], vw[1], 0, 1 },
+        .{ x, y, 0, 1 },
     };
 }
 
