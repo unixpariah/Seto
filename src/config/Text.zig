@@ -98,7 +98,7 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
         .alloc = alloc,
         .index = 0,
         .scale = config.font.size / 256.0,
-        .scale_mat = math.scale(config.font.size, config.font.size, 0),
+        .scale_mat = math.scale(config.font.size, config.font.size),
     };
 }
 
@@ -117,7 +117,7 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorI
         const x_pos = x + ch.bearing[0] * self.scale + move;
         const y_pos = y - ch.bearing[1] * self.scale;
 
-        const translate_mat = math.translate(x_pos, y_pos, 0);
+        const translate_mat = math.translate(x_pos, y_pos);
 
         self.transform[self.index] = math.mul(self.scale_mat, translate_mat);
         self.letter_map[self.index] = ch.texture_id;

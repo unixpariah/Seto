@@ -1,5 +1,15 @@
 const std = @import("std");
 
+pub const Mat3x2 = [3][2]f32;
+
+pub fn mat3x2() Mat3x2 {
+    return .{
+        .{ 1, 0 },
+        .{ 0, 1 },
+        .{ 0, 0 },
+    };
+}
+
 pub const Mat4 = [4][4]f32;
 
 pub fn mul(m0: Mat4, m1: Mat4) Mat4 {
@@ -8,13 +18,10 @@ pub fn mul(m0: Mat4, m1: Mat4) Mat4 {
     inline while (row < 4) : (row += 1) {
         var vx = @shuffle(f32, m0[row], undefined, [4]i32{ 0, 0, 0, 0 });
         var vy = @shuffle(f32, m0[row], undefined, [4]i32{ 1, 1, 1, 1 });
-        var vz = @shuffle(f32, m0[row], undefined, [4]i32{ 2, 2, 2, 2 });
         var vw = @shuffle(f32, m0[row], undefined, [4]i32{ 3, 3, 3, 3 });
         vx = vx * m1[0];
         vy = vy * m1[1];
-        vz = vz * m1[2];
         vw = vw * m1[3];
-        vx = vx + vz;
         vy = vy + vw;
         vx = vx + vy;
         result[row] = vx;
@@ -40,20 +47,20 @@ pub fn orthographicProjection(left: f32, right: f32, top: f32, bottom: f32) Mat4
     };
 }
 
-pub inline fn translate(x: f32, y: f32, z: f32) Mat4 {
+pub fn translate(x: f32, y: f32) Mat4 {
     return .{
         .{ 1, 0, 0, 0 },
         .{ 0, 1, 0, 0 },
         .{ 0, 0, 1, 0 },
-        .{ x, y, z, 1 },
+        .{ x, y, 0, 1 },
     };
 }
 
-pub fn scale(x: f32, y: f32, z: f32) Mat4 {
+pub fn scale(x: f32, y: f32) Mat4 {
     return .{
         .{ x, 0, 0, 0 },
         .{ 0, y, 0, 0 },
-        .{ 0, 0, z, 0 },
+        .{ 0, 0, 0, 0 },
         .{ 0, 0, 0, 1 },
     };
 }
