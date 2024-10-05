@@ -21,7 +21,6 @@ const Color = helpers.Color;
 pub const OutputInfo = struct {
     id: u32,
     name: ?[]const u8 = null,
-    description: ?[]const u8 = null,
     height: f32 = 0,
     width: f32 = 0,
     x: f32 = 0,
@@ -30,7 +29,6 @@ pub const OutputInfo = struct {
 
     fn deinit(self: *OutputInfo, alloc: mem.Allocator) void {
         if (self.name) |name| alloc.free(name);
-        if (self.description) |description| alloc.free(description);
     }
 };
 
@@ -85,7 +83,7 @@ pub fn cmp(_: Self, a: Self, b: Self) bool {
 }
 
 pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) void {
-    c.glUseProgram(self.egl.main_shader_program.*);
+    c.glUseProgram(self.egl.main_shader_program);
     c.glClear(c.GL_COLOR_BUFFER_BIT);
     c.glClearColor(0, 0, 0, 0);
 
@@ -98,7 +96,7 @@ pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) 
 }
 
 pub fn drawBackground(self: *const Self, config: *Config) void {
-    config.background_color.set(self.egl.main_shader_program.*);
+    config.background_color.set(self.egl.main_shader_program);
 
     c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[0]);
     c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
@@ -107,7 +105,7 @@ pub fn drawBackground(self: *const Self, config: *Config) void {
 
 pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void {
     if (mode.Region) |pos| {
-        config.grid.selected_color.set(self.egl.main_shader_program.*);
+        config.grid.selected_color.set(self.egl.main_shader_program);
 
         var vertices: [8]f32 = .{
             self.info.x + self.info.width, pos[1],
@@ -126,7 +124,7 @@ pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void
 
 pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
     c.glLineWidth(config.grid.line_width);
-    config.grid.color.set(self.egl.main_shader_program.*);
+    config.grid.color.set(self.egl.main_shader_program);
 
     if (border_mode) {
         c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
@@ -221,9 +219,6 @@ pub fn xdgOutputListener(
         .name => |e| {
             output.info.name = seto.alloc.dupe(u8, mem.span(e.name)) catch @panic("OOM");
         },
-        .description => |e| {
-            output.info.description = seto.alloc.dupe(u8, mem.span(e.description)) catch @panic("OOM");
-        },
         .logical_position => |pos| {
             output.info.x = @floatFromInt(pos.x);
             output.info.y = @floatFromInt(pos.y);
@@ -292,8 +287,8 @@ pub fn xdgOutputListener(
 
             c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, output.egl.UBO);
             c.glUniformBlockBinding(
-                output.egl.main_shader_program.*,
-                c.glGetUniformBlockIndex(output.egl.main_shader_program.*, "UniformBlock"),
+                output.egl.main_shader_program,
+                c.glGetUniformBlockIndex(output.egl.main_shader_program, "UniformBlock"),
                 0,
             );
 
@@ -301,7 +296,7 @@ pub fn xdgOutputListener(
             if (seto.tree) |tree| tree.deinit();
             seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
         },
-        .done => {},
+        else => {},
     }
 }
 

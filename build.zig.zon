@@ -4,8 +4,8 @@
     .paths = .{""},
     .dependencies = .{
         .ziglua = .{
-            .url = "https://github.com/natecraddock/ziglua/archive/a7cf85fb871a95a46d4222fe3abdd3946e3e0dab.tar.gz",
-            .hash = "122069f4b75c946c705c0ed3218f52e0917ca361f55cebf3fb1c66a431a88ccc87b3",
+            .url = "https://github.com/natecraddock/ziglua/archive/main.tar.gz",
+            .hash = "12209737346f4f08b13eb0a78530cf259aa1a446ba7ee8b68cb736b4a154eeabbbcc",
         },
         .@"zig-wayland" = .{
             .url = "https://codeberg.org/ifreund/zig-wayland/archive/092e3424345d9c0a9467771b2f629fa01560a69f.tar.gz",

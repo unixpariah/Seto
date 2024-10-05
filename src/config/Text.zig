@@ -26,9 +26,6 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
 
     if (c.FT_Init_FreeType(&ft) == 1) @panic("Failed to initialize FreeType");
 
-    var face: c.FT_Face = undefined;
-    defer _ = c.FT_Done_Face(face);
-
     const font_path = getFontPath(alloc, config.font.family) catch |err| {
         switch (err) {
             error.InitError => std.log.err("Failed to initialize FontConfig\n", .{}),
@@ -38,6 +35,9 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
         std.process.exit(1);
     };
     defer alloc.free(font_path);
+
+    var face: c.FT_Face = undefined;
+    defer _ = c.FT_Done_Face(face);
 
     if (c.FT_New_Face(ft, font_path.ptr, 0, &face) == 1) {
         std.log.err("Failed to load font {s}\n", .{font_path});
@@ -86,8 +86,6 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
         color_index[i] = 0;
     }
 
-    c.glBindTexture(c.GL_TEXTURE_2D_ARRAY, texture_array);
-
     return .{
         .font = &config.font,
         .letter_map = letter_map,
@@ -105,7 +103,7 @@ const ColorIndex = enum(u1) {
     highlight_color,
 };
 
-pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorIndex, shader_program: *c_uint) void {
+pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorIndex, shader_program: c_uint) void {
     if (text.len == 0) return;
 
     var move: f32 = 0;
@@ -127,21 +125,20 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorI
     }
 }
 
-pub fn renderCall(self: *Self, shader_program: *c_uint) void {
+pub fn renderCall(self: *Self, shader_program: c_uint) void {
     c.glUniform1iv(
-        c.glGetUniformLocation(shader_program.*, "colorIndex"),
+        c.glGetUniformLocation(shader_program, "colorIndex"),
         @intCast(self.index),
         @ptrCast(&self.color_index[0]),
     );
-
     c.glUniformMatrix4fv(
-        c.glGetUniformLocation(shader_program.*, "transform"),
+        c.glGetUniformLocation(shader_program, "transform"),
         @intCast(self.index),
         c.GL_FALSE,
         @ptrCast(&self.transform[0][0][0]),
     );
     c.glUniform1iv(
-        c.glGetUniformLocation(shader_program.*, "letterMap"),
+        c.glGetUniformLocation(shader_program, "letterMap"),
         @intCast(self.index),
         @ptrCast(&self.letter_map[0]),
     );
@@ -199,20 +196,14 @@ fn getFontPath(alloc: std.mem.Allocator, font_name: [:0]const u8) ![]const u8 {
 }
 
 pub const Character = struct {
-    texture_id: u32,
-    key: u32,
+    texture_id: u8,
     size: [2]f32,
     bearing: [2]f32,
     advance: [2]f32,
 
-    fn init(face: c.FT_Face, key: u32, index: u32) Character {
-        if (c.FT_Load_Char(face, key, c.FT_LOAD_DEFAULT) == 1) {
+    fn init(face: c.FT_Face, key: u32, index: u8) Character {
+        if (c.FT_Load_Char(face, key, c.FT_LOAD_RENDER) == 1) {
             std.log.err("Failed to load glyph for character {}\n", .{key});
-            std.process.exit(1);
-        }
-
-        if (c.FT_Render_Glyph(face.*.glyph, c.FT_RENDER_MODE_NORMAL) == 1) {
-            std.log.err("Failed to render glyph for character {}\n", .{key});
             std.process.exit(1);
         }
 
@@ -236,7 +227,6 @@ pub const Character = struct {
         c.glTexParameteri(c.GL_TEXTURE_2D_ARRAY, c.GL_TEXTURE_MAG_FILTER, c.GL_LINEAR);
 
         return .{
-            .key = key,
             .texture_id = index,
             .size = .{
                 @floatFromInt(face.*.glyph.*.bitmap.width),

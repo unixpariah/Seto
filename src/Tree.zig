@@ -126,7 +126,7 @@ pub fn find(self: *Self, buffer: *[]u32) ![2]f32 {
 }
 
 pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) void {
-    c.glUseProgram(output.egl.text_shader_program.*);
+    c.glUseProgram(output.egl.text_shader_program);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.gen_VBO[2]);
     c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
 
