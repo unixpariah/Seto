@@ -64,9 +64,6 @@ compositors implementing layer-shell protocol.
 *--grid-size* _width_,_height_
 	Set size of each square on grid.
 
-*--grid-offset* _x_,_y_
-	Relatively change initial position of grid.
-
 *--line-width* _width_
 	Set width of grid lines.
 

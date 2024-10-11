@@ -46,7 +46,6 @@ pub const TotalDimensions = struct {
 };
 
 pub const State = struct {
-    first_draw: bool = true,
     exit: bool = false,
     mode: Mode = .Single,
     border_mode: bool = false,
@@ -209,21 +208,19 @@ pub fn main() !void {
     var seto = try Seto.init(alloc, display);
     defer seto.deinit();
 
-    const timer = &seto.seat.repeat.timer;
-
     registry.setListener(*Seto, registryListener, &seto);
     if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
     if (display.roundtrip() != .SUCCESS) return error.RoundtripFailed;
 
     if (seto.layer_shell == null) @panic("wlr_layer_shell not supported");
 
-    try seto.render();
-
     var event_loop = EventLoop.init(alloc);
     defer event_loop.deinit();
 
     try event_loop.insertSource(display.getFd(), *wl.Display, dispatchDisplay, display);
-    try event_loop.insertSource(timer.getFd(), *Seto, handleRepeat, &seto);
+    try event_loop.insertSource(seto.seat.repeat.timer.getFd(), *Seto, handleRepeat, &seto);
+
+    try seto.render();
 
     while (!seto.state.exit) : (try event_loop.poll()) {}
 
@@ -281,7 +278,6 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         wl.Output,
                         wl.Output.generated_version,
                     ) catch @panic("Failed to bind wl_output");
-                    wl_output.setListener(*Seto, wlOutputListener, seto);
 
                     const surface = seto.compositor.?.createSurface() catch @panic("Failed to create surface");
 
@@ -291,7 +287,6 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         .overlay,
                         "seto",
                     ) catch @panic("Failed to get layer surface");
-                    layer_surface.setListener(*Seto, layerSurfaceListener, seto);
                     layer_surface.setAnchor(.{
                         .top = true,
                         .right = true,
@@ -316,9 +311,11 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         &seto.total_dimensions,
                     );
 
-                    xdg_output.setListener(*Seto, xdgOutputListener, seto);
-
                     seto.outputs.append(output) catch @panic("OOM");
+
+                    xdg_output.setListener(*Seto, xdgOutputListener, seto);
+                    layer_surface.setListener(*Output, layerSurfaceListener, &seto.outputs.items[seto.outputs.items.len - 1]);
+                    wl_output.setListener(*Output, wlOutputListener, &seto.outputs.items[seto.outputs.items.len - 1]);
                 },
                 .wl_seat => {
                     seto.seat.wl_seat = registry.bind(

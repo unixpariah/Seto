@@ -106,15 +106,6 @@ following sections describe the configurable options.
 
 	_Example:_ {10, 10} \
 
-*grid.offset*
-	Initial relative position of grid. \
-
-	_Type:_ [2]: Integer \
-
-	_Default:_ { 0, 0 } \
-
-	_Example:_ {10, 10} \
-
 *grid.selected_color*
 	Color of selected position (Applies only when using *--region* option). \
 

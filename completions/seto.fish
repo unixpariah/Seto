@@ -22,7 +22,6 @@ complete -c seto -l font-offset --description "Change position of text on grid" 
 
 complete -c seto -l grid-color --description "Set color of grid" -r
 complete -c seto -l grid-size --description "Set size of each square" -r
-complete -c seto -l grid-offset --description "Change default position of grid" -r
 complete -c seto -l grid-selected-color --description "Change color of selected position in region mode" -r
 complete -c seto -l line-width --description "Set width of grid lines" -r
 complete -c seto -l selected-line-width --description "Change line width of selected position in region mode" -r

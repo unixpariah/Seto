@@ -47,7 +47,6 @@ const Arguments = enum {
 
     @"--grid-color",
     @"--grid-size",
-    @"--grid-offset",
     @"--grid-selected-color",
     @"--line-width",
     @"--selected-line-width",
@@ -142,13 +141,6 @@ pub fn parseArgs(seto: *Seto) void {
             .@"--grid-size" => {
                 const grid_size = args.next();
                 seto.config.grid.size = parseFloatArray(grid_size, ",") catch @panic("Failed to parse grid-size");
-            },
-            .@"--grid-offset" => {
-                const grid_offset = args.next() orelse {
-                    std.log.err("Argument missing after: \"{s}\"\n", .{arg});
-                    std.process.exit(1);
-                };
-                seto.config.grid.offset = parseFloatArray(grid_offset, ",") catch @panic("Failed to parse grid-offset");
             },
             .@"--grid-selected-color" => {
                 const grid_selected_color = args.next() orelse {
@@ -251,7 +243,6 @@ const help_message =
     \\Grid styling:
     \\  --grid-color <HEX>                         Set color of grid
     \\  --grid-size <INT,INT>                      Set size of each square
-    \\  --grid-offset <INT,INT>                    Change default position of grid
     \\  --grid-selected-color <HEX>                Change color of selected position in region mode
     \\  --line-width <FLOAT>                       Set width of grid lines
     \\  --selected-line-width <FLOAT>              Change line width of selected position in region mode

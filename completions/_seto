@@ -21,7 +21,6 @@ _arguments -s \
   '--font-offset+[Change position of text on grid]:offset' \
   '--grid-color+[Set color of grid]:color' \
   '--grid-size+[Set size of each square]:size' \
-  '--grid-offset+[Change default position of grid]:offset' \
   '--grid-selected-color+[Change color of selected position in region mode]:color' \
   '--line-width+[Set width of grid lines]:width' \
   '--selected-line-width+[Change line width of selected position in region mode]:width' \

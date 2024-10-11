@@ -189,16 +189,12 @@ pub fn deinit(self: *Self) void {
     self.egl.deinit();
 }
 
-pub fn layerSurfaceListener(lsurf: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, seto: *Seto) void {
+pub fn layerSurfaceListener(_: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, output: *Self) void {
     switch (event) {
         .configure => |configure| {
-            for (seto.outputs.items) |*output| {
-                if (output.layer_surface == lsurf) {
-                    output.layer_surface.setSize(configure.width, configure.height);
-                    output.layer_surface.ackConfigure(configure.serial);
-                    output.egl.resize(.{ configure.width, configure.height });
-                }
-            }
+            output.layer_surface.setSize(configure.width, configure.height);
+            output.layer_surface.ackConfigure(configure.serial);
+            output.egl.resize(.{ configure.width, configure.height });
         },
         .closed => {},
     }
@@ -304,11 +300,7 @@ pub fn xdgOutputListener(
     }
 }
 
-pub fn wlOutputListener(wl_output: *wl.Output, event: wl.Output.Event, seto: *Seto) void {
-    var output = for (seto.outputs.items) |*output| {
-        if (output.wl_output == wl_output) break output;
-    } else unreachable; // It'd be very weird if this event was called on output that doesn't exist
-
+pub fn wlOutputListener(_: *wl.Output, event: wl.Output.Event, output: *Self) void {
     switch (event) {
         .mode => |mode| {
             output.info.refresh = @floatFromInt(@divTrunc(mode.refresh, 1000));

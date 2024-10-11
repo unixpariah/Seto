@@ -184,7 +184,7 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, bord
         path[0..matches],
         coords[0],
         coords[1],
-        .highlight_color,
+        true,
         output.egl.text_shader_program,
     );
 
@@ -192,7 +192,7 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, bord
         path[matches..],
         coords[0] + config.text.getSize(path[0..matches]),
         coords[1],
-        .color,
+        false,
         output.egl.text_shader_program,
     );
 }

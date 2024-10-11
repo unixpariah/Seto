@@ -98,12 +98,7 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
     };
 }
 
-const ColorIndex = enum(u1) {
-    color,
-    highlight_color,
-};
-
-pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorIndex, shader_program: c_uint) void {
+pub fn place(self: *Self, text: []const u32, x: f32, y: f32, highlight: bool, shader_program: c_uint) void {
     if (text.len == 0) return;
 
     var move: f32 = 0;
@@ -115,7 +110,7 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, color_index: ColorI
 
         self.transform[self.index] = math.transform(self.font.size, x_pos, y_pos);
         self.letter_map[self.index] = ch.texture_id;
-        self.color_index[self.index] = @intFromEnum(color_index);
+        self.color_index[self.index] = @intFromBool(highlight);
 
         move += ch.advance[0] * self.scale;
         self.index += 1;

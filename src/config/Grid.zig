@@ -61,26 +61,6 @@ pub fn init(lua: *Lua, alloc: std.mem.Allocator) Self {
     }
     lua.pop(1);
 
-    _ = lua.pushString("offset");
-    _ = lua.getTable(2);
-    if (!lua.isNil(3)) {
-        lua.pushNil();
-        var index: u8 = 0;
-        while (lua.next(3)) : (index += 1) {
-            if (!lua.isNumber(5) or index > 1) {
-                std.log.err("Grid offset should be in a {{ x, y }} format\n", .{});
-                std.process.exit(1);
-            }
-            grid.offset[index] = @floatCast(lua.toNumber(5) catch unreachable);
-            lua.pop(1);
-        }
-        if (index < 2) {
-            std.log.err("Grid offset should be in a {{ x, y }} format\n", .{});
-            std.process.exit(1);
-        }
-    }
-    lua.pop(1);
-
     _ = lua.pushString("line_width");
     _ = lua.getTable(2);
     if (!lua.isNil(3)) {
