@@ -128,6 +128,7 @@ pub fn move(self: *Self, value: [2]f32) void {
 
     if (intersection_num != total_intersections) {
         var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersection_num) catch @panic("OOM");
+        defer intersections.deinit();
         if (value[0] > 0) {
             const start_pos: [2]f32 = .{
                 self.total_dimensions.x + self.config_ptr.grid.offset[0],
@@ -325,8 +326,10 @@ const Node = struct {
     }
 
     fn updateCoordinates(self: *Node, intersections: [][2]f32, index: *usize) void {
+        if (index.* >= intersections.len) return;
+
         if (self.children == null) {
-            if (index.* < intersections.len and self.coordinates == null) {
+            if (self.coordinates == null) {
                 self.coordinates = intersections[index.*];
                 index.* += 1;
             }
