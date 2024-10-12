@@ -142,7 +142,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.delay = @floatFromInt(repeat_key.delay);
-            seto.seat.repeat.rate = 60; //@floatFromInt(repeat_key.rate);
+            seto.seat.repeat.rate = 60;
         },
     }
 }
@@ -185,8 +185,8 @@ pub fn handleKey(self: *Seto) void {
         self.state.exit = true;
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
         switch (function) {
-            .move => |value| grid.move(value),
-            .resize => |value| grid.resize(value),
+            .move => |value| if (!self.state.border_mode) grid.move(value),
+            .resize => |value| if (!self.state.border_mode) grid.resize(value),
             .cancel_selection => if (self.state.mode == Mode.Region) {
                 self.state.mode = Mode{ .Region = null };
             },
@@ -194,8 +194,10 @@ pub fn handleKey(self: *Seto) void {
             .border_mode => self.state.border_mode = !self.state.border_mode,
         }
 
-        if (self.tree) |*tree| {
-            tree.updateCoordinates(self.state.border_mode);
+        const depth = self.tree.?.depth;
+        self.tree.?.updateCoordinates(self.state.border_mode);
+        if (depth != self.tree.?.depth) {
+            self.seat.buffer.clearAndFree();
         }
     } else {
         self.seat.buffer.append(key) catch @panic("OOM");

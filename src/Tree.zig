@@ -231,20 +231,21 @@ const Node = struct {
         }
     }
 
-    fn isOnScreen(self: *Node) !void {
+    fn isOnScreen(self: *Node) bool {
         if (self.children) |children| {
             for (children) |*child| {
-                if (child.children == null and child.coordinates == null) return error.KeyNotFound;
+                if (child.children == null and child.coordinates == null) return false;
                 return child.isOnScreen();
             }
         }
+
+        return true;
     }
 
     fn find(self: *Node, buffer: *[]u32, index: usize) ![2]f32 {
         if (self.coordinates) |coordinates| return coordinates;
-        if (self.children == null) return error.KeyNotFound;
         if (buffer.*.len <= index) {
-            try self.isOnScreen();
+            if (!self.isOnScreen()) return error.KeyNotFound;
             return error.EndNotReached;
         }
         if (self.children) |children| {
@@ -272,9 +273,9 @@ const Node = struct {
                         border_mode,
                         coordinates,
                     );
-                } else {
-                    child.drawText(config, path, index + 1, output, buffer, border_mode);
+                    continue;
                 }
+                child.drawText(config, path, index + 1, output, buffer, border_mode);
             }
         }
     }
