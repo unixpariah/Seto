@@ -185,8 +185,14 @@ pub fn handleKey(self: *Seto) void {
         self.state.exit = true;
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
         switch (function) {
-            .move => |value| if (!self.state.border_mode) grid.move(value),
-            .resize => |value| if (!self.state.border_mode) grid.resize(value),
+            .move => |value| if (!self.state.border_mode) {
+                grid.move(value);
+                self.tree.?.move(value);
+                return;
+            },
+            .resize => |value| if (!self.state.border_mode) {
+                grid.resize(value);
+            },
             .cancel_selection => if (self.state.mode == Mode.Region) {
                 self.state.mode = Mode{ .Region = null };
             },

@@ -292,9 +292,9 @@ pub fn xdgOutputListener(
 
             if (seto.tree) |*tree| {
                 tree.updateCoordinates(seto.state.border_mode);
-            } else {
-                seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
+                return;
             }
+            seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
         },
         else => {},
     }
