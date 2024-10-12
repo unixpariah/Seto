@@ -114,8 +114,8 @@ pub fn deinit(self: *const Self) void {
     self.arena.deinit();
 }
 
-pub fn find(self: *Self, buffer: *[]u32) ![2]f32 {
-    if (buffer.len == 0) return error.EndNotReached;
+pub fn find(self: *Self, buffer: *[]u32) !?[2]f32 {
+    if (buffer.len == 0) return null;
     for (self.children) |*child| {
         if (child.key == buffer.*[0]) {
             return child.find(buffer, 1);
@@ -242,11 +242,11 @@ const Node = struct {
         return true;
     }
 
-    fn find(self: *Node, buffer: *[]u32, index: usize) ![2]f32 {
+    fn find(self: *Node, buffer: *[]u32, index: usize) !?[2]f32 {
         if (self.coordinates) |coordinates| return coordinates;
         if (buffer.*.len <= index) {
             if (!self.isOnScreen()) return error.KeyNotFound;
-            return error.EndNotReached;
+            return null;
         }
         if (self.children) |children| {
             for (children) |*child| {
@@ -265,14 +265,20 @@ const Node = struct {
                 path[index] = child.key;
 
                 if (child.coordinates) |coordinates| {
-                    renderText(
-                        output,
-                        config,
-                        buffer,
-                        path,
-                        border_mode,
-                        coordinates,
-                    );
+                    if (coordinates[1] < output.info.y + output.info.height + config.grid.size[1] and
+                        coordinates[1] >= output.info.y - config.grid.size[1] and
+                        coordinates[0] < output.info.x + output.info.width + config.grid.size[0] and
+                        coordinates[0] >= output.info.x - config.grid.size[0])
+                    {
+                        renderText(
+                            output,
+                            config,
+                            buffer,
+                            path,
+                            border_mode,
+                            coordinates,
+                        );
+                    }
                     continue;
                 }
                 child.drawText(config, path, index + 1, output, buffer, border_mode);

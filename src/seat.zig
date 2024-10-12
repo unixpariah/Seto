@@ -201,15 +201,6 @@ pub fn handleKey(self: *Seto) void {
         }
     } else {
         self.seat.buffer.append(key) catch @panic("OOM");
-
-        self.printToStdout() catch |err| {
-            switch (err) {
-                error.KeyNotFound => {
-                    _ = self.seat.buffer.popOrNull();
-                    return;
-                },
-                else => {},
-            }
-        };
+        _ = self.printToStdout() catch self.seat.buffer.popOrNull();
     }
 }

@@ -121,6 +121,8 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, highlight: bool, sh
 }
 
 pub fn renderCall(self: *Self, shader_program: c_uint) void {
+    if (self.index == 0) return;
+
     c.glUniform1iv(
         c.glGetUniformLocation(shader_program, "colorIndex"),
         @intCast(self.index),

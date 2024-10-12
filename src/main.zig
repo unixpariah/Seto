@@ -138,7 +138,7 @@ pub const Seto = struct {
     }
 
     pub fn printToStdout(self: *Self) !void {
-        const coords = try self.tree.?.find(&self.seat.buffer.items);
+        const coords = try self.tree.?.find(&self.seat.buffer.items) orelse return;
         var arena = std.heap.ArenaAllocator.init(self.alloc);
         defer arena.deinit();
 
@@ -241,16 +241,13 @@ fn dispatchDisplay(display: *wl.Display) void {
 }
 
 fn handleRepeat(seto: *Seto) void {
-    const repeats = seto.seat.repeat.timer.read() catch {
+    const repeats = seto.seat.repeat.timer.read() catch blk: {
         std.log.err("Failed to read timer fd", .{});
-        return;
+        break :blk 1;
     };
 
     for (0..repeats) |_| handleKey(seto);
-    seto.render() catch {
-        std.log.err("Failed to render", .{});
-        return;
-    };
+    seto.render() catch std.log.err("Failed to render", .{});
 }
 
 fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Seto) void {
