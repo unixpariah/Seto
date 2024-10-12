@@ -129,6 +129,7 @@ pub fn move(self: *Self, value: [2]f32) void {
     if (intersection_num != total_intersections) {
         var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersection_num) catch @panic("OOM");
         defer intersections.deinit();
+
         if (value[0] > 0) {
             const start_pos: [2]f32 = .{
                 self.total_dimensions.x + self.config_ptr.grid.offset[0],
@@ -188,6 +189,33 @@ pub fn move(self: *Self, value: [2]f32) void {
                 }
             }
         }
+        var index: usize = 0;
+        for (self.children) |*child| {
+            child.updateCoordinates(intersections.items, &index);
+        }
+    }
+}
+
+pub fn resize(self: *Self, value: [2]f32) void {
+    var intersections_num: usize = 0;
+    for (self.children) |*child| {
+        child.resize(value, self.total_dimensions, self.config_ptr, &intersections_num);
+    }
+
+    const total_intersections: usize = blk: {
+        const width = self.total_dimensions.width - self.total_dimensions.x;
+        const height = self.total_dimensions.height - self.total_dimensions.y;
+
+        const num_x_steps = @ceil(width / self.config_ptr.grid.size[0]);
+        const num_y_steps = @ceil(height / self.config_ptr.grid.size[1]);
+
+        break :blk @intFromFloat(num_x_steps * num_y_steps);
+    };
+
+    if (intersections_num != total_intersections) {
+        var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersections_num) catch @panic("OOM");
+        defer intersections.deinit();
+
         var index: usize = 0;
         for (self.children) |*child| {
             child.updateCoordinates(intersections.items, &index);
@@ -301,6 +329,43 @@ const Node = struct {
     children: ?[]Node = null,
     coordinates: ?[2]f32 = null,
 
+    fn resize(self: *Node, value: [2]f32, total_dimensions: *TotalDimensions, config: *Config, total_intersections: *usize) void {
+        if (self.coordinates) |*coordinates| {
+            if (value[0] > 0) {
+                const grid_num = @divTrunc((coordinates[0] - total_dimensions.x), config.grid.size[0]);
+                coordinates[0] = grid_num * (config.grid.size[0] + value[0]);
+            } else if (value[0] < 0) {
+                const grid_num = @divTrunc((coordinates[0] - total_dimensions.x), config.grid.size[0]);
+                coordinates[0] = grid_num * (config.grid.size[0] + value[0]);
+            }
+
+            if (value[1] > 0) {
+                const grid_num = @divTrunc((coordinates[1] - total_dimensions.y), config.grid.size[1]);
+                coordinates[1] = grid_num * (config.grid.size[1] + value[1]);
+            } else if (value[1] < 0) {
+                const grid_num = @divTrunc((coordinates[1] - total_dimensions.y), config.grid.size[1]);
+                coordinates[1] = grid_num * (config.grid.size[1] + value[1]);
+            }
+
+            if (coordinates[0] < total_dimensions.x or
+                coordinates[0] > total_dimensions.x + total_dimensions.width or
+                coordinates[1] < total_dimensions.y or
+                coordinates[1] > total_dimensions.y + total_dimensions.height)
+            {
+                self.coordinates = null;
+                total_intersections.* += 1;
+            }
+
+            return;
+        }
+
+        if (self.children) |children| {
+            for (children) |*child| {
+                child.resize(value, total_dimensions, config, total_intersections);
+            }
+        }
+    }
+
     fn move(self: *Node, value: [2]f32, total_dimensions: *TotalDimensions, total_intersections: *usize) void {
         if (self.coordinates) |*coordinates| {
             coordinates[0] += value[0];
@@ -399,6 +464,7 @@ const Node = struct {
         if (self.children) |children| {
             for (children) |*child| child.increaseDepth(keys, alloc);
         } else {
+            self.coordinates = null;
             self.createChildren(keys, alloc);
         }
     }

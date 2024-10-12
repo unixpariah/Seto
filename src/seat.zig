@@ -188,22 +188,21 @@ pub fn handleKey(self: *Seto) void {
             .move => |value| if (!self.state.border_mode) {
                 grid.move(value);
                 self.tree.?.move(value);
-                return;
             },
             .resize => |value| if (!self.state.border_mode) {
+                self.tree.?.resize(value);
                 grid.resize(value);
+
+                const depth = self.tree.?.depth;
+                if (depth != self.tree.?.depth) {
+                    self.seat.buffer.clearAndFree();
+                }
             },
             .cancel_selection => if (self.state.mode == Mode.Region) {
                 self.state.mode = Mode{ .Region = null };
             },
             .move_selection => |value| moveSelection(self, value),
             .border_mode => self.state.border_mode = !self.state.border_mode,
-        }
-
-        const depth = self.tree.?.depth;
-        self.tree.?.updateCoordinates(self.state.border_mode);
-        if (depth != self.tree.?.depth) {
-            self.seat.buffer.clearAndFree();
         }
     } else {
         self.seat.buffer.append(key) catch @panic("OOM");
