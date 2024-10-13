@@ -102,7 +102,7 @@ pub fn updateCoordinates(self: *Self, border_mode: bool) void {
     }
 
     const depth_f: f32 = @floatFromInt(depth);
-    self.config_ptr.*.grid.max_size[0] = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
+    self.config_ptr.*.grid.min_size[0] = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
 
     var index: usize = 0;
     for (self.children) |*child| {
@@ -111,9 +111,9 @@ pub fn updateCoordinates(self: *Self, border_mode: bool) void {
 }
 
 pub fn move(self: *Self, value: [2]f32) void {
-    var intersection_num: usize = 0;
+    var intersections_num: usize = 0;
     for (self.children) |*child| {
-        child.move(value, self.total_dimensions, &intersection_num);
+        child.move(value, self.total_dimensions, &intersections_num);
     }
 
     const total_intersections: usize = blk: {
@@ -126,8 +126,8 @@ pub fn move(self: *Self, value: [2]f32) void {
         break :blk @intFromFloat(num_x_steps * num_y_steps);
     };
 
-    if (intersection_num != total_intersections) {
-        var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersection_num) catch @panic("OOM");
+    if (intersections_num != total_intersections) {
+        var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersections_num) catch @panic("OOM");
         defer intersections.deinit();
 
         if (value[0] > 0) {
@@ -202,25 +202,84 @@ pub fn resize(self: *Self, value: [2]f32) void {
         child.resize(value, self.total_dimensions, self.config_ptr, &intersections_num);
     }
 
-    const total_intersections: usize = blk: {
-        const width = self.total_dimensions.width - self.total_dimensions.x;
-        const height = self.total_dimensions.height - self.total_dimensions.y;
+    // const total_intersections: usize = blk: {
+    //     const width = self.total_dimensions.width - self.total_dimensions.x;
+    //     const height = self.total_dimensions.height - self.total_dimensions.y;
 
-        const num_x_steps = @ceil(width / self.config_ptr.grid.size[0]);
-        const num_y_steps = @ceil(height / self.config_ptr.grid.size[1]);
+    //     const num_x_steps = @ceil(width / self.config_ptr.grid.size[0]);
+    //     const num_y_steps = @ceil(height / self.config_ptr.grid.size[1]);
 
-        break :blk @intFromFloat(num_x_steps * num_y_steps);
-    };
+    //     break :blk @intFromFloat(num_x_steps * num_y_steps);
+    // };
 
-    if (intersections_num != total_intersections) {
-        var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersections_num) catch @panic("OOM");
-        defer intersections.deinit();
+    // if (intersections_num != total_intersections) {
+    //     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersections_num) catch @panic("OOM");
+    //     defer intersections.deinit();
 
-        var index: usize = 0;
-        for (self.children) |*child| {
-            child.updateCoordinates(intersections.items, &index);
-        }
-    }
+    //     if (value[0] > 0) {
+    //         const start_pos: [2]f32 = .{
+    //             self.total_dimensions.x + self.config_ptr.grid.offset[0],
+    //             self.total_dimensions.y + self.config_ptr.grid.offset[1],
+    //         };
+
+    //         var i = start_pos[0];
+    //         while (i <= start_pos[0]) : (i += self.config_ptr.grid.size[0]) {
+    //             var j = start_pos[1];
+    //             while (j <= self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
+    //                 intersections.appendAssumeCapacity(.{ i, j });
+    //             }
+    //         }
+    //     } else if (value[0] < 0) {
+    //         const iterations = @floor((self.total_dimensions.width - 1 - self.total_dimensions.x + self.config_ptr.grid.offset[0]) / self.config_ptr.grid.size[0]);
+
+    //         const start_pos: [2]f32 = .{
+    //             self.config_ptr.grid.size[0] * iterations + value[0],
+    //             self.total_dimensions.y + self.config_ptr.grid.offset[1],
+    //         };
+
+    //         var i = start_pos[0];
+    //         while (i >= start_pos[0]) : (i -= self.config_ptr.grid.size[0]) {
+    //             var j = start_pos[1];
+    //             while (j <= self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
+    //                 intersections.appendAssumeCapacity(.{ i, j });
+    //             }
+    //         }
+    //     }
+
+    //     if (value[1] > 0) {
+    //         const start_pos: [2]f32 = .{
+    //             self.total_dimensions.x + self.config_ptr.grid.offset[0],
+    //             self.total_dimensions.y + self.config_ptr.grid.offset[1],
+    //         };
+
+    //         var i = start_pos[0];
+    //         while (i <= self.total_dimensions.width - 1) : (i += self.config_ptr.grid.size[0]) {
+    //             var j = start_pos[1];
+    //             while (j <= start_pos[1]) : (j += self.config_ptr.grid.size[1]) {
+    //                 intersections.appendAssumeCapacity(.{ i, j });
+    //             }
+    //         }
+    //     } else if (value[1] < 0) {
+    //         const iterations = @floor((self.total_dimensions.height - 1 - self.total_dimensions.y + self.config_ptr.grid.offset[1]) / self.config_ptr.grid.size[1]);
+
+    //         const start_pos: [2]f32 = .{
+    //             self.total_dimensions.x + self.config_ptr.grid.offset[0],
+    //             self.config_ptr.grid.size[1] * iterations + value[1],
+    //         };
+
+    //         var i = start_pos[0];
+    //         while (i <= self.total_dimensions.width - 1) : (i += self.config_ptr.grid.size[0]) {
+    //             var j = start_pos[1];
+    //             while (j >= start_pos[1]) : (j -= self.config_ptr.grid.size[1]) {
+    //                 intersections.appendAssumeCapacity(.{ i, j });
+    //             }
+    //         }
+    //     }
+    //     var index: usize = 0;
+    //     for (self.children) |*child| {
+    //         child.updateCoordinates(intersections.items, &index);
+    //     }
+    // }
 }
 
 pub fn deinit(self: *const Self) void {
@@ -329,31 +388,22 @@ const Node = struct {
     children: ?[]Node = null,
     coordinates: ?[2]f32 = null,
 
-    fn resize(self: *Node, value: [2]f32, total_dimensions: *TotalDimensions, config: *Config, total_intersections: *usize) void {
+    fn resize(self: *Node, value: [2]f32, total_dimensions: *TotalDimensions, config: *Config, intersections_num: *usize) void {
         if (self.coordinates) |*coordinates| {
-            if (value[0] > 0) {
-                const grid_num = @divTrunc((coordinates[0] - total_dimensions.x), config.grid.size[0]);
-                coordinates[0] = grid_num * (config.grid.size[0] + value[0]);
-            } else if (value[0] < 0) {
-                const grid_num = @divTrunc((coordinates[0] - total_dimensions.x), config.grid.size[0]);
-                coordinates[0] = grid_num * (config.grid.size[0] + value[0]);
-            }
+            intersections_num.* += 1;
+            const num_x_steps = @ceil((coordinates[0] - total_dimensions.x) / config.grid.size[0]);
+            const num_y_steps = @ceil((coordinates[1] - total_dimensions.y) / config.grid.size[1]);
 
-            if (value[1] > 0) {
-                const grid_num = @divTrunc((coordinates[1] - total_dimensions.y), config.grid.size[1]);
-                coordinates[1] = grid_num * (config.grid.size[1] + value[1]);
-            } else if (value[1] < 0) {
-                const grid_num = @divTrunc((coordinates[1] - total_dimensions.y), config.grid.size[1]);
-                coordinates[1] = grid_num * (config.grid.size[1] + value[1]);
-            }
+            coordinates[0] += num_x_steps * value[0];
+            coordinates[1] += num_y_steps * value[1];
 
             if (coordinates[0] < total_dimensions.x or
                 coordinates[0] > total_dimensions.x + total_dimensions.width or
                 coordinates[1] < total_dimensions.y or
                 coordinates[1] > total_dimensions.y + total_dimensions.height)
             {
+                intersections_num.* -= 1;
                 self.coordinates = null;
-                total_intersections.* += 1;
             }
 
             return;
@@ -361,16 +411,16 @@ const Node = struct {
 
         if (self.children) |children| {
             for (children) |*child| {
-                child.resize(value, total_dimensions, config, total_intersections);
+                child.resize(value, total_dimensions, config, intersections_num);
             }
         }
     }
 
-    fn move(self: *Node, value: [2]f32, total_dimensions: *TotalDimensions, total_intersections: *usize) void {
+    fn move(self: *Node, value: [2]f32, total_dimensions: *TotalDimensions, intersections_num: *usize) void {
         if (self.coordinates) |*coordinates| {
             coordinates[0] += value[0];
             coordinates[1] += value[1];
-            total_intersections.* += 1;
+            intersections_num.* += 1;
 
             if (coordinates[0] < total_dimensions.x or
                 coordinates[0] > total_dimensions.x + total_dimensions.width or
@@ -378,14 +428,14 @@ const Node = struct {
                 coordinates[1] > total_dimensions.y + total_dimensions.height)
             {
                 self.coordinates = null;
-                total_intersections.* -= 1;
+                intersections_num.* -= 1;
             }
             return;
         }
 
         if (self.children) |children| {
             for (children) |*child| {
-                child.move(value, total_dimensions, total_intersections);
+                child.move(value, total_dimensions, intersections_num);
             }
         }
     }
