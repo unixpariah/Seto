@@ -84,11 +84,7 @@ pub fn move(self: *Self, value: [2]f32) void {
     for (value, 0..) |val, i| {
         var new_offset = self.offset[i] + val;
 
-        if (new_offset < 0) {
-            new_offset = self.size[i] + @rem(new_offset, self.size[i]);
-        } else {
-            new_offset = @rem(new_offset, self.size[i]);
-        }
+        new_offset = @rem(new_offset + self.size[i], self.size[i]);
 
         self.offset[i] = new_offset;
     }
@@ -111,7 +107,7 @@ test "resize" {
     for (1..10) |i| {
         var grid = Self.default(alloc);
         var initial = grid.size;
-        const index: i32 = @intCast(i);
+        const index: f32 = @floatFromInt(i);
         grid.resize(.{ index, 0 });
         assert(grid.size[0] == initial[0] + index);
 
@@ -134,7 +130,7 @@ test "move" {
     for (1..10) |i| {
         var grid = Self.default(alloc);
         var initial = grid.offset;
-        const index: i32 = @intCast(i);
+        const index: f32 = @floatFromInt(i);
         grid.move(.{ index, 0 });
         assert(grid.offset[0] == initial[0] + index);
 

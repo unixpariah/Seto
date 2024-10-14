@@ -173,7 +173,6 @@ fn moveSelection(seto: *Seto, value: [2]f32) void {
 
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
-    const grid = &self.config.grid;
 
     const keysym_backspace = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.BackSpace));
     const keysym_escape = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.Escape));
@@ -186,7 +185,6 @@ pub fn handleKey(self: *Seto) void {
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
         switch (function) {
             .move => |value| if (!self.state.border_mode) {
-                grid.move(value);
                 self.tree.?.move(value);
             },
             .resize => |value| if (!self.state.border_mode) {
@@ -196,7 +194,6 @@ pub fn handleKey(self: *Seto) void {
                 }
 
                 self.tree.?.resize(new_value);
-                grid.resize(new_value);
 
                 const depth = self.tree.?.depth;
                 if (depth != self.tree.?.depth) {
