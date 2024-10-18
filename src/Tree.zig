@@ -131,17 +131,16 @@ pub fn move(self: *Self, value: [2]f32) void {
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersections_num) catch @panic("OOM");
     defer intersections.deinit();
 
-    const start_pos: [2]f32 = .{
+    var start_pos: [2]f32 = .{
         self.total_dimensions.x + self.config_ptr.grid.offset[0],
         self.total_dimensions.y + self.config_ptr.grid.offset[1],
     };
 
     if (value[0] > 0) {
-        var i = start_pos[0];
-        while (i < self.total_dimensions.x + value[0]) : (i += self.config_ptr.grid.size[0]) {
+        while (start_pos[0] < self.total_dimensions.x + value[0]) : (start_pos[0] += self.config_ptr.grid.size[0]) {
             var j = start_pos[1];
             while (j <= self.total_dimensions.x + self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
-                intersections.appendAssumeCapacity(.{ i, j });
+                intersections.appendAssumeCapacity(.{ start_pos[0], j });
             }
         }
     } else if (value[0] < 0) {

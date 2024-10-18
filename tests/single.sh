@@ -1,8 +1,9 @@
 #!/bin/sh
 
-./zig-out/bin/seto &
+./zig-out/bin/seto -c null &
+SETO_PID=$!
 
-sleep 0.1
+sleep 1
 
 ydotool type aaa
 

@@ -291,7 +291,8 @@ pub fn xdgOutputListener(
             seto.updateDimensions();
 
             if (seto.tree) |*tree| {
-                tree.updateCoordinates(seto.state.border_mode);
+                tree.deinit();
+                seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
                 return;
             }
             seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
