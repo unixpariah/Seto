@@ -353,8 +353,8 @@ const Node = struct {
     fn resize(self: *Node, value: [2]f32, total_dimensions: *TotalDimensions, config: *Config, intersections_num: *usize) void {
         if (self.coordinates) |*coordinates| {
             intersections_num.* += 1;
-            const num_x_steps = @ceil((coordinates[0] - total_dimensions.x) / config.grid.size[0]);
-            const num_y_steps = @ceil((coordinates[1] - total_dimensions.y) / config.grid.size[1]);
+            const num_x_steps = @ceil((coordinates[0] - (total_dimensions.x + config.grid.offset[0])) / config.grid.size[0]);
+            const num_y_steps = @ceil((coordinates[1] - (total_dimensions.y + config.grid.offset[1])) / config.grid.size[1]);
 
             coordinates[0] += num_x_steps * value[0];
             coordinates[1] += num_y_steps * value[1];

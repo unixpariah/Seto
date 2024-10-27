@@ -134,8 +134,8 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
         return;
     }
 
-    const num_x_step = @ceil(@abs(self.total_dimensions_ptr.x - self.info.x) / config.grid.size[0]);
-    const num_y_step = @ceil(@abs(self.total_dimensions_ptr.y - self.info.y) / config.grid.size[1]);
+    const num_x_step = @ceil((self.info.x - self.total_dimensions_ptr.x - config.grid.offset[0]) / config.grid.size[0]);
+    const num_y_step = @ceil((self.info.y - self.total_dimensions_ptr.y - config.grid.offset[1]) / config.grid.size[1]);
 
     var start_pos: [2]f32 = .{
         self.total_dimensions_ptr.x + num_x_step * config.grid.size[0] + config.grid.offset[0],

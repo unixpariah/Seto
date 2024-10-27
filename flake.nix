@@ -1,5 +1,6 @@
 {
-  description = "Seto - hardware accelerated keyboard driven screen selection tool";
+  description =
+    "Seto - hardware accelerated keyboard driven screen selection tool";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -10,23 +11,15 @@
     };
   };
 
-  outputs = {
-    nixpkgs,
-    zls,
-    flake-utils,
-    zig,
-    ...
-  }:
-    flake-utils.lib.eachDefaultSystem (
-      system: let
-        pkgs = import nixpkgs {
-          inherit system;
-        };
+  outputs = { nixpkgs, zls, flake-utils, zig, ... }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let pkgs = import nixpkgs { inherit system; };
       in {
         devShell = pkgs.mkShell {
           packages = with pkgs; [
             pkg-config
             wayland
+            wayland-scanner
             wayland-protocols
             wayland-utils
             libxkbcommon
@@ -43,8 +36,6 @@
           ];
         };
 
-        packages.default =
-          pkgs.callPackage ./default.nix {};
-      }
-    );
+        packages.default = pkgs.callPackage ./default.nix { };
+      });
 }
