@@ -7,7 +7,7 @@ const Lua = @import("ziglua").Lua;
 const Color = helpers.Color;
 const Font = @import("Font.zig");
 
-min_size: [2]f32 = .{ 1, 1 },
+min_size: f32 = 1,
 color: Color,
 selected_color: Color,
 size: [2]f32 = .{ 80, 80 },

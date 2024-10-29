@@ -188,12 +188,11 @@ pub fn handleKey(self: *Seto) void {
                 self.tree.?.move(value);
             },
             .resize => |value| if (!self.state.border_mode) {
-                var new_value = value;
                 for (0..2) |i| {
-                    if (self.config.grid.size[i] + value[i] < self.config.grid.min_size[i] and value[i] <= 0) new_value[i] = 0;
+                    if (self.config.grid.size[i] + value[i] < self.config.grid.min_size and value[i] <= 0) return;
                 }
 
-                self.tree.?.resize(new_value);
+                self.tree.?.resize(value);
 
                 const depth = self.tree.?.depth;
                 if (depth != self.tree.?.depth) {

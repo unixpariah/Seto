@@ -82,7 +82,6 @@ pub const Seto = struct {
             std.process.exit(1);
         }
 
-        seto.config.grid.min_size[1] = seto.config.font.size + seto.config.font.offset[1];
         seto.config.text = Text.init(alloc, &seto.config);
 
         return seto;
