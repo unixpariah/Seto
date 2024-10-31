@@ -1,6 +1,5 @@
 #!/bin/sh
 
-GRID_SIZE=80
 tests_passed=0
 tests_failed=0
 failed_tests=""
@@ -16,7 +15,7 @@ run_seto_and_test() {
 	sleep 1
 
 	ydotool key 30:1
-	sleep 3
+	sleep 2
 	ydotool key 30:0
 
 	if ps -p $SETO_PID >/dev/null; then
@@ -29,27 +28,27 @@ run_seto_and_test() {
 }
 
 test_resize_left() {
-	run_seto_and_test "-3,0"
-	run_seto_and_test "-5,0"
-	run_seto_and_test "-$GRID_SIZE,0"
+	for i in $(seq 1 5); do
+		run_seto_and_test "-$i,0"
+	done
 }
 
 test_resize_right() {
-	run_seto_and_test "3,0"
-	run_seto_and_test "5,0"
-	run_seto_and_test "$GRID_SIZE,0"
+	for i in $(seq 1 5); do
+		run_seto_and_test "$i,0"
+	done
 }
 
 test_resize_down() {
-	run_seto_and_test "0,3"
-	run_seto_and_test "0,5"
-	run_seto_and_test "0,$GRID_SIZE"
+	for i in $(seq 1 5); do
+		run_seto_and_test "0,$i"
+	done
 }
 
 test_resize_up() {
-	run_seto_and_test "0,-3"
-	run_seto_and_test "0,-5"
-	run_seto_and_test "0,-$GRID_SIZE"
+	for i in $(seq 1 5); do
+		run_seto_and_test "0,-$i"
+	done
 }
 
 # Run all tests
