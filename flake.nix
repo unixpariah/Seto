@@ -11,31 +11,33 @@
     };
   };
 
-  outputs = { nixpkgs, zls, flake-utils, zig, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let pkgs = import nixpkgs { inherit system; };
-      in {
-        devShell = pkgs.mkShell {
-          packages = with pkgs; [
-            pkg-config
-            wayland
-            wayland-scanner
-            wayland-protocols
-            wayland-utils
-            libxkbcommon
-            libGL
-            glxinfo
-            freetype
-            ydotool
-            shfmt
-            fontconfig
-            clang-tools
-            scdoc
-            zls.packages.${system}.default
-            zig.packages.${system}."0.13.0"
-          ];
-        };
+  outputs = { nixpkgs, zig, zls, ... }:
+    let
+      system = "x86_64-linux";
+      pkgs = import nixpkgs { inherit system; };
+    in {
+      devShells.${system}.default = pkgs.mkShell {
+        packages = with pkgs; [
+          pkg-config
+          wayland
+          wayland-scanner
+          wayland-protocols
+          wayland-utils
+          libxkbcommon
+          libGL
+          glxinfo
+          freetype
+          ydotool
+          shfmt
+          fontconfig
+          clang-tools
+          scdoc
+          zls.packages.${system}.default
+          zig.packages.${system}."0.13.0"
+        ];
+      };
 
-        packages.default = pkgs.callPackage ./default.nix { };
-      });
+      packages.${system}.default = pkgs.callPackage ./nix/default.nix { };
+      homeManagerModules.default = import ./nix/home-manager.nix;
+    };
 }

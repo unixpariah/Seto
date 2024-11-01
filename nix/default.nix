@@ -5,7 +5,7 @@ stdenv.mkDerivation (finalAttrs: {
   pname = "seto";
   version = "0.1.0";
 
-  src = ./.;
+  src = ./..;
 
   dontConfigure = true;
   doCheck = false;

@@ -34,49 +34,34 @@ pub fn init(alloc: std.mem.Allocator, config: *Config, outputs: *const []Output)
         .outputs_ptr = outputs,
     };
 
-    tree.updateCoordinates(false);
+    tree.updateCoordinates();
 
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self, border_mode: bool) void {
+pub fn updateCoordinates(self: *Self) void {
     const total_intersections: usize = blk: {
-        if (border_mode) {
-            break :blk self.outputs_ptr.len * 4;
-        } else {
-            const width = self.total_dimensions.width - self.total_dimensions.x;
-            const height = self.total_dimensions.height - self.total_dimensions.y;
+        const width = self.total_dimensions.width - self.total_dimensions.x;
+        const height = self.total_dimensions.height - self.total_dimensions.y;
 
-            const num_x_steps = @ceil(width / self.config_ptr.grid.size[0]);
-            const num_y_steps = @ceil(height / self.config_ptr.grid.size[1]);
+        const num_x_steps = @ceil(width / self.config_ptr.grid.size[0]);
+        const num_y_steps = @ceil(height / self.config_ptr.grid.size[1]);
 
-            break :blk @intFromFloat(num_x_steps * num_y_steps);
-        }
+        break :blk @intFromFloat(num_x_steps * num_y_steps);
     };
 
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections) catch @panic("OOM");
     defer intersections.deinit();
 
-    if (border_mode) {
-        for (self.outputs_ptr.*) |output| {
-            intersections.appendSliceAssumeCapacity(&[_][2]f32{
-                .{ output.info.x, output.info.y },
-                .{ output.info.x, output.info.y + output.info.height - 1 },
-                .{ output.info.x + output.info.width - 1, output.info.y },
-                .{ output.info.x + output.info.width - 1, output.info.y + output.info.height - 1 },
-            });
-        }
-    } else {
-        const start_pos: [2]f32 = .{
-            self.total_dimensions.x + self.config_ptr.grid.offset[0],
-            self.total_dimensions.y + self.config_ptr.grid.offset[1],
-        };
-        var i = start_pos[0];
-        while (i <= self.total_dimensions.width - 1) : (i += self.config_ptr.grid.size[0]) {
-            var j = start_pos[1];
-            while (j <= self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
-                intersections.appendAssumeCapacity(.{ i, j });
-            }
+    const start_pos: [2]f32 = .{
+        self.total_dimensions.x + self.config_ptr.grid.offset[0],
+        self.total_dimensions.y + self.config_ptr.grid.offset[1],
+    };
+    var i = start_pos[0];
+    while (i <= self.total_dimensions.width - 1) : (i += self.config_ptr.grid.size[0]) {
+        var j = start_pos[1];
+        while (j <= self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
+            intersections.appendAssumeCapacity(.{ i, j });
         }
     }
     const depth: usize = depth: {
@@ -205,7 +190,7 @@ pub fn resize(self: *Self, value: [2]f32) void {
     };
 
     if (depth != self.depth) {
-        self.updateCoordinates(false);
+        self.updateCoordinates();
         return;
     }
 
@@ -214,17 +199,12 @@ pub fn resize(self: *Self, value: [2]f32) void {
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersections_num) catch @panic("OOM");
     defer intersections.deinit();
 
-    const start_pos: [2]f32 = .{
-        self.total_dimensions.x + self.config_ptr.grid.offset[0],
-        self.total_dimensions.y + self.config_ptr.grid.offset[1],
-    };
-
     if (value[0] < 0) {
         const iterations = @ceil((self.total_dimensions.width - self.config_ptr.grid.offset[0] - 1) / self.config_ptr.grid.size[0]) - 1;
 
         var i = self.config_ptr.grid.size[0] * iterations + self.config_ptr.grid.offset[0];
         while (i >= self.total_dimensions.x + self.total_dimensions.width + (value[0] * iterations) - 1) : (i -= self.config_ptr.grid.size[0]) {
-            var j = start_pos[1];
+            var j = self.total_dimensions.y + self.config_ptr.grid.offset[1];
             while (j <= self.total_dimensions.y + self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
                 intersections.appendAssumeCapacity(.{ i, j });
             }
@@ -236,7 +216,7 @@ pub fn resize(self: *Self, value: [2]f32) void {
 
         var i = self.config_ptr.grid.size[1] * iterations + self.config_ptr.grid.offset[1];
         while (i >= self.total_dimensions.y + self.total_dimensions.height + (value[1] * iterations) - 1) : (i -= self.config_ptr.grid.size[1]) {
-            var j = start_pos[0];
+            var j = self.total_dimensions.x + self.config_ptr.grid.offset[0];
             while (j <= self.total_dimensions.x + self.total_dimensions.width - 1) : (j += self.config_ptr.grid.size[0]) {
                 intersections.appendAssumeCapacity(.{ j, i });
             }
