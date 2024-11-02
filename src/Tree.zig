@@ -87,7 +87,7 @@ pub fn updateCoordinates(self: *Self) void {
     }
 
     const depth_f: f32 = @floatFromInt(depth);
-    self.config_ptr.*.grid.min_size = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
+    self.config_ptr.grid.min_size = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
 
     var index: usize = 0;
     for (self.children) |*child| {
@@ -200,10 +200,10 @@ pub fn resize(self: *Self, value: [2]f32) void {
     defer intersections.deinit();
 
     if (value[0] < 0) {
-        const iterations = @ceil((self.total_dimensions.width - self.config_ptr.grid.offset[0] - 1) / self.config_ptr.grid.size[0]) - 1;
+        const iterations = @floor((self.total_dimensions.width - 1 - self.config_ptr.grid.offset[0]) / self.config_ptr.grid.size[0]);
 
         var i = self.config_ptr.grid.size[0] * iterations + self.config_ptr.grid.offset[0];
-        while (i >= self.total_dimensions.x + self.total_dimensions.width + (value[0] * iterations) - 1) : (i -= self.config_ptr.grid.size[0]) {
+        while (i > self.total_dimensions.x + self.total_dimensions.width + (value[0] * iterations)) : (i -= self.config_ptr.grid.size[0]) {
             var j = self.total_dimensions.y + self.config_ptr.grid.offset[1];
             while (j <= self.total_dimensions.y + self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
                 intersections.appendAssumeCapacity(.{ i, j });
@@ -212,10 +212,10 @@ pub fn resize(self: *Self, value: [2]f32) void {
     }
 
     if (value[1] < 0) {
-        const iterations = @ceil((self.total_dimensions.height - self.config_ptr.grid.offset[1] - 1) / self.config_ptr.grid.size[1]) - 1;
+        const iterations = @floor((self.total_dimensions.height - 1 - self.config_ptr.grid.offset[1]) / self.config_ptr.grid.size[1]);
 
         var i = self.config_ptr.grid.size[1] * iterations + self.config_ptr.grid.offset[1];
-        while (i >= self.total_dimensions.y + self.total_dimensions.height + (value[1] * iterations) - 1) : (i -= self.config_ptr.grid.size[1]) {
+        while (i > self.total_dimensions.y + self.total_dimensions.height + (value[1] * iterations)) : (i -= self.config_ptr.grid.size[1]) {
             var j = self.total_dimensions.x + self.config_ptr.grid.offset[0];
             while (j <= self.total_dimensions.x + self.total_dimensions.width - 1) : (j += self.config_ptr.grid.size[0]) {
                 intersections.appendAssumeCapacity(.{ j, i });
