@@ -45,7 +45,7 @@ stdenv.mkDerivation (finalAttrs: {
     description = "Hardware accelerated keyboard driven screen selection tool";
     mainProgram = "seto";
     homepage = "https://github.com/unixpariah/seto";
-    license = licenses.mit;
+    license = licenses.gpl3;
     maintainers = with maintainers; [ unixpariah ];
     platforms = platforms.unix;
   };
