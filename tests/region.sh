@@ -1,9 +1,9 @@
 #!/bin/sh
 
-./zig-out/bin/seto -r -c ./tests/config.lua &
+./zig-out/bin/seto -r -c null &
 SETO_PID=$!
 
-sleep 0.1
+sleep 1
 
 ydotool type aaa
 

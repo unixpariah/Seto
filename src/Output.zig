@@ -15,7 +15,8 @@ const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("Config.zig");
 const EglSurface = @import("Egl.zig").EglSurface;
-const Tree = @import("Tree.zig");
+const Tree = @import("Tree/NormalTree.zig");
+const Trees = @import("Tree/Trees.zig");
 const Color = helpers.Color;
 
 pub const OutputInfo = struct {
@@ -134,8 +135,8 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
         return;
     }
 
-    const num_x_step = @ceil(@abs(self.total_dimensions_ptr.x - self.info.x) / config.grid.size[0]);
-    const num_y_step = @ceil(@abs(self.total_dimensions_ptr.y - self.info.y) / config.grid.size[1]);
+    const num_x_step = @ceil((self.info.x - self.total_dimensions_ptr.x - config.grid.offset[0]) / config.grid.size[0]);
+    const num_y_step = @ceil((self.info.y - self.total_dimensions_ptr.y - config.grid.offset[1]) / config.grid.size[1]);
 
     var start_pos: [2]f32 = .{
         self.total_dimensions_ptr.x + num_x_step * config.grid.size[0] + config.grid.offset[0],
@@ -290,11 +291,12 @@ pub fn xdgOutputListener(
 
             seto.updateDimensions();
 
-            if (seto.tree) |*tree| {
-                tree.updateCoordinates(seto.state.border_mode);
-            } else {
-                seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
+            if (seto.trees) |*trees| {
+                trees.deinit();
+                seto.trees = Trees.init(output.alloc, &seto.config, &seto.outputs.items, &seto.state);
+                return;
             }
+            seto.trees = Trees.init(output.alloc, &seto.config, &seto.outputs.items, &seto.state);
         },
         else => {},
     }

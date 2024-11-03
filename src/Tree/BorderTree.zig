@@ -2,12 +2,12 @@ const std = @import("std");
 const c = @import("ffi");
 const helpers = @import("helpers");
 
-const Seto = @import("main.zig").Seto;
-const Output = @import("Output.zig");
-const Grid = @import("config/Grid.zig");
-const Config = @import("Config.zig");
-const OutputInfo = @import("Output.zig").OutputInfo;
-const TotalDimensions = @import("main.zig").TotalDimensions;
+const Seto = @import("../main.zig").Seto;
+const Output = @import("../Output.zig");
+const Grid = @import("../config/Grid.zig");
+const Config = @import("../Config.zig");
+const OutputInfo = @import("../Output.zig").OutputInfo;
+const TotalDimensions = @import("../main.zig").TotalDimensions;
 
 children: []Node,
 keys: []const u32,
@@ -34,51 +34,26 @@ pub fn init(alloc: std.mem.Allocator, config: *Config, outputs: *const []Output)
         .outputs_ptr = outputs,
     };
 
-    tree.updateCoordinates(false);
+    tree.updateCoordinates();
 
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self, border_mode: bool) void {
-    const total_intersections: usize = blk: {
-        if (border_mode) {
-            break :blk self.outputs_ptr.len * 4;
-        } else {
-            const width = self.total_dimensions.width - self.total_dimensions.x;
-            const height = self.total_dimensions.height - self.total_dimensions.y;
-
-            const num_x_steps = @ceil(width / self.config_ptr.grid.size[0]);
-            const num_y_steps = @ceil(height / self.config_ptr.grid.size[1]);
-
-            break :blk @intFromFloat(num_x_steps * num_y_steps);
-        }
-    };
+pub fn updateCoordinates(self: *Self) void {
+    const total_intersections: usize = self.outputs_ptr.len * 4;
 
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections) catch @panic("OOM");
     defer intersections.deinit();
 
-    if (border_mode) {
-        for (self.outputs_ptr.*) |output| {
-            intersections.appendSliceAssumeCapacity(&[_][2]f32{
-                .{ output.info.x, output.info.y },
-                .{ output.info.x, output.info.y + output.info.height - 1 },
-                .{ output.info.x + output.info.width - 1, output.info.y },
-                .{ output.info.x + output.info.width - 1, output.info.y + output.info.height - 1 },
-            });
-        }
-    } else {
-        const start_pos: [2]f32 = .{
-            self.total_dimensions.x + self.config_ptr.grid.offset[0],
-            self.total_dimensions.y + self.config_ptr.grid.offset[1],
-        };
-        var i = start_pos[0];
-        while (i <= self.total_dimensions.width - 1) : (i += self.config_ptr.grid.size[0]) {
-            var j = start_pos[1];
-            while (j <= self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
-                intersections.appendAssumeCapacity(.{ i, j });
-            }
-        }
+    for (self.outputs_ptr.*) |output| {
+        intersections.appendSliceAssumeCapacity(&[_][2]f32{
+            .{ output.info.x, output.info.y },
+            .{ output.info.x, output.info.y + output.info.height - 1 },
+            .{ output.info.x + output.info.width - 1, output.info.y },
+            .{ output.info.x + output.info.width - 1, output.info.y + output.info.height - 1 },
+        });
     }
+
     const depth: usize = depth: {
         const depth = std.math.log(f32, @floatFromInt(self.config_ptr.keys.search.len), @floatFromInt(intersections.items.len));
         break :depth @intFromFloat(@ceil(depth));
@@ -102,7 +77,7 @@ pub fn updateCoordinates(self: *Self, border_mode: bool) void {
     }
 
     const depth_f: f32 = @floatFromInt(depth);
-    self.config_ptr.*.grid.max_size[0] = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
+    self.config_ptr.grid.min_size = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
 
     var index: usize = 0;
     for (self.children) |*child| {
@@ -125,7 +100,7 @@ pub fn find(self: *Self, buffer: *[]u32) !?[2]f32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) void {
+pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
     c.glUseProgram(output.egl.text_shader_program);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.gen_VBO[2]);
     c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
@@ -134,7 +109,7 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) 
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.drawText(self.config_ptr, path, 1, output, buffer, border_mode);
+            child.drawText(self.config_ptr, path, 1, output, buffer);
         } else {
             if (child.coordinates) |coordinates| {
                 renderText(
@@ -142,7 +117,6 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) 
                     self.config_ptr,
                     buffer,
                     path,
-                    border_mode,
                     coordinates,
                 );
             }
@@ -152,7 +126,7 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) 
     self.config_ptr.text.renderCall(output.egl.text_shader_program);
 }
 
-fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]f32) void {
+fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
     var matches: u8 = 0;
     for (buffer, 0..) |char, i| {
         if (path[i] == char) matches += 1 else break;
@@ -160,24 +134,16 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, bord
     if (buffer.len > matches) matches = 0;
 
     const coords = blk: {
-        if (border_mode) {
-            const text_size = config.text.getSize(path);
-            break :blk if (coordinates[0] == output.info.x and coordinates[1] == output.info.y)
-                .{ coordinates[0] + 5, coordinates[1] + 25 }
-            else if (coordinates[0] == output.info.x and coordinates[1] == output.info.y + output.info.height - 1)
-                .{ coordinates[0] + 5, coordinates[1] - 15 }
-            else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y)
-                .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 }
-            else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y + output.info.height - 1)
-                .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 }
-            else
-                return;
-        } else {
-            break :blk .{
-                coordinates[0] + config.font.offset[0],
-                coordinates[1] + 20 + config.font.offset[1],
-            };
-        }
+        const text_size = config.text.getSize(path);
+        if (coordinates[0] == output.info.x and coordinates[1] == output.info.y) {
+            break :blk .{ coordinates[0] + 5, coordinates[1] + 25 };
+        } else if (coordinates[0] == output.info.x and coordinates[1] == output.info.y + output.info.height - 1) {
+            break :blk .{ coordinates[0] + 5, coordinates[1] - 15 };
+        } else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y) {
+            break :blk .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 };
+        } else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y + output.info.height - 1) {
+            break :blk .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 };
+        } else return;
     };
 
     config.text.place(
@@ -217,12 +183,12 @@ const Node = struct {
     coordinates: ?[2]f32 = null,
 
     fn updateCoordinates(self: *Node, intersections: [][2]f32, index: *usize) void {
+        if (index.* >= intersections.len) return;
+
         if (self.children == null) {
-            if (index.* < intersections.len) {
+            if (self.coordinates == null) {
                 self.coordinates = intersections[index.*];
                 index.* += 1;
-            } else {
-                self.coordinates = null;
             }
         } else {
             for (self.children.?) |*child| {
@@ -259,7 +225,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn drawText(self: *Node, config: *Config, path: []u32, index: u8, output: *Output, buffer: []u32, border_mode: bool) void {
+    fn drawText(self: *Node, config: *Config, path: []u32, index: u8, output: *Output, buffer: []u32) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
@@ -275,13 +241,12 @@ const Node = struct {
                             config,
                             buffer,
                             path,
-                            border_mode,
                             coordinates,
                         );
                     }
                     continue;
                 }
-                child.drawText(config, path, index + 1, output, buffer, border_mode);
+                child.drawText(config, path, index + 1, output, buffer);
             }
         }
     }
@@ -290,6 +255,7 @@ const Node = struct {
         if (self.children) |children| {
             for (children) |*child| child.increaseDepth(keys, alloc);
         } else {
+            self.coordinates = null;
             self.createChildren(keys, alloc);
         }
     }

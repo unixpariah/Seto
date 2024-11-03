@@ -8,7 +8,7 @@ const wl = wayland.client.wl;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
 
-const Tree = @import("Tree.zig");
+const Tree = @import("Tree/NormalTree.zig");
 const OutputInfo = @import("Output.zig").OutputInfo;
 const Output = @import("Output.zig");
 const Seat = @import("seat.zig").Seat;
@@ -16,6 +16,7 @@ const Config = @import("Config.zig");
 const Egl = @import("Egl.zig");
 const Text = @import("config/Text.zig");
 const EventLoop = @import("EventLoop.zig");
+const Trees = @import("Tree/Trees.zig");
 
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("Output.zig").xdgOutputListener;
@@ -62,7 +63,7 @@ pub const Seto = struct {
     alloc: mem.Allocator,
     total_dimensions: TotalDimensions = .{},
     state: State = State{},
-    tree: ?Tree = null,
+    trees: ?Trees = null,
 
     const Self = @This();
 
@@ -82,7 +83,6 @@ pub const Seto = struct {
             std.process.exit(1);
         }
 
-        seto.config.grid.max_size[1] = seto.config.font.size + seto.config.font.offset[1];
         seto.config.text = Text.init(alloc, &seto.config);
 
         return seto;
@@ -103,8 +103,8 @@ pub const Seto = struct {
         self.total_dimensions = .{
             .x = first.x,
             .y = first.y,
-            .width = (last.x + last.width) - first.x,
-            .height = (last.y + last.height) - first.y,
+            .width = (last.x + last.width - 1) - first.x,
+            .height = (last.y + last.height - 1) - first.y,
         };
     }
 
@@ -138,7 +138,7 @@ pub const Seto = struct {
     }
 
     pub fn printToStdout(self: *Self) !void {
-        const coords = try self.tree.?.find(&self.seat.buffer.items) orelse return;
+        const coords = try self.trees.?.find(&self.seat.buffer.items) orelse return;
         var arena = std.heap.ArenaAllocator.init(self.alloc);
         defer arena.deinit();
 
@@ -173,7 +173,7 @@ pub const Seto = struct {
             _ = c.eglSwapInterval(output.egl.display.*, 0);
 
             output.draw(&self.config, self.state.border_mode, &self.state.mode);
-            self.tree.?.drawText(output, self.seat.buffer.items, self.state.border_mode);
+            self.trees.?.drawText(output, self.seat.buffer.items);
 
             try output.egl.swapBuffers();
         }
@@ -188,7 +188,7 @@ pub const Seto = struct {
         self.seat.deinit();
         self.config.deinit();
         self.egl.deinit();
-        if (self.tree) |tree| tree.deinit();
+        if (self.trees) |trees| trees.deinit();
     }
 };
 

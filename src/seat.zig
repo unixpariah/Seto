@@ -173,7 +173,6 @@ fn moveSelection(seto: *Seto, value: [2]f32) void {
 
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
-    const grid = &self.config.grid;
 
     const keysym_backspace = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.BackSpace));
     const keysym_escape = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.Escape));
@@ -185,19 +184,30 @@ pub fn handleKey(self: *Seto) void {
         self.state.exit = true;
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
         switch (function) {
-            .move => |value| if (!self.state.border_mode) grid.move(value),
-            .resize => |value| if (!self.state.border_mode) grid.resize(value),
+            .move => |value| {
+                var new_value = value;
+                for (0..2) |i| {
+                    if (@abs(new_value[i]) >= self.config.grid.size[i]) new_value[i] = @mod(new_value[i], self.config.grid.size[i]);
+                }
+                self.trees.?.move(new_value);
+            },
+            .resize => |value| {
+                var new_value = value;
+                for (0..2) |i| {
+                    if (self.config.grid.size[i] + value[i] < self.config.grid.min_size and value[i] < 0) {
+                        new_value[i] = 0;
+                    }
+                }
+
+                const depth = self.trees.?.normal_tree.depth;
+                self.trees.?.resize(new_value);
+                if (self.trees.?.normal_tree.depth != depth) self.seat.buffer.clearAndFree();
+            },
             .cancel_selection => if (self.state.mode == Mode.Region) {
                 self.state.mode = Mode{ .Region = null };
             },
             .move_selection => |value| moveSelection(self, value),
             .border_mode => self.state.border_mode = !self.state.border_mode,
-        }
-
-        const depth = self.tree.?.depth;
-        self.tree.?.updateCoordinates(self.state.border_mode);
-        if (depth != self.tree.?.depth) {
-            self.seat.buffer.clearAndFree();
         }
     } else {
         self.seat.buffer.append(key) catch @panic("OOM");
