@@ -1,10 +1,10 @@
+self:
 { pkgs, config, lib, ... }:
 with lib;
 let cfg = config.home.seto;
 in {
-  options = {
-    programs.seto =
-      mkEnableOption "seto, hardware accelerated screen selection tool";
+  options.home.seto = {
+    enable = mkEnableOption "seto, hardware accelerated screen selection tool";
 
     extraConfig = mkOption {
       type = types.lines;

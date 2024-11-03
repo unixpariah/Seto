@@ -11,7 +11,7 @@
     };
   };
 
-  outputs = { nixpkgs, zig, zls, ... }:
+  outputs = { self, nixpkgs, zig, zls, ... }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
@@ -38,6 +38,6 @@
       };
 
       packages.${system}.default = pkgs.callPackage ./nix/default.nix { };
-      homeManagerModules.default = import ./nix/home-manager.nix;
+      homeManagerModules.default = import ./nix/home-manager.nix self;
     };
 }

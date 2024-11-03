@@ -61,7 +61,6 @@ pub fn build(b: *std.Build) void {
 
     const root_files = [_][]const u8{
         "src/helpers.zig",
-        "src/Tree.zig",
         "src/main.zig",
         "src/math.zig",
         "tests/integration.zig",

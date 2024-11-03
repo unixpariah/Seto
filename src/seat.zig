@@ -184,14 +184,14 @@ pub fn handleKey(self: *Seto) void {
         self.state.exit = true;
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
         switch (function) {
-            .move => |value| if (!self.state.border_mode) {
+            .move => |value| {
                 var new_value = value;
                 for (0..2) |i| {
                     if (@abs(new_value[i]) >= self.config.grid.size[i]) new_value[i] = @mod(new_value[i], self.config.grid.size[i]);
                 }
-                self.tree.?.move(new_value);
+                self.trees.?.move(new_value);
             },
-            .resize => |value| if (!self.state.border_mode) {
+            .resize => |value| {
                 var new_value = value;
                 for (0..2) |i| {
                     if (self.config.grid.size[i] + value[i] < self.config.grid.min_size and value[i] < 0) {
@@ -199,12 +199,7 @@ pub fn handleKey(self: *Seto) void {
                     }
                 }
 
-                self.tree.?.resize(new_value);
-
-                const depth = self.tree.?.depth;
-                if (depth != self.tree.?.depth) {
-                    self.seat.buffer.clearAndFree();
-                }
+                self.trees.?.resize(new_value);
             },
             .cancel_selection => if (self.state.mode == Mode.Region) {
                 self.state.mode = Mode{ .Region = null };

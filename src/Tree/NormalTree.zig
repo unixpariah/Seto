@@ -2,12 +2,12 @@ const std = @import("std");
 const c = @import("ffi");
 const helpers = @import("helpers");
 
-const Seto = @import("main.zig").Seto;
-const Output = @import("Output.zig");
-const Grid = @import("config/Grid.zig");
-const Config = @import("Config.zig");
-const OutputInfo = @import("Output.zig").OutputInfo;
-const TotalDimensions = @import("main.zig").TotalDimensions;
+const Seto = @import("../main.zig").Seto;
+const Output = @import("../Output.zig");
+const Grid = @import("../config/Grid.zig");
+const Config = @import("../Config.zig");
+const OutputInfo = @import("../Output.zig").OutputInfo;
+const TotalDimensions = @import("../main.zig").TotalDimensions;
 
 children: []Node,
 keys: []const u32,
@@ -246,7 +246,7 @@ pub fn find(self: *Self, buffer: *[]u32) !?[2]f32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) void {
+pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
     c.glUseProgram(output.egl.text_shader_program);
     c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.gen_VBO[2]);
     c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
@@ -255,7 +255,7 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) 
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.drawText(self.config_ptr, path, 1, output, buffer, border_mode);
+            child.drawText(self.config_ptr, path, 1, output, buffer);
         } else {
             if (child.coordinates) |coordinates| {
                 renderText(
@@ -263,7 +263,6 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) 
                     self.config_ptr,
                     buffer,
                     path,
-                    border_mode,
                     coordinates,
                 );
             }
@@ -273,32 +272,16 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, border_mode: bool) 
     self.config_ptr.text.renderCall(output.egl.text_shader_program);
 }
 
-fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, border_mode: bool, coordinates: [2]f32) void {
+fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
     var matches: u8 = 0;
     for (buffer, 0..) |char, i| {
         if (path[i] == char) matches += 1 else break;
     }
     if (buffer.len > matches) matches = 0;
 
-    const coords = blk: {
-        if (border_mode) {
-            const text_size = config.text.getSize(path);
-            break :blk if (coordinates[0] == output.info.x and coordinates[1] == output.info.y)
-                .{ coordinates[0] + 5, coordinates[1] + 25 }
-            else if (coordinates[0] == output.info.x and coordinates[1] == output.info.y + output.info.height - 1)
-                .{ coordinates[0] + 5, coordinates[1] - 15 }
-            else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y)
-                .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 }
-            else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y + output.info.height - 1)
-                .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 }
-            else
-                return;
-        } else {
-            break :blk .{
-                coordinates[0] + config.font.offset[0],
-                coordinates[1] + 20 + config.font.offset[1],
-            };
-        }
+    const coords = .{
+        coordinates[0] + config.font.offset[0],
+        coordinates[1] + 20 + config.font.offset[1],
     };
 
     config.text.place(
@@ -432,7 +415,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn drawText(self: *Node, config: *Config, path: []u32, index: u8, output: *Output, buffer: []u32, border_mode: bool) void {
+    fn drawText(self: *Node, config: *Config, path: []u32, index: u8, output: *Output, buffer: []u32) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
@@ -448,13 +431,12 @@ const Node = struct {
                             config,
                             buffer,
                             path,
-                            border_mode,
                             coordinates,
                         );
                     }
                     continue;
                 }
-                child.drawText(config, path, index + 1, output, buffer, border_mode);
+                child.drawText(config, path, index + 1, output, buffer);
             }
         }
     }

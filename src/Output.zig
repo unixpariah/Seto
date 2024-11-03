@@ -15,7 +15,8 @@ const Mode = @import("main.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("Config.zig");
 const EglSurface = @import("Egl.zig").EglSurface;
-const Tree = @import("Tree.zig");
+const Tree = @import("Tree/NormalTree.zig");
+const Trees = @import("Tree/Trees.zig");
 const Color = helpers.Color;
 
 pub const OutputInfo = struct {
@@ -290,12 +291,12 @@ pub fn xdgOutputListener(
 
             seto.updateDimensions();
 
-            if (seto.tree) |*tree| {
-                tree.deinit();
-                seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
+            if (seto.trees) |*trees| {
+                trees.deinit();
+                seto.trees = Trees.init(output.alloc, &seto.config, &seto.outputs.items, &seto.state);
                 return;
             }
-            seto.tree = Tree.init(output.alloc, &seto.config, &seto.outputs.items);
+            seto.trees = Trees.init(output.alloc, &seto.config, &seto.outputs.items, &seto.state);
         },
         else => {},
     }
