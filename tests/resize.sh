@@ -8,7 +8,7 @@ run_seto_and_test() {
 	local resize_distance=$1
 	local test_name="   - $resize_distance"
 
-	./zig-out/bin/seto -c null -F a resize $resize_distance >/dev/null 2>&1 &
+	./zig-out/bin/seto -c null -F a resize $resize_distance --font-size 10 >/dev/null 2>&1 &
 	SETO_PID=$!
 	disown $SETO_PID
 

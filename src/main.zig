@@ -102,8 +102,8 @@ pub const Seto = struct {
         self.total_dimensions = .{
             .x = first.x,
             .y = first.y,
-            .width = (last.x + last.width) - first.x,
-            .height = (last.y + last.height) - first.y,
+            .width = (last.x + last.width - 1) - first.x,
+            .height = (last.y + last.height - 1) - first.y,
         };
     }
 

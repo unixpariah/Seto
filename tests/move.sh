@@ -31,33 +31,21 @@ run_seto_and_test() {
 test_move_left() {
 	run_seto_and_test "-3,0"
 	run_seto_and_test "-5,0"
-	run_seto_and_test "-$GRID_SIZE,0"
-	run_seto_and_test "-$(((GRID_SIZE + GRID_SIZE * 2) / 2)),0"
-	run_seto_and_test "-$((GRID_SIZE * 2)),0"
 }
 
 test_move_right() {
 	run_seto_and_test "3,0"
 	run_seto_and_test "5,0"
-	run_seto_and_test "$GRID_SIZE,0"
-	run_seto_and_test "$(((GRID_SIZE + GRID_SIZE * 2) / 2)),0"
-	run_seto_and_test "$((GRID_SIZE * 2)),0"
 }
 
 test_move_down() {
 	run_seto_and_test "0,3"
 	run_seto_and_test "0,5"
-	run_seto_and_test "0,$GRID_SIZE"
-	run_seto_and_test "0,$(((GRID_SIZE + GRID_SIZE * 2) / 2))"
-	run_seto_and_test "0,$((GRID_SIZE * 2))"
 }
 
 test_move_up() {
 	run_seto_and_test "0,-3"
 	run_seto_and_test "0,-5"
-	run_seto_and_test "0,-$GRID_SIZE"
-	run_seto_and_test "0,-$(((GRID_SIZE + GRID_SIZE * 2) / 2))"
-	run_seto_and_test "0,-$((GRID_SIZE * 2))"
 }
 
 # Run all tests

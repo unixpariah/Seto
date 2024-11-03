@@ -185,7 +185,11 @@ pub fn handleKey(self: *Seto) void {
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
         switch (function) {
             .move => |value| if (!self.state.border_mode) {
-                self.tree.?.move(value);
+                var new_value = value;
+                for (0..2) |i| {
+                    if (@abs(new_value[i]) >= self.config.grid.size[i]) new_value[i] = @mod(new_value[i], self.config.grid.size[i]);
+                }
+                self.tree.?.move(new_value);
             },
             .resize => |value| if (!self.state.border_mode) {
                 var new_value = value;

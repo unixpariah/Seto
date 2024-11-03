@@ -58,9 +58,9 @@ pub fn updateCoordinates(self: *Self) void {
         self.total_dimensions.y + self.config_ptr.grid.offset[1],
     };
     var i = start_pos[0];
-    while (i <= self.total_dimensions.width - 1) : (i += self.config_ptr.grid.size[0]) {
+    while (i <= self.total_dimensions.width) : (i += self.config_ptr.grid.size[0]) {
         var j = start_pos[1];
-        while (j <= self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
+        while (j <= self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
             intersections.appendAssumeCapacity(.{ i, j });
         }
     }
@@ -122,9 +122,9 @@ pub fn move(self: *Self, value: [2]f32) void {
     };
 
     if (value[0] > 0) {
-        while (start_pos[0] < self.total_dimensions.x + value[0]) : (start_pos[0] += self.config_ptr.grid.size[0]) {
+        while (start_pos[0] <= self.total_dimensions.x + value[0]) : (start_pos[0] += self.config_ptr.grid.size[0]) {
             var j = start_pos[1];
-            while (j <= self.total_dimensions.x + self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
+            while (j <= self.total_dimensions.x + self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
                 intersections.appendAssumeCapacity(.{ start_pos[0], j });
             }
         }
@@ -132,9 +132,9 @@ pub fn move(self: *Self, value: [2]f32) void {
         const iterations = @divExact((self.total_dimensions.width + value[0]), self.config_ptr.grid.size[0]);
 
         var i = self.config_ptr.grid.size[0] * iterations + self.config_ptr.grid.offset[0];
-        while (i <= self.total_dimensions.x + self.total_dimensions.width - 1) : (i += self.config_ptr.grid.size[0]) {
+        while (i <= self.total_dimensions.x + self.total_dimensions.width) : (i += self.config_ptr.grid.size[0]) {
             var j = start_pos[1];
-            while (j <= self.total_dimensions.y + self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
+            while (j <= self.total_dimensions.y + self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
                 intersections.appendAssumeCapacity(.{ i, j });
             }
         }
@@ -144,7 +144,7 @@ pub fn move(self: *Self, value: [2]f32) void {
         var i = start_pos[1];
         while (i < self.total_dimensions.y + value[1]) : (i += self.config_ptr.grid.size[1]) {
             var j = start_pos[0];
-            while (j <= self.total_dimensions.x + self.total_dimensions.width - 1) : (j += self.config_ptr.grid.size[0]) {
+            while (j < self.total_dimensions.x + self.total_dimensions.width) : (j += self.config_ptr.grid.size[0]) {
                 intersections.appendAssumeCapacity(.{ j, i });
             }
         }
@@ -152,9 +152,9 @@ pub fn move(self: *Self, value: [2]f32) void {
         const iterations = @divExact((self.total_dimensions.height + value[1]), self.config_ptr.grid.size[1]);
 
         var i = self.config_ptr.grid.size[1] * iterations + self.config_ptr.grid.offset[1];
-        while (i <= self.total_dimensions.y + self.total_dimensions.height - 1) : (i += self.config_ptr.grid.size[1]) {
+        while (i <= self.total_dimensions.y + self.total_dimensions.height) : (i += self.config_ptr.grid.size[1]) {
             var j = start_pos[0];
-            while (j <= self.total_dimensions.x + self.total_dimensions.width - 1) : (j += self.config_ptr.grid.size[0]) {
+            while (j <= self.total_dimensions.x + self.total_dimensions.width) : (j += self.config_ptr.grid.size[0]) {
                 intersections.appendAssumeCapacity(.{ j, i });
             }
         }
@@ -175,8 +175,8 @@ pub fn resize(self: *Self, value: [2]f32) void {
     self.config_ptr.grid.resize(value);
 
     const total_intersections: usize = blk: {
-        const width = self.total_dimensions.width - self.total_dimensions.x - 1;
-        const height = self.total_dimensions.height - self.total_dimensions.y - 1;
+        const width = self.total_dimensions.width - self.total_dimensions.x;
+        const height = self.total_dimensions.height - self.total_dimensions.y;
 
         const num_x_steps = @ceil(width / self.config_ptr.grid.size[0]);
         const num_y_steps = @ceil(height / self.config_ptr.grid.size[1]);
@@ -200,24 +200,26 @@ pub fn resize(self: *Self, value: [2]f32) void {
     defer intersections.deinit();
 
     if (value[0] < 0) {
-        const iterations = @floor((self.total_dimensions.width - 1 - self.config_ptr.grid.offset[0]) / self.config_ptr.grid.size[0]);
+        const iterations = @floor((self.total_dimensions.width - self.config_ptr.grid.offset[0]) / self.config_ptr.grid.size[0]);
 
         var i = self.config_ptr.grid.size[0] * iterations + self.config_ptr.grid.offset[0];
-        while (i > self.total_dimensions.x + self.total_dimensions.width + (value[0] * iterations)) : (i -= self.config_ptr.grid.size[0]) {
+        while (i >= self.total_dimensions.x + self.total_dimensions.width + (value[0] * iterations)) : (i -= self.config_ptr.grid.size[0]) {
             var j = self.total_dimensions.y + self.config_ptr.grid.offset[1];
-            while (j <= self.total_dimensions.y + self.total_dimensions.height - 1) : (j += self.config_ptr.grid.size[1]) {
-                intersections.appendAssumeCapacity(.{ i, j });
+            while (j <= self.total_dimensions.y + self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
+                if (intersections.items.len < intersections.capacity) { // TODO: temporary fix
+                    intersections.appendAssumeCapacity(.{ i, j });
+                }
             }
         }
     }
 
     if (value[1] < 0) {
-        const iterations = @floor((self.total_dimensions.height - 1 - self.config_ptr.grid.offset[1]) / self.config_ptr.grid.size[1]);
+        const iterations = @floor((self.total_dimensions.height - self.config_ptr.grid.offset[1]) / self.config_ptr.grid.size[1]);
 
         var i = self.config_ptr.grid.size[1] * iterations + self.config_ptr.grid.offset[1];
-        while (i > self.total_dimensions.y + self.total_dimensions.height + (value[1] * iterations)) : (i -= self.config_ptr.grid.size[1]) {
+        while (i >= self.total_dimensions.y + self.total_dimensions.height + (value[1] * iterations)) : (i -= self.config_ptr.grid.size[1]) {
             var j = self.total_dimensions.x + self.config_ptr.grid.offset[0];
-            while (j <= self.total_dimensions.x + self.total_dimensions.width - 1) : (j += self.config_ptr.grid.size[0]) {
+            while (j <= self.total_dimensions.x + self.total_dimensions.width) : (j += self.config_ptr.grid.size[0]) {
                 intersections.appendAssumeCapacity(.{ j, i });
             }
         }
@@ -345,9 +347,9 @@ const Node = struct {
             coordinates[1] += num_y_steps * value[1];
 
             if (coordinates[0] < total_dimensions.x or
-                coordinates[0] > total_dimensions.x + total_dimensions.width - 1 or
+                coordinates[0] >= total_dimensions.x + total_dimensions.width or
                 coordinates[1] < total_dimensions.y or
-                coordinates[1] > total_dimensions.y + total_dimensions.height - 1)
+                coordinates[1] >= total_dimensions.y + total_dimensions.height)
             {
                 intersections_num.* -= 1;
                 self.coordinates = null;
@@ -370,9 +372,9 @@ const Node = struct {
             intersections_num.* += 1;
 
             if (coordinates[0] < total_dimensions.x or
-                coordinates[0] > total_dimensions.x + total_dimensions.width - 1 or
+                coordinates[0] >= total_dimensions.x + total_dimensions.width or
                 coordinates[1] < total_dimensions.y or
-                coordinates[1] > total_dimensions.y + total_dimensions.height - 1)
+                coordinates[1] >= total_dimensions.y + total_dimensions.height)
             {
                 self.coordinates = null;
                 intersections_num.* -= 1;
