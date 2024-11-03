@@ -15,7 +15,7 @@ run_seto_and_test() {
 	sleep 1
 
 	ydotool key 30:1
-	sleep 2
+	sleep 1.5
 	ydotool key 30:0
 
 	if ps -p $SETO_PID >/dev/null; then
@@ -51,11 +51,39 @@ test_resize_up() {
 	done
 }
 
+test_resize_top_left() {
+	for i in $(seq 1 5); do
+		run_seto_and_test "-$i,-$i"
+	done
+}
+
+test_resize_bottom_left() {
+	for i in $(seq 1 5); do
+		run_seto_and_test "-$i,$i"
+	done
+}
+
+test_resize_bottom_right() {
+	for i in $(seq 1 5); do
+		run_seto_and_test "$i,$i"
+	done
+}
+
+test_resize_top_right() {
+	for i in $(seq 1 5); do
+		run_seto_and_test "$i,-$i"
+	done
+}
+
 # Run all tests
 test_resize_left
 test_resize_right
 test_resize_down
 test_resize_up
+test_resize_top_left
+test_resize_bottom_left
+test_resize_bottom_right
+test_resize_top_right
 
 echo "Resize Tests: $tests_passed/$((tests_passed + tests_failed))"
 

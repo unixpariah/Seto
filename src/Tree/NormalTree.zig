@@ -96,6 +96,8 @@ pub fn updateCoordinates(self: *Self) void {
 }
 
 pub fn move(self: *Self, value: [2]f32) void {
+    if (value[0] == 0 and value[1] == 0) return;
+
     self.config_ptr.grid.move(value);
     var intersections_num: usize = 0;
     for (self.children) |*child| {
@@ -116,16 +118,12 @@ pub fn move(self: *Self, value: [2]f32) void {
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections - intersections_num) catch @panic("OOM");
     defer intersections.deinit();
 
-    var start_pos: [2]f32 = .{
-        self.total_dimensions.x + self.config_ptr.grid.offset[0],
-        self.total_dimensions.y + self.config_ptr.grid.offset[1],
-    };
-
     if (value[0] > 0) {
-        while (start_pos[0] <= self.total_dimensions.x + value[0]) : (start_pos[0] += self.config_ptr.grid.size[0]) {
-            var j = start_pos[1];
+        var i = self.total_dimensions.x + self.config_ptr.grid.offset[0];
+        while (i <= self.total_dimensions.x + value[0]) : (i += self.config_ptr.grid.size[0]) {
+            var j = self.total_dimensions.y + self.config_ptr.grid.offset[1];
             while (j <= self.total_dimensions.x + self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
-                intersections.appendAssumeCapacity(.{ start_pos[0], j });
+                intersections.appendAssumeCapacity(.{ i, j });
             }
         }
     } else if (value[0] < 0) {
@@ -133,7 +131,7 @@ pub fn move(self: *Self, value: [2]f32) void {
 
         var i = self.config_ptr.grid.size[0] * iterations + self.config_ptr.grid.offset[0];
         while (i <= self.total_dimensions.x + self.total_dimensions.width) : (i += self.config_ptr.grid.size[0]) {
-            var j = start_pos[1];
+            var j = self.total_dimensions.y + self.config_ptr.grid.offset[1];
             while (j <= self.total_dimensions.y + self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
                 intersections.appendAssumeCapacity(.{ i, j });
             }
@@ -141,10 +139,10 @@ pub fn move(self: *Self, value: [2]f32) void {
     }
 
     if (value[1] > 0) {
-        var i = start_pos[1];
-        while (i < self.total_dimensions.y + value[1]) : (i += self.config_ptr.grid.size[1]) {
-            var j = start_pos[0];
-            while (j < self.total_dimensions.x + self.total_dimensions.width) : (j += self.config_ptr.grid.size[0]) {
+        var i = self.total_dimensions.y + self.config_ptr.grid.offset[1];
+        while (i <= self.total_dimensions.y + value[1]) : (i += self.config_ptr.grid.size[1]) {
+            var j = self.total_dimensions.x + self.config_ptr.grid.offset[0];
+            while (j <= self.total_dimensions.x + self.total_dimensions.width) : (j += self.config_ptr.grid.size[0]) {
                 intersections.appendAssumeCapacity(.{ j, i });
             }
         }
@@ -153,7 +151,7 @@ pub fn move(self: *Self, value: [2]f32) void {
 
         var i = self.config_ptr.grid.size[1] * iterations + self.config_ptr.grid.offset[1];
         while (i <= self.total_dimensions.y + self.total_dimensions.height) : (i += self.config_ptr.grid.size[1]) {
-            var j = start_pos[0];
+            var j = self.total_dimensions.x + self.config_ptr.grid.offset[0];
             while (j <= self.total_dimensions.x + self.total_dimensions.width) : (j += self.config_ptr.grid.size[0]) {
                 intersections.appendAssumeCapacity(.{ j, i });
             }
@@ -206,7 +204,7 @@ pub fn resize(self: *Self, value: [2]f32) void {
         while (i >= self.total_dimensions.x + self.total_dimensions.width + (value[0] * iterations)) : (i -= self.config_ptr.grid.size[0]) {
             var j = self.total_dimensions.y + self.config_ptr.grid.offset[1];
             while (j <= self.total_dimensions.y + self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
-                if (intersections.items.len < intersections.capacity) { // TODO: temporary fix
+                if (intersections.items.len < intersections.capacity) { // TODO: temporary fix (I hope)
                     intersections.appendAssumeCapacity(.{ i, j });
                 }
             }

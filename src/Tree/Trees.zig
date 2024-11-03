@@ -22,12 +22,20 @@ pub fn init(alloc: std.mem.Allocator, config: *Config, outputs: *const []Output,
 
 pub fn move(self: *Self, value: [2]f32) void {
     if (self.state_ptr.border_mode) return;
-    self.normal_tree.move(value);
+
+    // This is a bit hacky and wasteful but implementing it correctly would be very annoying
+    // and not worth it considering most likely nobody will move sideways
+    self.normal_tree.move(.{ value[0], 0 });
+    self.normal_tree.move(.{ 0, value[1] });
 }
 
 pub fn resize(self: *Self, value: [2]f32) void {
     if (self.state_ptr.border_mode) return;
-    self.normal_tree.resize(value);
+
+    // This is a bit hacky and wasteful but implementing it correctly would be very annoying
+    // and not worth it considering most likely nobody will resize sideways
+    self.normal_tree.resize(.{ value[0], 0 });
+    self.normal_tree.resize(.{ 0, value[1] });
 }
 
 pub fn find(self: *Self, buffer: *[]u32) !?[2]f32 {

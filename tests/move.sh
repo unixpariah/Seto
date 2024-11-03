@@ -48,11 +48,35 @@ test_move_up() {
 	run_seto_and_test "0,-5"
 }
 
+test_move_top_left() {
+	run_seto_and_test "-3,-3"
+	run_seto_and_test "-5,-5"
+}
+
+test_move_bottom_left() {
+	run_seto_and_test "-3,3"
+	run_seto_and_test "-5,5"
+}
+
+test_move_bottom_right() {
+	run_seto_and_test "3,3"
+	run_seto_and_test "5,5"
+}
+
+test_move_top_right() {
+	run_seto_and_test "3,-3"
+	run_seto_and_test "5,-5"
+}
+
 # Run all tests
 test_move_left
 test_move_right
 test_move_down
 test_move_up
+test_move_top_left
+test_move_bottom_left
+test_move_bottom_right
+test_move_top_right
 
 echo "Move Tests: $tests_passed/$((tests_passed + tests_failed))"
 

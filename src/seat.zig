@@ -199,7 +199,9 @@ pub fn handleKey(self: *Seto) void {
                     }
                 }
 
+                const depth = self.trees.?.normal_tree.depth;
                 self.trees.?.resize(new_value);
+                if (self.trees.?.normal_tree.depth != depth) self.seat.buffer.clearAndFree();
             },
             .cancel_selection => if (self.state.mode == Mode.Region) {
                 self.state.mode = Mode{ .Region = null };
