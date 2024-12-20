@@ -1,7 +1,5 @@
 {
-  description =
-    "Seto - hardware accelerated keyboard driven screen selection tool";
-
+  description = "Seto - hardware accelerated keyboard driven screen selection tool";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     zls.url = "github:zigtools/zls";
@@ -10,14 +8,26 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
-
-  outputs = { self, nixpkgs, zig, zls, ... }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      zig,
+      zls,
+      ...
+    }:
     let
-      systems = [ "x86_64-linux" "aarch64-linux" ];
-      forAllSystems = function:
-        nixpkgs.lib.genAttrs systems
-        (system: function nixpkgs.legacyPackages.${system});
-    in {
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
+      forAllSystems =
+        function: nixpkgs.lib.genAttrs systems (system: function nixpkgs.legacyPackages.${system});
+
+      # Load the stylix module
+      stylix-module = import ./nix/stylix;
+    in
+    {
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
@@ -40,10 +50,14 @@
           ];
         };
       });
+      packages = forAllSystems (pkgs: {
+        default = pkgs.callPackage ./nix/default.nix { };
+      });
 
-      packages = forAllSystems
-        (pkgs: { default = pkgs.callPackage ./nix/default.nix { }; });
-
-      homeManagerModules.default = import ./nix/home-manager.nix self;
+      # Expose both modules
+      homeManagerModules = {
+        default = import ./nix/home-manager.nix self;
+        stylix = stylix-module;
+      };
     };
 }
