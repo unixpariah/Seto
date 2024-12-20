@@ -24,8 +24,7 @@
       forAllSystems =
         function: nixpkgs.lib.genAttrs systems (system: function nixpkgs.legacyPackages.${system});
 
-      # Load the stylix module
-      stylix-module = import ./nix/stylix;
+      stylix-module = import ./nix/stylix.nix;
     in
     {
       devShells = forAllSystems (pkgs: {

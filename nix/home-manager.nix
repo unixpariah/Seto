@@ -25,6 +25,12 @@ in
         description = "Font family";
         example = "monospace";
       };
+      size = mkOption {
+        type = types.str;
+        default = "20";
+        description = "Font size";
+        example = "8";
+      };
       color = mkOption {
         type = types.str;
         default = "#FFFFFF";
@@ -175,6 +181,7 @@ in
                 background_color = "${cfg.backgroundColor}";
                 font = {
                     color = "${cfg.font.color}",
+                    size = "${cfg.font.size}",
                     highlight_color = "${cfg.font.highlightColor}",
                     family = "${cfg.font.family}",
                 },
