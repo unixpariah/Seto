@@ -38,9 +38,9 @@ pub const Seat = struct {
     }
 
     pub fn deinit(self: *Self) void {
-        self.wl_seat.?.destroy();
-        self.wl_keyboard.?.destroy();
-        self.xkb_state.?.unref();
+        if (self.wl_seat) |wl_seat| wl_seat.destroy();
+        if (self.wl_keyboard) |wl_keyboard| wl_keyboard.destroy();
+        if (self.xkb_state) |xkb_state| xkb_state.unref();
         self.buffer.deinit();
         self.xkb_context.unref();
     }

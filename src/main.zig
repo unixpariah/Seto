@@ -311,8 +311,8 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     seto.outputs.append(output) catch @panic("OOM");
 
                     xdg_output.setListener(*Seto, xdgOutputListener, seto);
-                    layer_surface.setListener(*Output, layerSurfaceListener, &seto.outputs.items[seto.outputs.items.len - 1]);
-                    wl_output.setListener(*Output, wlOutputListener, &seto.outputs.items[seto.outputs.items.len - 1]);
+                    layer_surface.setListener(*Seto, layerSurfaceListener, seto);
+                    wl_output.setListener(*Seto, wlOutputListener, seto);
                 },
                 .wl_seat => {
                     seto.seat.wl_seat = registry.bind(

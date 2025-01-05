@@ -190,7 +190,11 @@ pub fn deinit(self: *Self) void {
     self.egl.deinit();
 }
 
-pub fn layerSurfaceListener(_: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, output: *Self) void {
+pub fn layerSurfaceListener(layer_surface: *zwlr.LayerSurfaceV1, event: zwlr.LayerSurfaceV1.Event, seto: *Seto) void {
+    var output = for (seto.outputs.items) |output| {
+        if (output.layer_surface == layer_surface) break output;
+    } else return;
+
     switch (event) {
         .configure => |configure| {
             output.layer_surface.setSize(configure.width, configure.height);
@@ -302,10 +306,14 @@ pub fn xdgOutputListener(
     }
 }
 
-pub fn wlOutputListener(_: *wl.Output, event: wl.Output.Event, output: *Self) void {
+pub fn wlOutputListener(wl_output: *wl.Output, event: wl.Output.Event, seto: *Seto) void {
+    var output = for (seto.outputs.items) |output| {
+        if (output.wl_output == wl_output) break output;
+    } else return;
+
     switch (event) {
         .mode => |mode| {
-            output.info.refresh = @floatFromInt(@divTrunc(mode.refresh, 1000));
+            output.info.refresh = @as(f32, @floatFromInt(mode.refresh)) / 1000.0;
         },
         else => {},
     }

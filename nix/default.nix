@@ -1,6 +1,19 @@
-{ lib, stdenv, freetype, fontconfig, libGL, wayland, wayland-scanner
-, wayland-protocols, libxkbcommon, zig_0_13, pkg-config, scdoc
-, installShellFiles, callPackage, }:
+{
+  lib,
+  stdenv,
+  freetype,
+  fontconfig,
+  libGL,
+  wayland,
+  wayland-scanner,
+  wayland-protocols,
+  libxkbcommon,
+  zig,
+  pkg-config,
+  scdoc,
+  installShellFiles,
+  callPackage,
+}:
 stdenv.mkDerivation (finalAttrs: {
   pname = "seto";
   version = "0.1.0";
@@ -11,7 +24,7 @@ stdenv.mkDerivation (finalAttrs: {
   doCheck = false;
 
   nativeBuildInputs = [
-    zig_0_13
+    zig
     wayland
     wayland-protocols
     libGL
@@ -20,7 +33,12 @@ stdenv.mkDerivation (finalAttrs: {
     fontconfig
   ];
 
-  buildInputs = [ pkg-config scdoc installShellFiles wayland-scanner ];
+  buildInputs = [
+    pkg-config
+    scdoc
+    installShellFiles
+    wayland-scanner
+  ];
 
   buildPhase = ''
     mkdir -p .cache
