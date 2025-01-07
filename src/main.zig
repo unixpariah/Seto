@@ -34,11 +34,6 @@ const EventInterfaces = enum {
     zxdg_output_manager_v1,
 };
 
-pub const Mode = union(enum) {
-    Region: ?[2]f32,
-    Single,
-};
-
 pub const TotalDimensions = struct {
     x: f32 = 0,
     y: f32 = 0,
@@ -48,8 +43,12 @@ pub const TotalDimensions = struct {
 
 pub const State = struct {
     exit: bool = false,
-    mode: Mode = .Single,
     border_mode: bool = false,
+    buffer: std.ArrayList(u32),
+
+    pub fn deinit(self: *State) void {
+        self.buffer.deinit();
+    }
 };
 
 pub const Seto = struct {
@@ -62,21 +61,20 @@ pub const Seto = struct {
     config: Config,
     alloc: mem.Allocator,
     total_dimensions: TotalDimensions = .{},
-    state: State = State{},
+    state: State,
     trees: ?Trees = null,
 
     const Self = @This();
 
-    fn init(alloc: mem.Allocator, display: *wl.Display) !Self {
+    fn init(alloc: mem.Allocator, seat: Seat, egl: Egl, config: Config) !Self {
         var seto = Seto{
-            .seat = try Seat.init(alloc),
+            .seat = seat,
             .outputs = std.ArrayList(Output).init(alloc),
             .alloc = alloc,
-            .egl = try Egl.init(display),
-            .config = try Config.load(alloc),
+            .egl = egl,
+            .config = config,
+            .state = .{ .buffer = std.ArrayList(u32).init(alloc) },
         };
-
-        parseArgs(&seto);
 
         if (seto.config.keys.search.len < 2) {
             std.log.err("Minimum two search keys have to be set\n", .{});
@@ -138,11 +136,11 @@ pub const Seto = struct {
     }
 
     pub fn printToStdout(self: *Self) !void {
-        const coords = try self.trees.?.find(&self.seat.buffer.items) orelse return;
+        const coords = try self.trees.?.find(&self.state.buffer.items) orelse return;
         var arena = std.heap.ArenaAllocator.init(self.alloc);
         defer arena.deinit();
 
-        switch (self.state.mode) {
+        switch (self.config.mode) {
             .Single => self.formatOutput(&arena, coords, .{ 1, 1 }),
             .Region => |positions| if (positions) |pos| {
                 const top_left: [2]f32 = .{ @min(coords[0], pos[0]), @min(coords[1], pos[1]) };
@@ -155,8 +153,8 @@ pub const Seto = struct {
 
                 self.formatOutput(&arena, top_left, size);
             } else {
-                self.state.mode = .{ .Region = coords };
-                self.seat.buffer.clearAndFree();
+                self.config.mode = .{ .Region = coords };
+                self.state.buffer.clearAndFree();
                 return;
             },
         }
@@ -172,17 +170,18 @@ pub const Seto = struct {
 
             _ = c.eglSwapInterval(output.egl.display.*, 0);
 
-            output.draw(&self.config, self.state.border_mode, &self.state.mode);
-            self.trees.?.drawText(output, self.seat.buffer.items);
+            output.draw(&self.config, self.state.border_mode);
+            self.trees.?.drawText(output, self.state.buffer.items);
 
             try output.egl.swapBuffers();
         }
     }
 
     fn deinit(self: *Self) void {
-        self.compositor.?.destroy();
-        self.layer_shell.?.destroy();
-        self.output_manager.?.destroy();
+        self.state.deinit();
+        if (self.compositor) |compositor| compositor.destroy();
+        if (self.layer_shell) |layer_shell| layer_shell.destroy();
+        if (self.output_manager) |output_manager| output_manager.destroy();
         for (self.outputs.items) |*output| output.deinit();
         self.outputs.deinit();
         self.seat.deinit();
@@ -205,7 +204,11 @@ pub fn main() !void {
     };
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
-    var seto = try Seto.init(alloc, display);
+    const seat = try Seat.init(alloc);
+    const egl = try Egl.init(display);
+    var config = try Config.load(alloc);
+    parseArgs(&config);
+    var seto = try Seto.init(alloc, seat, egl, config);
     defer seto.deinit();
 
     registry.setListener(*Seto, registryListener, &seto);
@@ -214,7 +217,7 @@ pub fn main() !void {
 
     if (seto.layer_shell == null) @panic("wlr_layer_shell not supported");
 
-    var event_loop = EventLoop.init(alloc);
+    var event_loop = EventLoop.init(alloc, -1);
     defer event_loop.deinit();
 
     try event_loop.insertSource(display.getFd(), *wl.Display, dispatchDisplay, display);

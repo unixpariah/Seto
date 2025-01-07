@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const helpers = @import("helpers");
 
-const Seto = @import("main.zig").Seto;
+const Config = @import("Config.zig");
 const Function = @import("config/Keys.zig").Function;
 const Color = helpers.Color;
 
@@ -57,7 +57,7 @@ const Arguments = enum {
     @"-F",
 };
 
-pub fn parseArgs(seto: *Seto) void {
+pub fn parseArgs(config: *Config) void {
     var args = std.process.args();
     var index: u8 = 0;
     while (args.next()) |arg| : (index += 1) {
@@ -68,10 +68,10 @@ pub fn parseArgs(seto: *Seto) void {
             std.process.exit(1);
         };
         switch (argument) {
-            .@"--region", .@"-r" => seto.state.mode = .{ .Region = null },
+            .@"--region", .@"-r" => config.mode = .{ .Region = null },
             .@"--config", .@"-c" => _ = args.skip(), // Just skip it as its handled somewhere else
             .@"--format", .@"-f" => {
-                seto.config.output_format = args.next() orelse {
+                config.output_format = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
@@ -91,7 +91,7 @@ pub fn parseArgs(seto: *Seto) void {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.background_color = Color.parse(color, seto.alloc) catch @panic("Failed to parse background-color");
+                config.background_color = Color.parse(color, config.alloc) catch @panic("Failed to parse background-color");
             },
 
             .@"--highlight-color" => {
@@ -99,36 +99,36 @@ pub fn parseArgs(seto: *Seto) void {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.font.highlight_color = Color.parse(color, seto.alloc) catch @panic("Failed to parse highlight-color");
+                config.font.highlight_color = Color.parse(color, config.alloc) catch @panic("Failed to parse highlight-color");
             },
             .@"--font-color" => {
                 const color = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.font.color = Color.parse(color, seto.alloc) catch @panic("Failed to parse font-color");
+                config.font.color = Color.parse(color, config.alloc) catch @panic("Failed to parse font-color");
             },
             .@"--font-size" => {
                 const font_size = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.font.size = std.fmt.parseFloat(f32, font_size) catch @panic("Failed to parse font-size");
+                config.font.size = std.fmt.parseFloat(f32, font_size) catch @panic("Failed to parse font-size");
             },
             .@"--font-family" => {
-                seto.alloc.free(seto.config.font.family);
+                config.alloc.free(config.font.family);
                 const font_family = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.font.family = seto.alloc.dupeZ(u8, font_family) catch @panic("OOM");
+                config.font.family = config.alloc.dupeZ(u8, font_family) catch @panic("OOM");
             },
             .@"--font-offset" => {
                 const font_offset = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.font.offset = parseFloatArray(font_offset, ",") catch @panic("Failed to parse font-offset");
+                config.font.offset = parseFloatArray(font_offset, ",") catch @panic("Failed to parse font-offset");
             },
 
             .@"--grid-color" => {
@@ -136,48 +136,48 @@ pub fn parseArgs(seto: *Seto) void {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.grid.color = Color.parse(grid_color, seto.alloc) catch @panic("Failed to parse grid-color");
+                config.grid.color = Color.parse(grid_color, config.alloc) catch @panic("Failed to parse grid-color");
             },
             .@"--grid-size" => {
                 const grid_size = args.next();
-                seto.config.grid.size = parseFloatArray(grid_size, ",") catch @panic("Failed to parse grid-size");
+                config.grid.size = parseFloatArray(grid_size, ",") catch @panic("Failed to parse grid-size");
             },
             .@"--grid-selected-color" => {
                 const grid_selected_color = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.grid.selected_color = Color.parse(grid_selected_color, seto.alloc) catch @panic("Failed to parse grid-selected-color");
+                config.grid.selected_color = Color.parse(grid_selected_color, config.alloc) catch @panic("Failed to parse grid-selected-color");
             },
             .@"--line-width" => {
                 const line_width = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.grid.line_width = std.fmt.parseFloat(f32, line_width) catch @panic("Failed to parse line-width");
+                config.grid.line_width = std.fmt.parseFloat(f32, line_width) catch @panic("Failed to parse line-width");
             },
             .@"--selected-line-width" => {
                 const line_width = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                seto.config.grid.selected_line_width = std.fmt.parseFloat(f32, line_width) catch @panic("Failed to parse line-width");
+                config.grid.selected_line_width = std.fmt.parseFloat(f32, line_width) catch @panic("Failed to parse line-width");
             },
 
             .@"--search-keys", .@"-s" => {
-                seto.alloc.free(seto.config.keys.search);
+                config.alloc.free(config.keys.search);
                 const keys_search = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
                 };
-                var buffer = std.ArrayList(u32).init(seto.alloc);
+                var buffer = std.ArrayList(u32).init(config.alloc);
                 const utf8_view = std.unicode.Utf8View.init(keys_search) catch @panic("Failed to initialize utf8 view");
                 var iter = utf8_view.iterator();
                 while (iter.nextCodepoint()) |codepoint| {
                     buffer.append(codepoint) catch @panic("OOM");
                 }
 
-                seto.config.keys.search = buffer.toOwnedSlice() catch @panic("OOM");
+                config.keys.search = buffer.toOwnedSlice() catch @panic("OOM");
             },
             .@"--function", .@"-F" => {
                 const key = args.next() orelse {
@@ -211,7 +211,7 @@ pub fn parseArgs(seto: *Seto) void {
                     std.process.exit(1);
                 };
 
-                seto.config.keys.bindings.put(decoded_key, func) catch @panic("OOM");
+                config.keys.bindings.put(decoded_key, func) catch @panic("OOM");
             },
         }
     }

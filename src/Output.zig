@@ -11,7 +11,7 @@ const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
 
 const TotalDimensions = @import("main.zig").TotalDimensions;
-const Mode = @import("main.zig").Mode;
+const Mode = @import("Config.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Config = @import("Config.zig");
 const EglSurface = @import("Egl.zig").EglSurface;
@@ -83,7 +83,7 @@ pub fn cmp(_: Self, a: Self, b: Self) bool {
     return a.info.y < b.info.y;
 }
 
-pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) void {
+pub fn draw(self: *const Self, config: *Config, border_mode: bool) void {
     c.glUseProgram(self.egl.main_shader_program);
     c.glClear(c.GL_COLOR_BUFFER_BIT);
     c.glClearColor(0, 0, 0, 0);
@@ -93,7 +93,7 @@ pub fn draw(self: *const Self, config: *Config, border_mode: bool, mode: *Mode) 
 
     self.drawBackground(config);
     self.drawGrid(config, border_mode);
-    if (mode.* == .Region) self.drawSelection(config, mode);
+    if (config.mode == .Region) self.drawSelection(config);
 }
 
 pub fn drawBackground(self: *const Self, config: *Config) void {
@@ -104,8 +104,8 @@ pub fn drawBackground(self: *const Self, config: *Config) void {
     c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
 }
 
-pub fn drawSelection(self: *const Self, config: *Config, mode: *const Mode) void {
-    if (mode.Region) |pos| {
+pub fn drawSelection(self: *const Self, config: *Config) void {
+    if (config.mode.Region) |pos| {
         config.grid.selected_color.set(self.egl.main_shader_program);
 
         var vertices: [8]f32 = .{

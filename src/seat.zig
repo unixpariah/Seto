@@ -4,7 +4,7 @@ const xkb = @import("xkbcommon");
 const wayland = @import("wayland");
 const wl = wayland.client.wl;
 
-const Mode = @import("main.zig").Mode;
+const Mode = @import("Config.zig").Mode;
 const Seto = @import("main.zig").Seto;
 const Timer = @import("Timer.zig");
 
@@ -24,14 +24,12 @@ pub const Seat = struct {
     xkb_context: *xkb.Context,
     alloc: std.mem.Allocator,
     repeat: Repeat,
-    buffer: std.ArrayList(u32),
 
     const Self = @This();
 
     pub fn init(alloc: std.mem.Allocator) !Self {
         return .{
             .xkb_context = xkb.Context.new(.no_flags) orelse return error.XkbError,
-            .buffer = std.ArrayList(u32).init(alloc),
             .alloc = alloc,
             .repeat = Repeat{ .timer = try Timer.init() },
         };
@@ -41,7 +39,6 @@ pub const Seat = struct {
         if (self.wl_seat) |wl_seat| wl_seat.destroy();
         if (self.wl_keyboard) |wl_keyboard| wl_keyboard.destroy();
         if (self.xkb_state) |xkb_state| xkb_state.unref();
-        self.buffer.deinit();
         self.xkb_context.unref();
     }
 };
@@ -148,8 +145,8 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 }
 
 fn moveSelection(seto: *Seto, value: [2]f32) void {
-    if (seto.state.mode == .Single) return;
-    if (seto.state.mode.Region) |*position| {
+    if (seto.config.mode.isSingle()) return;
+    if (seto.config.mode.Region) |*position| {
         position[0] += value[0];
         position[1] += value[1];
 
@@ -179,7 +176,7 @@ pub fn handleKey(self: *Seto) void {
     const keysym_interrupt = 3;
 
     if (key == keysym_backspace) {
-        _ = self.seat.buffer.popOrNull();
+        _ = self.state.buffer.popOrNull();
     } else if (key == keysym_interrupt or key == keysym_escape) {
         self.state.exit = true;
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
@@ -201,16 +198,16 @@ pub fn handleKey(self: *Seto) void {
 
                 const depth = self.trees.?.normal_tree.depth;
                 self.trees.?.resize(new_value);
-                if (self.trees.?.normal_tree.depth != depth) self.seat.buffer.clearAndFree();
+                if (self.trees.?.normal_tree.depth != depth) self.state.buffer.clearAndFree();
             },
-            .cancel_selection => if (self.state.mode == Mode.Region) {
-                self.state.mode = Mode{ .Region = null };
+            .cancel_selection => if (self.config.mode == Mode.Region) {
+                self.config.mode = Mode{ .Region = null };
             },
             .move_selection => |value| moveSelection(self, value),
             .border_mode => self.state.border_mode = !self.state.border_mode,
         }
     } else {
-        self.seat.buffer.append(key) catch @panic("OOM");
-        _ = self.printToStdout() catch self.seat.buffer.popOrNull();
+        self.state.buffer.append(key) catch @panic("OOM");
+        _ = self.printToStdout() catch self.state.buffer.popOrNull();
     }
 }

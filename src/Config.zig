@@ -12,7 +12,17 @@ const Function = @import("config/Keys.zig").Function;
 const Text = @import("config/Text.zig");
 const Color = helpers.Color;
 
+pub const Mode = union(enum) {
+    Region: ?[2]f32,
+    Single,
+
+    pub fn isSingle(self: Mode) bool {
+        return self == .Single;
+    }
+};
+
 output_format: []const u8 = "%x,%y %wx%h\n",
+mode: Mode = .Single,
 background_color: Color,
 keys: Keys,
 font: Font,
@@ -22,19 +32,25 @@ alloc: std.mem.Allocator,
 
 const Self = @This();
 
+pub fn default(alloc: std.mem.Allocator) Self {
+    return .{
+        .alloc = alloc,
+        .font = Font.default(alloc),
+        .keys = Keys.default(alloc),
+        .grid = Grid.default(alloc),
+        .background_color = Color.parse("#FFFFFF66", alloc) catch unreachable, // Hardcoded so unwrap is safe
+    };
+}
+
 pub fn load(alloc: std.mem.Allocator) !Self {
     const config_path = getPath(alloc) catch {
-        return .{
-            .alloc = alloc,
-            .font = Font.default(alloc),
-            .keys = Keys.default(alloc),
-            .grid = Grid.default(alloc),
-            .background_color = Color.parse("#FFFFFF66", alloc) catch unreachable, // Hardcoded so unwrap is safe
-        };
+        return Self.default(alloc);
     };
     defer alloc.free(config_path);
 
-    var lua = try Lua.init(&alloc);
+    var lua = Lua.init(&alloc) catch {
+        return Self.default(alloc);
+    };
     defer lua.deinit();
 
     lua.doFile(config_path) catch @panic("Lua failed to interpret config file");
@@ -62,7 +78,7 @@ pub fn deinit(self: *Self) void {
     self.keys.bindings.deinit();
 }
 
-fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
+pub fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     var args = std.process.args();
     var index: u8 = 0;
     while (args.next()) |arg| : (index += 1) {
