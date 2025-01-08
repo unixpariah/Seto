@@ -1,70 +1,34 @@
+self:
+{ lib, config, ... }:
+with lib;
+let
+  cfg = config.programs.seto;
+in
 {
-  lib,
-  stdenv,
-  freetype,
-  fontconfig,
-  libGL,
-  wayland,
-  wayland-scanner,
-  wayland-protocols,
-  libxkbcommon,
-  zig,
-  pkg-config,
-  scdoc,
-  installShellFiles,
-  callPackage,
-}:
-stdenv.mkDerivation (finalAttrs: {
-  pname = "seto";
-  version = "0.1.0";
-
-  src = ./..;
-
-  dontConfigure = true;
-  doCheck = false;
-
-  nativeBuildInputs = [
-    zig
-    wayland
-    wayland-protocols
-    libGL
-    libxkbcommon
-    freetype
-    fontconfig
-  ];
-
-  buildInputs = [
-    pkg-config
-    scdoc
-    installShellFiles
-    wayland-scanner
-  ];
-
-  buildPhase = ''
-    mkdir -p .cache
-    ln -s ${callPackage ./deps.nix { }} .cache/p
-    zig build install --cache-dir $(pwd)/.zig-cache --global-cache-dir $(pwd)/.cache -Dcpu=baseline -Doptimize=ReleaseSafe --prefix $out
-  '';
-
-  postInstall = ''
-    for f in doc/*.scd; do
-      local page="doc/$(basename "$f" .scd)"
-      scdoc < "$f" > "$page"
-      installManPage "$page"
-    done
-
-    installShellCompletion --cmd sww \
-      --bash completions/seto.bash \
-      --fish completions/seto.fish \
-      --zsh completions/_seto
-  '';
-
-  meta = with lib; {
-    description = "Hardware accelerated keyboard driven screen selection tool";
-    mainProgram = "seto";
-    homepage = "https://github.com/unixpariah/seto";
-    license = licenses.gpl3;
-    maintainers = with maintainers; [ unixpariah ];
-    platforms = platforms.unix;
+  options.programs.seto = {
+    enable = mkEnableOption "seto, hardware accelerated screen selection tool";
+    package = mkOption {
+      type = types.package;
+      default =
+        self.packages.${pkgs.system}.seto or (throw ''
+          The seto package is not available for your system. Please make sure it's available in your flake's packages output for ${pkgs.system}.
+        '');
+      defaultText = literalExpression "self.packages.\${pkgs.system}.seto";
+      description = "The seto package to use. Must be available in your flake's packages output.";
+    };
+    wlrPortalChooser = mkEnableOption "";
   };
-})
+
+  config = lib.mkIf cfg.enable {
+    environment.systemPackages = [ cfg.package ];
+    xdg.portal.wlr = {
+      enable = true;
+      settings = {
+        screencast = {
+          chooser_cmd = "${cfg.package}/bin/seto -f %o";
+          chooser_type = "simple";
+        };
+      };
+    };
+  };
+}

@@ -99,26 +99,20 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
             }
         },
         .key => |ev| {
+            const xkb_state = seto.seat.xkb_state orelse return;
+
+            // The wayland protocol gives us an input event code. To convert this to an xkb
+            // keycode we must add 8.
+            const keycode = ev.key + 8;
+
             switch (ev.state) {
                 .released => {
-                    const xkb_state = seto.seat.xkb_state orelse return;
-
-                    // The wayland protocol gives us an input event code. To convert this to an xkb
-                    // keycode we must add 8.
-                    const keycode = ev.key + 8;
-
                     if (xkb_state.keyGetUtf32(keycode) != seto.seat.repeat.key) return;
 
                     seto.seat.repeat.key = null;
                     seto.seat.repeat.timer.stop() catch return;
                 },
                 .pressed => {
-                    const xkb_state = seto.seat.xkb_state orelse return;
-
-                    // The wayland protocol gives us an input event code. To convert this to an xkb
-                    // keycode we must add 8.
-                    const keycode = ev.key + 8;
-
                     const keysym = xkb_state.keyGetUtf32(keycode);
 
                     if (xkb_state.getKeymap().keyRepeats(keycode) == 1) {
@@ -145,26 +139,28 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
 }
 
 fn moveSelection(seto: *Seto, value: [2]f32) void {
-    if (seto.config.mode.isSingle()) return;
-    if (seto.config.mode.Region) |*position| {
-        position[0] += value[0];
-        position[1] += value[1];
+    switch (seto.config.mode) {
+        .Single => return,
+        .Region => |*positions| if (positions.*) |*pos| {
+            pos[0] += value[0];
+            pos[1] += value[1];
 
-        if (position[0] < seto.total_dimensions.x) {
-            position[0] = seto.total_dimensions.x;
-        }
+            if (pos[0] < seto.state.total_dimensions.x) {
+                pos[0] = seto.state.total_dimensions.x;
+            }
 
-        if (position[1] < seto.total_dimensions.y) {
-            position[1] = seto.total_dimensions.y;
-        }
+            if (pos[1] < seto.state.total_dimensions.y) {
+                pos[1] = seto.state.total_dimensions.y;
+            }
 
-        if (position[0] > seto.total_dimensions.x + seto.total_dimensions.width) {
-            position[0] = seto.total_dimensions.x + seto.total_dimensions.width;
-        }
+            if (pos[0] > seto.state.total_dimensions.x + seto.state.total_dimensions.width) {
+                pos[0] = seto.state.total_dimensions.x + seto.state.total_dimensions.width;
+            }
 
-        if (position[1] > seto.total_dimensions.y + seto.total_dimensions.height) {
-            position[1] = seto.total_dimensions.y + seto.total_dimensions.height;
-        }
+            if (pos[1] > seto.state.total_dimensions.y + seto.state.total_dimensions.height) {
+                pos[1] = seto.state.total_dimensions.y + seto.state.total_dimensions.height;
+            }
+        },
     }
 }
 

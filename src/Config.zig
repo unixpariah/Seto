@@ -15,10 +15,6 @@ const Color = helpers.Color;
 pub const Mode = union(enum) {
     Region: ?[2]f32,
     Single,
-
-    pub fn isSingle(self: Mode) bool {
-        return self == .Single;
-    }
 };
 
 output_format: []const u8 = "%x,%y %wx%h\n",

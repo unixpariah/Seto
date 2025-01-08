@@ -45,6 +45,7 @@ pub const State = struct {
     exit: bool = false,
     border_mode: bool = false,
     buffer: std.ArrayList(u32),
+    total_dimensions: TotalDimensions = .{},
 
     pub fn deinit(self: *State) void {
         self.buffer.deinit();
@@ -60,7 +61,6 @@ pub const Seto = struct {
     outputs: std.ArrayList(Output),
     config: Config,
     alloc: mem.Allocator,
-    total_dimensions: TotalDimensions = .{},
     state: State,
     trees: ?Trees = null,
 
@@ -98,7 +98,7 @@ pub const Seto = struct {
             }
         } else first;
 
-        self.total_dimensions = .{
+        self.state.total_dimensions = .{
             .x = first.x,
             .y = first.y,
             .width = (last.x + last.width - 1) - first.x,
@@ -308,7 +308,7 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         xdg_output,
                         wl_output,
                         OutputInfo{ .id = global.name },
-                        &seto.total_dimensions,
+                        &seto.state.total_dimensions,
                     );
 
                     seto.outputs.append(output) catch @panic("OOM");

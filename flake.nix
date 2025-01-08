@@ -2,14 +2,8 @@
   description = "Seto - hardware accelerated keyboard driven screen selection tool";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    zls = {
-      url = "github:zigtools/zls";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    zig = {
-      url = "github:mitchellh/zig-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    zls.url = "github:zigtools/zls";
+    zig.url = "github:mitchellh/zig-overlay";
   };
   outputs =
     {
@@ -26,8 +20,6 @@
       ];
       forAllSystems =
         function: nixpkgs.lib.genAttrs systems (system: function nixpkgs.legacyPackages.${system});
-
-      stylix-module = import ./nix/stylix.nix;
     in
     {
       devShells = forAllSystems (pkgs: {
@@ -52,14 +44,18 @@
           ];
         };
       });
+
       packages = forAllSystems (pkgs: {
-        default = pkgs.callPackage ./nix/default.nix { };
+        default = pkgs.callPackage ./nix/package.nix { };
       });
 
-      # Expose both modules
       homeManagerModules = {
         default = import ./nix/home-manager.nix self;
-        stylix = stylix-module;
+        stylix = import ./nix/stylix.nix;
+      };
+
+      nixModules = {
+        default = import ./nix/default.nix self;
       };
     };
 }

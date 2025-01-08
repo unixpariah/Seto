@@ -23,6 +23,7 @@ vs_out;
 void main() {
   vec4 position =
       projection * transform[gl_InstanceID] * vec4(in_pos, 0.0, 1.0);
+
   gl_Position = position;
 
   vs_out.pos = position.xy;
