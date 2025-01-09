@@ -53,9 +53,5 @@
         default = import ./nix/home-manager.nix self;
         stylix = import ./nix/stylix.nix;
       };
-
-      nixModules = {
-        default = import ./nix/default.nix self;
-      };
     };
 }

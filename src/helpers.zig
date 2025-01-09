@@ -58,7 +58,7 @@ pub const Color = struct {
         };
     }
 
-    pub fn set(self: *const Self, shader_program: c_uint) void {
+    pub fn set(self: *const Self, shader_program: u32) void {
         c.glUniform4f(
             c.glGetUniformLocation(shader_program, "u_startcolor"),
             self.start_color[0] * self.start_color[3],

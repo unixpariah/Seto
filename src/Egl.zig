@@ -13,8 +13,8 @@ pub const EglSurface = struct {
     display: *c.EGLDisplay,
     config: *c.EGLConfig,
     context: *c.EGLContext,
-    main_shader_program: c_uint,
-    text_shader_program: c_uint,
+    main_shader_program: u32,
+    text_shader_program: u32,
     VBO: [2]u32,
     gen_VBO: *[3]u32,
     UBO: u32,
@@ -43,7 +43,7 @@ pub const EglSurface = struct {
     }
 };
 
-fn compileShader(shader_source: []const u8, shader: c_uint, shader_program: c_uint) !void {
+fn compileShader(shader_source: []const u8, shader: u32, shader_program: u32) !void {
     c.glShaderSource(
         shader,
         1,
@@ -68,8 +68,8 @@ fn compileShader(shader_source: []const u8, shader: c_uint, shader_program: c_ui
 display: c.EGLDisplay,
 config: c.EGLConfig,
 context: c.EGLContext,
-main_shader_program: c_uint,
-text_shader_program: c_uint,
+main_shader_program: u32,
+text_shader_program: u32,
 VAO: u32,
 VBO: [3]u32,
 EBO: u32,
@@ -232,7 +232,7 @@ pub fn init(display: *wl.Display) !Self {
     };
 }
 
-pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]c_int) !EglSurface {
+pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]i32) !EglSurface {
     const egl_window = try wl.EglWindow.create(surface, size[0], size[1]);
 
     const egl_surface = c.eglCreatePlatformWindowSurface(

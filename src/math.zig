@@ -1,7 +1,6 @@
 const std = @import("std");
 
 pub const Mat4 = [4][4]f32;
-const Vector = @Vector(2, f32);
 
 pub fn transform(font_size: f32, x: f32, y: f32) Mat4 {
     return .{

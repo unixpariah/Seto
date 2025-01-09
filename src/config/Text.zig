@@ -11,9 +11,9 @@ const LENGTH: comptime_int = 400;
 
 font: *Font,
 char_info: []Character,
-letter_map: [LENGTH]u32,
+letter_map: [LENGTH]i32,
 transform: [LENGTH]math.Mat4,
-color_index: [LENGTH]u32,
+color_index: [LENGTH]i32,
 alloc: std.mem.Allocator,
 index: u32,
 scale: f32,
@@ -77,14 +77,9 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
         char_info[key] = Character.init(face, key, @intCast(i));
     }
 
-    var letter_map: [LENGTH]u32 = undefined;
-    var transform: [LENGTH]math.Mat4 = undefined;
-    var color_index: [LENGTH]u32 = undefined;
-    for (0..LENGTH) |i| {
-        transform[i] = math.mat4();
-        letter_map[i] = 0;
-        color_index[i] = 0;
-    }
+    const letter_map: [LENGTH]i32 = [_]i32{0} ** LENGTH;
+    const transform: [LENGTH]math.Mat4 = [_]math.Mat4{math.mat4()} ** LENGTH;
+    const color_index: [LENGTH]i32 = [_]i32{0} ** LENGTH;
 
     return .{
         .font = &config.font,
@@ -98,7 +93,7 @@ pub fn init(alloc: std.mem.Allocator, config: *Config) Self {
     };
 }
 
-pub fn place(self: *Self, text: []const u32, x: f32, y: f32, highlight: bool, shader_program: c_uint) void {
+pub fn place(self: *Self, text: []const u32, x: f32, y: f32, highlight: bool, shader_program: u32) void {
     if (text.len == 0) return;
 
     var move: f32 = 0;
@@ -114,33 +109,31 @@ pub fn place(self: *Self, text: []const u32, x: f32, y: f32, highlight: bool, sh
 
         move += ch.advance[0] * self.scale;
         self.index += 1;
-        if (self.index == LENGTH) {
+        if (self.index == LENGTH and self.index > 0) {
             self.renderCall(shader_program);
+            self.index = 0;
         }
     }
 }
 
-pub fn renderCall(self: *Self, shader_program: c_uint) void {
-    if (self.index == 0) return;
-
+pub fn renderCall(self: *Self, shader_program: u32) void {
     c.glUniform1iv(
         c.glGetUniformLocation(shader_program, "colorIndex"),
         @intCast(self.index),
-        @ptrCast(&self.color_index[0]),
+        &self.color_index[0],
     );
     c.glUniformMatrix4fv(
         c.glGetUniformLocation(shader_program, "transform"),
         @intCast(self.index),
         c.GL_FALSE,
-        @ptrCast(&self.transform[0][0][0]),
+        &self.transform[0][0][0],
     );
     c.glUniform1iv(
         c.glGetUniformLocation(shader_program, "letterMap"),
         @intCast(self.index),
-        @ptrCast(&self.letter_map[0]),
+        &self.letter_map[0],
     );
     c.glDrawArraysInstanced(c.GL_TRIANGLE_STRIP, 0, 4, @intCast(self.index));
-    self.index = 0;
 }
 
 pub fn getSize(self: *const Self, text: []const u32) f32 {
@@ -183,7 +176,7 @@ fn getFontPath(alloc: std.mem.Allocator, font_name: [:0]const u8) ![]const u8 {
         if (c.FcPatternGetString(m, c.FC_FILE, 0, &font_path) == c.FcResultMatch) {
             if (font_path) |path| {
                 const buffer = try alloc.alloc(u8, std.mem.len(path) + 1);
-                @memcpy(buffer, font_path.?);
+                @memcpy(buffer, path);
                 return buffer;
             }
         }
