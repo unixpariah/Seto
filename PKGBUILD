@@ -18,8 +18,8 @@ makedepends=(
 	'scdoc'
 	'wayland-protocols'
 )
-source=("https://github.com/unixpariah/seto/archive/refs/heads/main.tar.gz")
-sha256sums=('f0a7a51b06deb2ed54c98bf833bc91e019c7e2071c8be0b1ed1fcb9920af2502')
+source=("$pkgname::git+https://github.com/unixpariah/seto.git#branch=pkgbuild")
+sha256sums=('SKIP')
 
 prepare() {
 	mkdir -p zig-global-cache/p/
@@ -27,15 +27,15 @@ prepare() {
 
 build() {
 	export ZIG_GLOBAL_CACHE_DIR="${srcdir}/zig-global-cache"
-	zig build install \
+	cd "$srcdir/$pkgname"
+	zig build \
 		--cache-dir "$(pwd)/.zig-cache" \
 		--global-cache-dir "$(pwd)/.cache" \
-		-Dcpu=baseline \
-		--prefix /usr
+		-Dcpu=baseline
 }
 
 package() {
-	cd "$pkgname-$pkgver"
+	cd "$srcdir/$pkgname"
 
 	# Install binary
 	install -Dm755 zig-out/bin/$pkgname -t "$pkgdir/usr/bin"
