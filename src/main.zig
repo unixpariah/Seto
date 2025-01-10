@@ -136,7 +136,8 @@ pub const Seto = struct {
     }
 
     pub fn printToStdout(self: *Self) !void {
-        const coords = try self.trees.?.find(&self.state.buffer.items) orelse return;
+        const trees = self.trees orelse return;
+        const coords = try trees.find(&self.state.buffer.items) orelse return;
         var arena = std.heap.ArenaAllocator.init(self.alloc);
         defer arena.deinit();
 

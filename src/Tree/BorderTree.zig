@@ -89,7 +89,7 @@ pub fn deinit(self: *const Self) void {
     self.arena.deinit();
 }
 
-pub fn find(self: *Self, buffer: *[]u32) !?[2]f32 {
+pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
     if (buffer.len == 0) return null;
     for (self.children) |*child| {
         if (child.key == buffer.*[0]) {

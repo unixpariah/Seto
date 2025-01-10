@@ -233,7 +233,7 @@ pub fn deinit(self: *const Self) void {
     self.arena.deinit();
 }
 
-pub fn find(self: *Self, buffer: *[]u32) !?[2]f32 {
+pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
     if (buffer.len == 0) return null;
     for (self.children) |*child| {
         if (child.key == buffer.*[0]) {
@@ -386,14 +386,21 @@ const Node = struct {
     }
 
     fn isOnScreen(self: *Node) bool {
-        if (self.children) |children| {
-            for (children) |*child| {
-                if (child.children == null and child.coordinates == null) return false;
-                return child.isOnScreen();
-            }
+        if (self.children == null) {
+            return self.coordinates != null;
         }
 
-        return true;
+        if (self.children) |children| {
+            var hasValidPath = false;
+            for (children) |*child| {
+                if (child.isOnScreen()) {
+                    hasValidPath = true;
+                }
+            }
+            return hasValidPath;
+        }
+
+        return false;
     }
 
     fn find(self: *Node, buffer: *[]u32, index: usize) !?[2]f32 {

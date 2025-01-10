@@ -38,7 +38,7 @@ pub fn resize(self: *Self, value: [2]f32) void {
     self.normal_tree.resize(.{ 0, value[1] });
 }
 
-pub fn find(self: *Self, buffer: *[]u32) !?[2]f32 {
+pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
     if (self.state_ptr.border_mode) return self.border_tree.find(buffer) else return self.normal_tree.find(buffer);
 }
 
