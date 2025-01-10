@@ -18,7 +18,7 @@ makedepends=(
 	'scdoc'
 	'wayland-protocols'
 )
-source=("$pkgname::git+https://github.com/unixpariah/seto.git#branch=pkgbuild")
+source=("$pkgname::git+https://github.com/unixpariah/seto.git")
 sha256sums=('SKIP')
 
 prepare() {
