@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) void {
 
     const scanner = Scanner.create(b, .{});
     const wayland = b.createModule(.{ .root_source_file = scanner.result });
-    scanner.addCustomProtocol("protocols/wlr-layer-shell-unstable-v1.xml");
+    scanner.addCustomProtocol(b.path("protocols/wlr-layer-shell-unstable-v1.xml").getPath(b));
     scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
     scanner.addSystemProtocol("unstable/xdg-output/xdg-output-unstable-v1.xml");
     scanner.generate("wl_compositor", 6);
