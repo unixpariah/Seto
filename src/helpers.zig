@@ -1,17 +1,6 @@
 const std = @import("std");
+const zgl = @import("zgl");
 const Lua = @import("ziglua").Lua;
-
-const c = @cImport({
-    @cInclude("EGL/egl.h");
-
-    @cDefine("GL_GLEXT_PROTOTYPES", "1");
-    @cInclude("GL/gl.h");
-    @cInclude("EGL/eglext.h");
-
-    @cInclude("ft2build.h");
-    @cInclude("freetype/freetype.h");
-    @cInclude("fontconfig/fontconfig.h");
-});
 
 pub const Color = struct {
     deg: f32,
@@ -26,7 +15,7 @@ pub const Color = struct {
         var color_iter = std.mem.splitScalar(u8, color, ' ');
         var index: u8 = 0;
 
-        var start_color: [4]f32 = undefined;
+        var start_color: [4]f32 = [_]f32{0} ** 4;
         var end_color: ?[4]f32 = null;
         var deg: f32 = 0;
 
@@ -58,22 +47,12 @@ pub const Color = struct {
         };
     }
 
-    pub fn set(self: *const Self, shader_program: u32) void {
-        c.glUniform4f(
-            c.glGetUniformLocation(shader_program, "u_startcolor"),
-            self.start_color[0] * self.start_color[3],
-            self.start_color[1] * self.start_color[3],
-            self.start_color[2] * self.start_color[3],
-            self.start_color[3],
-        );
-        c.glUniform4f(
-            c.glGetUniformLocation(shader_program, "u_endcolor"),
-            self.end_color[0] * self.end_color[3],
-            self.end_color[1] * self.end_color[3],
-            self.end_color[2] * self.end_color[3],
-            self.end_color[3],
-        );
-        c.glUniform1f(c.glGetUniformLocation(shader_program, "u_degrees"), self.deg);
+    pub fn set(self: *const Self, shader_program: zgl.Program) void {
+        shader_program.uniform4f(shader_program.uniformLocation("u_startcolor"), self.start_color[0] * self.start_color[3], self.start_color[1] * self.start_color[3], self.start_color[2] * self.start_color[3], self.start_color[3]);
+
+        shader_program.uniform4f(shader_program.uniformLocation("u_startcolor"), self.end_color[0] * self.end_color[3], self.end_color[1] * self.end_color[3], self.end_color[2] * self.end_color[3], self.end_color[3]);
+
+        shader_program.uniform1f(shader_program.uniformLocation("u_degrees"), self.deg);
     }
 };
 

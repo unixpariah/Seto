@@ -1,9 +1,11 @@
 const std = @import("std");
 const c = @import("ffi");
 const wl = @import("wayland").client.wl;
+const math = @import("math");
+const zgl = @import("zgl");
 
-fn glMessageCallback(source: u32, err_type: u32, id: u32, severity: u32, length: i32, message: [*c]const u8, _: ?*const anyopaque) callconv(.C) void {
-    std.debug.print("{} {} {} {} {} {s}\n", .{ source, err_type, id, severity, length, message });
+fn glMessageCallback(_: ?*const anyopaque, source: zgl.DebugSource, err_type: zgl.DebugMessageType, id: usize, severity: zgl.DebugSeverity, message: []const u8) void {
+    std.debug.print("{} {} {} {} {s}\n", .{ source, err_type, id, severity, message });
 }
 
 pub const EglSurface = struct {
@@ -13,11 +15,11 @@ pub const EglSurface = struct {
     display: *c.EGLDisplay,
     config: *c.EGLConfig,
     context: *c.EGLContext,
-    main_shader_program: u32,
-    text_shader_program: u32,
-    VBO: [2]u32,
-    gen_VBO: *[3]u32,
-    UBO: u32,
+    main_shader_program: zgl.Program,
+    text_shader_program: zgl.Program,
+    VBO: [2]zgl.Buffer,
+    gen_VBO: *[3]zgl.Buffer,
+    UBO: zgl.Buffer,
 
     pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
         self.window.resize(@intCast(new_dimensions[0]), @intCast(new_dimensions[1]), 0, 0);
@@ -37,46 +39,35 @@ pub const EglSurface = struct {
     }
 
     pub fn deinit(self: *EglSurface) void {
-        c.glDeleteBuffers(2, &self.VBO);
+        for (self.VBO) |VBO| VBO.delete();
         if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) @panic("Failed to destroy egl surface");
         self.window.destroy();
     }
 };
 
-fn compileShader(shader_source: []const u8, shader: u32, shader_program: u32) !void {
-    c.glShaderSource(
-        shader,
-        1,
-        @ptrCast(&shader_source),
-        null,
-    );
+fn compileShader(alloc: std.mem.Allocator, shader_source: []const u8, shader: zgl.Shader, shader_program: zgl.Program) !void {
+    shader.source(1, &[1][]const u8{shader_source});
+    shader.compile();
 
-    c.glCompileShader(shader);
+    const info_log = shader.getCompileLog(alloc) catch @panic("TODO");
+    defer alloc.free(info_log);
+    std.log.err("{s}\n", .{info_log});
 
-    var success: u32 = undefined;
-    c.glGetShaderiv(shader, c.GL_COMPILE_STATUS, @ptrCast(&success));
-    if (success != c.GL_TRUE) {
-        var info_log: [512]u8 = undefined;
-        c.glGetShaderInfoLog(shader, 512, null, @ptrCast(&info_log));
-        std.log.err("{s}\n", .{info_log});
-        return error.EGLError;
-    }
-
-    c.glAttachShader(shader_program, shader);
+    shader_program.attach(shader);
 }
 
 display: c.EGLDisplay,
 config: c.EGLConfig,
 context: c.EGLContext,
-main_shader_program: u32,
-text_shader_program: u32,
-VAO: u32,
-VBO: [3]u32,
-EBO: u32,
+main_shader_program: zgl.Program,
+text_shader_program: zgl.Program,
+VAO: zgl.VertexArray,
+VBO: [3]zgl.Buffer,
+EBO: zgl.Buffer,
 
 const Self = @This();
 
-pub fn init(display: *wl.Display) !Self {
+pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
     if (c.eglBindAPI(c.EGL_OPENGL_API) == 0) return error.EGLError;
     const egl_display = c.eglGetPlatformDisplay(
         c.EGL_PLATFORM_WAYLAND_EXT,
@@ -84,12 +75,12 @@ pub fn init(display: *wl.Display) !Self {
         null,
     ) orelse return error.EGLError;
 
-    var major: i32 = undefined;
-    var minor: i32 = undefined;
+    var major: i32 = 0;
+    var minor: i32 = 0;
     if (c.eglInitialize(egl_display, @ptrCast(&major), @ptrCast(&minor)) != c.EGL_TRUE) return error.EGLError;
 
     const config = egl_conf: {
-        var config: c.EGLConfig = undefined;
+        var config: c.EGLConfig = null;
         var n_config: i32 = 0;
         if (c.eglChooseConfig(
             egl_display,
@@ -129,96 +120,80 @@ pub fn init(display: *wl.Display) !Self {
         context,
     ) != c.EGL_TRUE) return error.EGLError;
 
-    c.glEnable(c.GL_BLEND);
-    c.glBlendFunc(c.GL_SRC_ALPHA, c.GL_ONE_MINUS_SRC_ALPHA);
+    const LoadContext = struct { display: c.EGLDisplay };
+    zgl.loadExtensions(LoadContext{ .display = egl_display }, struct {
+        pub fn getProcAddress(ctx: LoadContext, proc: [:0]const u8) ?*const anyopaque {
+            _ = ctx;
+            return c.eglGetProcAddress(proc.ptr);
+        }
+    }.getProcAddress) catch @panic("extensions failed to load");
+    zgl.enable(.blend);
+    zgl.blendFunc(.src_alpha, .one_minus_src_alpha);
 
     if (@import("builtin").mode == .Debug) {
-        c.glEnable(c.GL_DEBUG_OUTPUT);
-        c.glDebugMessageCallback(glMessageCallback, null);
+        zgl.enable(.debug_output);
+        zgl.debugMessageCallback(@as(?*const anyopaque, null), glMessageCallback);
     }
 
     const main_vertex_source = @embedFile("shaders/main.vert");
     const main_fragment_source = @embedFile("shaders/main.frag");
 
-    const main_vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
-    const main_fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
+    const main_vertex_shader = zgl.createShader(.vertex);
+    const main_fragment_shader = zgl.createShader(.fragment);
 
-    defer c.glDeleteShader(main_vertex_shader);
-    defer c.glDeleteShader(main_fragment_shader);
+    defer main_vertex_shader.delete();
+    defer main_fragment_shader.delete();
 
-    const main_shader_program = c.glCreateProgram();
+    const main_shader_program = zgl.createProgram();
 
-    try compileShader(main_vertex_source, main_vertex_shader, main_shader_program);
-    try compileShader(main_fragment_source, main_fragment_shader, main_shader_program);
-
-    c.glLinkProgram(main_shader_program);
-
-    var link_success: u32 = undefined;
-    c.glGetProgramiv(main_shader_program, c.GL_LINK_STATUS, @ptrCast(&link_success));
-    if (link_success != c.GL_TRUE) {
-        var info_log: [512]u8 = undefined;
-        c.glGetShaderInfoLog(main_shader_program, 512, null, @ptrCast(&info_log));
-        std.debug.print("{s}\n", .{info_log});
-        return error.EGLError;
-    }
+    try compileShader(alloc, main_vertex_source, main_vertex_shader, main_shader_program);
+    try compileShader(alloc, main_fragment_source, main_fragment_shader, main_shader_program);
+    main_shader_program.link();
 
     const text_vertex_source = @embedFile("shaders/text.vert");
     const text_fragment_source = @embedFile("shaders/text.frag");
 
-    const text_vertex_shader = c.glCreateShader(c.GL_VERTEX_SHADER);
-    const text_fragment_shader = c.glCreateShader(c.GL_FRAGMENT_SHADER);
+    const text_vertex_shader = zgl.createShader(.vertex);
+    const text_fragment_shader = zgl.createShader(.fragment);
 
-    defer c.glDeleteShader(text_vertex_shader);
-    defer c.glDeleteShader(text_fragment_shader);
+    defer text_vertex_shader.delete();
+    defer text_fragment_shader.delete();
 
-    const text_shader_program = c.glCreateProgram();
+    const text_shader_program = zgl.createProgram();
 
-    try compileShader(text_vertex_source, text_vertex_shader, text_shader_program);
-    try compileShader(text_fragment_source, text_fragment_shader, text_shader_program);
+    try compileShader(alloc, text_vertex_source, text_vertex_shader, text_shader_program);
+    try compileShader(alloc, text_fragment_source, text_fragment_shader, text_shader_program);
+    text_shader_program.link();
 
-    c.glLinkProgram(text_shader_program);
+    var VAO = zgl.genVertexArray();
+    VAO.bind();
+    zgl.enableVertexAttribArray(0);
 
-    link_success = undefined;
-    c.glGetProgramiv(text_shader_program, c.GL_LINK_STATUS, @ptrCast(&link_success));
-    if (link_success != c.GL_TRUE) {
-        var info_log: [512]u8 = undefined;
-        c.glGetShaderInfoLog(text_shader_program, 512, null, @ptrCast(&info_log));
-        std.debug.print("{s}\n", .{info_log});
-        return error.EGLError;
-    }
-
-    var VAO: u32 = undefined;
-    c.glGenVertexArrays(1, &VAO);
-    c.glBindVertexArray(VAO);
-    c.glEnableVertexAttribArray(0);
-
-    var VBO: [3]u32 = undefined;
-    c.glGenBuffers(3, &VBO);
+    var VBO: [3]zgl.Buffer = undefined;
+    zgl.genBuffers(&VBO);
 
     // Selection VBO
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[1]);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * 8, null, c.GL_DYNAMIC_DRAW);
+    VBO[1].bind(.array_buffer);
+    VBO[1].data(f32, &.{}, .dynamic_draw);
 
     // Text VBO
-    const vertices = [_]f32{
+    var vertices = [_]f32{
         0, 0,
         1, 0,
         0, 1,
         1, 1,
     };
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, VBO[2]);
-    c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+    VBO[2].bind(.array_buffer);
+    VBO[2].data(f32, &vertices, .static_draw);
 
-    var EBO: u32 = undefined;
-    c.glGenBuffers(1, &EBO);
-
-    const indices = [_]i32{
+    var EBO = zgl.genBuffer();
+    var indices = [_]u3{
         0, 1, 3,
         3, 2, 0,
     };
 
-    c.glBindBuffer(c.GL_ELEMENT_ARRAY_BUFFER, EBO);
-    c.glBufferData(c.GL_ELEMENT_ARRAY_BUFFER, @sizeOf(i32) * indices.len, &indices, c.GL_STATIC_DRAW);
+    EBO.bind(.element_array_buffer);
+    EBO.data(u3, &indices, .static_draw);
 
     return .{
         .display = egl_display,
@@ -242,11 +217,10 @@ pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]i32) !EglSurface 
         null,
     ) orelse return error.EGLError;
 
-    var VBO: [2]u32 = undefined;
-    c.glGenBuffers(2, &VBO);
+    var VBO: [2]zgl.Buffer = undefined;
+    zgl.genBuffers(&VBO);
 
-    var UBO: u32 = undefined;
-    c.glGenBuffers(1, &UBO);
+    const UBO = zgl.genBuffer();
 
     return .{
         .window = egl_window,
@@ -263,9 +237,9 @@ pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]i32) !EglSurface 
 }
 
 pub fn deinit(self: *Self) void {
-    c.glDeleteBuffers(1, &self.EBO);
-    c.glDeleteBuffers(3, &self.VBO);
-    c.glDeleteBuffers(1, &self.VAO);
+    self.EBO.delete();
+    for (self.VBO) |VBO| VBO.delete();
+    self.VAO.delete();
     if (c.eglDestroyContext(self.display, self.context) != c.EGL_TRUE) @panic("Failed to destroy egl context");
     if (c.eglTerminate(self.display) != c.EGL_TRUE) @panic("Failed to terminate egl");
 }

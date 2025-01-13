@@ -20,8 +20,8 @@ pub fn build(b: *std.Build) void {
     scanner.generate("zxdg_output_manager_v1", 3);
 
     const xkbcommon = b.dependency("zig-xkbcommon", .{}).module("xkbcommon");
-
     const ziglua = b.dependency("ziglua", opts).module("ziglua");
+    const zgl = b.dependency("zgl", opts).module("zgl");
 
     const exe = b.addExecutable(.{
         .name = "seto",
@@ -35,7 +35,7 @@ pub fn build(b: *std.Build) void {
     const math = b.addModule("math", .{ .root_source_file = b.path("src/math.zig"), .target = target });
     const helpers = b.addModule("helpers", .{ .root_source_file = b.path("src/helpers.zig"), .target = target });
 
-    const ffi_libs = [_][]const u8{ "egl", "gl", "freetype2", "fontconfig" };
+    const ffi_libs = [_][]const u8{ "egl", "freetype2", "fontconfig" };
     const ffi = b.addModule("ffi", .{ .root_source_file = b.path("src/ffi.zig"), .target = target, .optimize = optimize });
     for (ffi_libs) |lib| {
         ffi.linkSystemLibrary(lib, .{});
@@ -43,6 +43,9 @@ pub fn build(b: *std.Build) void {
         exe.linkSystemLibrary(lib);
     }
 
+    helpers.addImport("zgl", zgl);
+
+    exe.root_module.addImport("zgl", zgl);
     exe.root_module.addImport("ffi", ffi);
     exe.root_module.addImport("helpers", helpers);
     exe.root_module.addImport("math", math);

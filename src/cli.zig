@@ -14,7 +14,7 @@ fn parseFloatArray(arg: ?[]const u8, separator: []const u8) ![2]f32 {
         arg orelse return error.ArgumentMissing,
         separator,
     );
-    var result: [2]f32 = undefined;
+    var result: [2]f32 = .{ 0.0, 0.0 };
     var i: usize = 0;
     while (iter.next()) |value| {
         if (i >= 2) break;

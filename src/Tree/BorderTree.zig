@@ -1,5 +1,5 @@
 const std = @import("std");
-const c = @import("ffi");
+const zgl = @import("zgl");
 const helpers = @import("helpers");
 
 const Seto = @import("../main.zig").Seto;
@@ -101,9 +101,9 @@ pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
 }
 
 pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
-    c.glUseProgram(output.egl.text_shader_program);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.gen_VBO[2]);
-    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
+    output.egl.text_shader_program.use();
+    output.egl.gen_VBO[2].bind(.array_buffer);
+    zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
 
     const path = self.arena.allocator().alloc(u32, self.depth) catch @panic("OOM");
     for (self.children) |*child| {

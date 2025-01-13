@@ -133,7 +133,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.delay = @floatFromInt(repeat_key.delay);
-            seto.seat.repeat.rate = 60;
+            seto.seat.repeat.rate = 144;
         },
     }
 }
@@ -147,17 +147,13 @@ fn moveSelection(seto: *Seto, value: [2]f32) void {
 
             if (pos[0] < seto.state.total_dimensions.x) {
                 pos[0] = seto.state.total_dimensions.x;
+            } else if (pos[0] > seto.state.total_dimensions.x + seto.state.total_dimensions.width) {
+                pos[0] = seto.state.total_dimensions.x + seto.state.total_dimensions.width;
             }
 
             if (pos[1] < seto.state.total_dimensions.y) {
                 pos[1] = seto.state.total_dimensions.y;
-            }
-
-            if (pos[0] > seto.state.total_dimensions.x + seto.state.total_dimensions.width) {
-                pos[0] = seto.state.total_dimensions.x + seto.state.total_dimensions.width;
-            }
-
-            if (pos[1] > seto.state.total_dimensions.y + seto.state.total_dimensions.height) {
+            } else if (pos[1] > seto.state.total_dimensions.y + seto.state.total_dimensions.height) {
                 pos[1] = seto.state.total_dimensions.y + seto.state.total_dimensions.height;
             }
         },
@@ -166,6 +162,7 @@ fn moveSelection(seto: *Seto, value: [2]f32) void {
 
 pub fn handleKey(self: *Seto) void {
     const key = self.seat.repeat.key orelse return;
+    var trees = self.trees orelse return;
 
     const keysym_backspace = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.BackSpace));
     const keysym_escape = xkb.Keysym.toUTF32(@enumFromInt(xkb.Keysym.Escape));
@@ -182,7 +179,7 @@ pub fn handleKey(self: *Seto) void {
                 for (0..2) |i| {
                     if (@abs(new_value[i]) >= self.config.grid.size[i]) new_value[i] = @mod(new_value[i], self.config.grid.size[i]);
                 }
-                self.trees.?.move(new_value);
+                trees.move(new_value);
             },
             .resize => |value| {
                 var new_value = value;
@@ -192,9 +189,9 @@ pub fn handleKey(self: *Seto) void {
                     }
                 }
 
-                const depth = self.trees.?.normal_tree.depth;
-                self.trees.?.resize(new_value);
-                if (self.trees.?.normal_tree.depth != depth) self.state.buffer.clearAndFree();
+                const depth = trees.normal_tree.depth;
+                trees.resize(new_value);
+                if (trees.normal_tree.depth != depth) self.state.buffer.clearAndFree();
             },
             .cancel_selection => if (self.config.mode == Mode.Region) {
                 self.config.mode = Mode{ .Region = null };

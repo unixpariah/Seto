@@ -4,7 +4,12 @@ pollfds: std.ArrayList(std.posix.pollfd),
 polldata: std.ArrayList(PollData),
 timeout: i32,
 
-const Self = @This();
+pub const Self = @This();
+
+const PollData = struct {
+    callback: *const fn (data: ?*anyopaque) void,
+    data: ?*anyopaque,
+};
 
 pub fn init(alloc: std.mem.Allocator, timeout: i32) Self {
     return .{
@@ -14,35 +19,58 @@ pub fn init(alloc: std.mem.Allocator, timeout: i32) Self {
     };
 }
 
-pub fn insertSource(self: *Self, fd: i32, comptime T: type, callback: *const fn (data: T) void, data: T) !void {
-    try self.pollfds.append(
-        .{ .fd = fd, .events = std.posix.POLL.IN, .revents = 0 },
-    );
+pub fn initCapacity(alloc: std.mem.Allocator, timeout: i32, capacity: usize) !Self {
+    return .{
+        .pollfds = try std.ArrayList(std.posix.pollfd).initCapacity(alloc, capacity),
+        .polldata = try std.ArrayList(PollData).initCapacity(alloc, capacity),
+        .timeout = timeout,
+    };
+}
+
+pub fn insertSource(
+    self: *Self,
+    fd: i32,
+    comptime T: type,
+    callback: *const fn (data: T) void,
+    data: T,
+) !void {
+    try self.pollfds.append(.{ .fd = fd, .events = std.posix.POLL.IN, .revents = 0 });
 
     try self.polldata.append(.{
-        .data = @ptrCast(data),
         .callback = @ptrCast(callback),
+        .data = @ptrCast(data),
+    });
+}
+
+pub fn insertSourceAssumeCapacity(
+    self: *Self,
+    fd: i32,
+    comptime T: type,
+    callback: *const fn (data: T) void,
+    data: T,
+) void {
+    self.pollfds.appendAssumeCapacity(.{ .fd = fd, .events = std.posix.POLL.IN, .revents = 0 });
+
+    self.polldata.appendAssumeCapacity(.{
+        .callback = @ptrCast(callback),
+        .data = @ptrCast(data),
     });
 }
 
 pub fn poll(self: *Self) !void {
     while (true) {
         const events = try std.posix.poll(self.pollfds.items, self.timeout);
+
         if (events == 0) {
             continue;
-        } else if (events == -1) {
+        } else if (events < 0) {
             const err = std.os.errno();
             switch (err) {
-                std.os.errno.EINTR => {
-                    continue;
-                },
-                else => {
-                    return error.PosixError;
-                },
+                std.os.errno.EINTR => continue,
+                else => return error.PosixError,
             }
         }
 
-        // Process events if no error occurred.
         for (self.pollfds.items, 0..) |pollfd, i| {
             if (pollfd.revents & std.posix.POLL.IN != 0) {
                 const poll_data = self.polldata.items[i];
@@ -50,7 +78,7 @@ pub fn poll(self: *Self) !void {
             }
         }
 
-        break; // Exit loop after processing.
+        break;
     }
 }
 
@@ -58,8 +86,3 @@ pub fn deinit(self: *Self) void {
     self.polldata.deinit();
     self.pollfds.deinit();
 }
-
-const PollData = struct {
-    callback: *const fn (data: ?*anyopaque) void,
-    data: ?*anyopaque,
-};
