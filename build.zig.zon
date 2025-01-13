@@ -15,5 +15,9 @@
             .url = "https://codeberg.org/ifreund/zig-xkbcommon/archive/d8412eed455c8cfea5b4cda2ea260095ccb47045.tar.gz",
             .hash = "12200989a0e5c5d8186dd16752e3d83d914d4f54ecca7b3e147443f13a9580ede671",
         },
+        .zgl = .{
+            .url = "https://github.com/ziglibs/zgl/archive/f170f34d1ed7a00aa6a2a00aafba40b661896010.tar.gz",
+            .hash = "12204115129438285a43d0a853d4d4bb86a63ab82b140189a47bc987f7b08d2252b0",
+        },
     },
 }

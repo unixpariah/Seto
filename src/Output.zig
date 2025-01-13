@@ -1,8 +1,9 @@
 const std = @import("std");
+const zgl = @import("zgl");
 const wayland = @import("wayland");
-const c = @import("ffi");
 const helpers = @import("helpers");
 const math = @import("math");
+const c = @import("ffi");
 
 const mem = std.mem;
 const posix = std.posix;
@@ -84,12 +85,12 @@ pub fn cmp(_: Self, a: Self, b: Self) bool {
 }
 
 pub fn draw(self: *const Self, config: *Config, border_mode: bool) void {
-    c.glUseProgram(self.egl.main_shader_program);
-    c.glClear(c.GL_COLOR_BUFFER_BIT);
-    c.glClearColor(0, 0, 0, 0);
+    self.egl.main_shader_program.use();
+    zgl.clearColor(0, 0, 0, 0);
+    zgl.clear(.{ .color = true });
 
-    c.glBindBuffer(c.GL_UNIFORM_BUFFER, self.egl.UBO);
-    c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, self.egl.UBO);
+    self.egl.UBO.bind(.uniform_buffer);
+    zgl.bindBufferBase(.uniform_buffer, 0, self.egl.UBO);
 
     self.drawBackground(config);
     self.drawGrid(config, border_mode);
@@ -99,9 +100,9 @@ pub fn draw(self: *const Self, config: *Config, border_mode: bool) void {
 pub fn drawBackground(self: *const Self, config: *Config) void {
     config.background_color.set(self.egl.main_shader_program);
 
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[0]);
-    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
-    c.glDrawElements(c.GL_TRIANGLES, 6, c.GL_UNSIGNED_INT, null);
+    self.egl.VBO[0].bind(.array_buffer);
+    zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
+    zgl.drawElements(.triangles, 6, .unsigned_int, 0);
 }
 
 pub fn drawSelection(self: *const Self, config: *Config) void {
@@ -114,23 +115,23 @@ pub fn drawSelection(self: *const Self, config: *Config) void {
             pos[0],                        self.info.y,
             pos[0],                        self.info.y + self.info.height,
         };
-        c.glLineWidth(config.grid.selected_line_width);
+        zgl.lineWidth(config.grid.selected_line_width);
 
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.gen_VBO[1]);
-        c.glBufferSubData(c.GL_ARRAY_BUFFER, 0, @sizeOf(f32) * vertices.len, &vertices);
-        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
-        c.glDrawArrays(c.GL_LINES, 0, vertices.len >> 1);
+        self.egl.gen_VBO[1].bind(.array_buffer);
+        self.egl.gen_VBO[1].subData(0, f32, &vertices);
+        zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
+        zgl.drawArrays(.lines, 0, vertices.len >> 1);
     }
 }
 
 pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
-    c.glLineWidth(config.grid.line_width);
+    zgl.lineWidth(config.grid.line_width);
     config.grid.color.set(self.egl.main_shader_program);
 
     if (border_mode) {
-        c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.VBO[1]);
-        c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
-        c.glDrawElements(c.GL_LINE_LOOP, 5, c.GL_UNSIGNED_INT, null);
+        self.egl.VBO[1].bind(.array_buffer);
+        zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
+        zgl.drawElements(.line_loop, 5, .unsigned_int, 0);
 
         return;
     }
@@ -167,15 +168,10 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
         });
     }
 
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, self.egl.gen_VBO[0]);
-    c.glBufferData(
-        c.GL_ARRAY_BUFFER,
-        @intCast(@sizeOf(f32) * vertices.items.len),
-        @ptrCast(vertices.items),
-        c.GL_STATIC_DRAW,
-    );
-    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
-    c.glDrawArrays(c.GL_LINES, 0, @intCast(vertices.items.len >> 1));
+    self.egl.gen_VBO[0].bind(.array_buffer);
+    self.egl.gen_VBO[0].data(f32, vertices.items, .static_draw);
+    zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
+    zgl.drawArrays(.lines, 0, vertices.items.len >> 1);
 }
 
 pub fn isConfigured(self: *const Self) bool {
@@ -210,7 +206,7 @@ pub fn xdgOutputListener(
     event: zxdg.OutputV1.Event,
     seto: *Seto,
 ) void {
-    const output = for (seto.outputs.items) |*output| {
+    const output: *Self = for (seto.outputs.items) |*output| {
         if (output.xdg_output == xdg_output) {
             break output;
         }
@@ -236,8 +232,8 @@ pub fn xdgOutputListener(
                     output.info.x + output.info.width, output.info.y + output.info.height,
                 };
 
-                c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.VBO[0]);
-                c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+                output.egl.VBO[0].bind(.array_buffer);
+                output.egl.VBO[0].data(f32, &vertices, .static_draw);
             }
 
             { // Border VBO
@@ -248,8 +244,8 @@ pub fn xdgOutputListener(
                     output.info.x + output.info.width, output.info.y + output.info.height,
                 };
 
-                c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.VBO[1]);
-                c.glBufferData(c.GL_ARRAY_BUFFER, @sizeOf(f32) * vertices.len, &vertices, c.GL_STATIC_DRAW);
+                output.egl.VBO[1].bind(.array_buffer);
+                output.egl.VBO[1].data(f32, &vertices, .static_draw);
             }
 
             const uniform_object = struct {
@@ -278,18 +274,14 @@ pub fn xdgOutputListener(
                 },
             };
 
-            c.glBindBuffer(c.GL_UNIFORM_BUFFER, output.egl.UBO);
-            c.glBufferData(
-                c.GL_UNIFORM_BUFFER,
-                @sizeOf(@TypeOf(uniform_object)),
-                @ptrCast(&uniform_object),
-                c.GL_STATIC_DRAW,
-            );
+            const uniform_data = @as([1]@TypeOf(uniform_object), .{uniform_object});
 
-            c.glBindBufferBase(c.GL_UNIFORM_BUFFER, 0, output.egl.UBO);
-            c.glUniformBlockBinding(
+            output.egl.UBO.bind(.uniform_buffer);
+            output.egl.UBO.data(@TypeOf(uniform_object), &uniform_data, .static_draw);
+            zgl.bindBufferBase(.uniform_buffer, 0, output.egl.UBO);
+            zgl.uniformBlockBinding(
                 output.egl.main_shader_program,
-                c.glGetUniformBlockIndex(output.egl.main_shader_program, "UniformBlock"),
+                c.glGetUniformBlockIndex(@intFromEnum(output.egl.main_shader_program), "UniformBlock"),
                 0,
             );
 

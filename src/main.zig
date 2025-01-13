@@ -1,28 +1,32 @@
 const std = @import("std");
-const mem = std.mem;
-const posix = std.posix;
-
 const c = @import("ffi");
 const wayland = @import("wayland");
+const zgl = @import("zgl");
+
 const wl = wayland.client.wl;
+const mem = std.mem;
+const posix = std.posix;
 const zwlr = wayland.client.zwlr;
 const zxdg = wayland.client.zxdg;
 
 const Tree = @import("Tree/NormalTree.zig");
-const OutputInfo = @import("Output.zig").OutputInfo;
 const Output = @import("Output.zig");
-const Seat = @import("seat.zig").Seat;
 const Config = @import("Config.zig");
 const Egl = @import("Egl.zig");
 const Text = @import("config/Text.zig");
 const EventLoop = @import("EventLoop.zig");
 const Trees = @import("Tree/Trees.zig");
+const OutputInfo = @import("Output.zig").OutputInfo;
+const Seat = @import("seat.zig").Seat;
+const Font = @import("config/Font.zig");
+const Grid = @import("config/Grid.zig");
+const Keys = @import("config/Keys.zig");
 
+const getLuaFile = @import("Config.zig").getLuaFile;
 const handleKey = @import("seat.zig").handleKey;
 const xdgOutputListener = @import("Output.zig").xdgOutputListener;
 const layerSurfaceListener = @import("Output.zig").layerSurfaceListener;
 const seatListener = @import("seat.zig").seatListener;
-const parseArgs = @import("cli.zig").parseArgs;
 const inPlaceReplace = @import("helpers").inPlaceReplace;
 const wlOutputListener = @import("Output.zig").wlOutputListener;
 
@@ -76,12 +80,7 @@ pub const Seto = struct {
             .state = .{ .buffer = std.ArrayList(u32).init(alloc) },
         };
 
-        if (seto.config.keys.search.len < 2) {
-            std.log.err("Minimum two search keys have to be set\n", .{});
-            std.process.exit(1);
-        }
-
-        seto.config.text = Text.init(alloc, &seto.config);
+        seto.config.text = try Text.init(alloc, &seto.config);
 
         return seto;
     }
@@ -205,10 +204,22 @@ pub fn main() !void {
     };
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
+    var lua = try getLuaFile(alloc);
+    defer lua.deinit();
+
+    const font = Font.init(lua, alloc);
+    const grid = Grid.init(lua, alloc);
+    const keys = try Keys.init(lua, alloc);
+    const config = try Config.load(lua, keys, grid, font, alloc);
+
+    if (config.keys.search.len < 2) {
+        std.log.err("Minimum two search keys have to be set\n", .{});
+        std.process.exit(1);
+    }
+
     const seat = try Seat.init(alloc);
-    const egl = try Egl.init(display);
-    var config = try Config.load(alloc);
-    parseArgs(&config);
+    const egl = try Egl.init(alloc, display);
+
     var seto = try Seto.init(alloc, seat, egl, config);
     defer seto.deinit();
 
@@ -218,11 +229,11 @@ pub fn main() !void {
 
     if (seto.layer_shell == null) @panic("wlr_layer_shell not supported");
 
-    var event_loop = EventLoop.init(alloc, -1);
+    var event_loop = try EventLoop.initCapacity(alloc, -1, 2);
     defer event_loop.deinit();
 
-    try event_loop.insertSource(display.getFd(), *wl.Display, dispatchDisplay, display);
-    try event_loop.insertSource(seto.seat.repeat.timer.getFd(), *Seto, handleRepeat, &seto);
+    event_loop.insertSourceAssumeCapacity(display.getFd(), *wl.Display, dispatchDisplay, display);
+    event_loop.insertSourceAssumeCapacity(seto.seat.repeat.timer.getFd(), *Seto, handleRepeat, &seto);
 
     try seto.render();
 
@@ -230,7 +241,8 @@ pub fn main() !void {
 
     for (seto.outputs.items) |output| {
         try output.egl.makeCurrent();
-        c.glClear(c.GL_COLOR_BUFFER_BIT);
+        zgl.clearColor(0, 0, 0, 0);
+        zgl.clear(.{ .color = true });
         try output.egl.swapBuffers();
     }
 
@@ -319,12 +331,13 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                     wl_output.setListener(*Seto, wlOutputListener, seto);
                 },
                 .wl_seat => {
-                    seto.seat.wl_seat = registry.bind(
+                    const wl_seat = registry.bind(
                         global.name,
                         wl.Seat,
                         wl.Seat.generated_version,
                     ) catch @panic("Failed to bind seat global");
-                    seto.seat.wl_seat.?.setListener(*Seto, seatListener, seto);
+                    wl_seat.setListener(*Seto, seatListener, seto);
+                    seto.seat.wl_seat = wl_seat;
                 },
                 .zxdg_output_manager_v1 => {
                     seto.output_manager = registry.bind(

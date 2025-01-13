@@ -20,8 +20,8 @@ pub fn build(b: *std.Build) void {
     scanner.generate("zxdg_output_manager_v1", 3);
 
     const xkbcommon = b.dependency("zig-xkbcommon", .{}).module("xkbcommon");
-
     const ziglua = b.dependency("ziglua", opts).module("ziglua");
+    const zgl = b.dependency("zgl", opts).module("zgl");
 
     const exe = b.addExecutable(.{
         .name = "seto",
@@ -43,6 +43,9 @@ pub fn build(b: *std.Build) void {
         exe.linkSystemLibrary(lib);
     }
 
+    helpers.addImport("zgl", zgl);
+
+    exe.root_module.addImport("zgl", zgl);
     exe.root_module.addImport("ffi", ffi);
     exe.root_module.addImport("helpers", helpers);
     exe.root_module.addImport("math", math);

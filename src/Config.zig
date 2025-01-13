@@ -2,6 +2,7 @@ const std = @import("std");
 const helpers = @import("helpers");
 const fs = std.fs;
 
+const parseArgs = @import("cli.zig").parseArgs;
 const hexToRgba = helpers.hexToRgba;
 
 const Lua = @import("ziglua").Lua;
@@ -38,33 +39,32 @@ pub fn default(alloc: std.mem.Allocator) Self {
     };
 }
 
-pub fn load(alloc: std.mem.Allocator) !Self {
-    const config_path = getPath(alloc) catch {
-        return Self.default(alloc);
-    };
+pub inline fn getLuaFile(alloc: std.mem.Allocator) !*Lua {
+    var lua = try Lua.init(&alloc);
+
+    const config_path = try getPath(alloc);
     defer alloc.free(config_path);
+    try lua.doFile(config_path);
 
-    var lua = Lua.init(&alloc) catch {
-        return Self.default(alloc);
-    };
-    defer lua.deinit();
+    return lua;
+}
 
-    lua.doFile(config_path) catch @panic("Lua failed to interpret config file");
-
+pub fn load(lua: *Lua, keys: Keys, grid: Grid, font: Font, alloc: std.mem.Allocator) !Self {
     _ = lua.pushString("background_color");
     _ = lua.getTable(1);
     const background_color = lua.toString(2) catch @panic("Expected hex value");
 
     lua.pop(1);
 
-    const font = Font.init(lua, alloc);
-    return .{
+    var config = Self{
         .alloc = alloc,
-        .grid = Grid.init(lua, alloc),
+        .grid = grid,
         .font = font,
-        .keys = try Keys.init(lua, alloc),
+        .keys = keys,
         .background_color = Color.parse(background_color, alloc) catch @panic("Failed to parse color"),
     };
+    parseArgs(&config);
+    return config;
 }
 
 pub fn deinit(self: *Self) void {
@@ -74,7 +74,7 @@ pub fn deinit(self: *Self) void {
     self.keys.bindings.deinit();
 }
 
-pub fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
+fn getPath(alloc: std.mem.Allocator) ![:0]const u8 {
     var args = std.process.args();
     var index: u8 = 0;
     while (args.next()) |arg| : (index += 1) {

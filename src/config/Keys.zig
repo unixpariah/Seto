@@ -74,7 +74,7 @@ pub fn init(lua: *Lua, alloc: std.mem.Allocator) !Self {
                     _ = lua.getTable(5);
                     _ = lua.pushNil();
                     if (lua.next(5)) {
-                        var move_value: [2]f32 = undefined;
+                        var move_value: [2]f32 = [_]f32{0} ** 2;
                         var index: u8 = 0;
                         _ = lua.pushNil();
                         const function = try lua.toString(7);

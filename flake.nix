@@ -10,7 +10,6 @@
       self,
       nixpkgs,
       zig,
-      zls,
       ...
     }:
     let
@@ -25,6 +24,7 @@
       devShells = forAllSystems (pkgs: {
         default = pkgs.mkShell {
           packages = with pkgs; [
+            renderdoc
             pkg-config
             wayland
             wayland-scanner
@@ -39,8 +39,9 @@
             fontconfig
             clang-tools
             scdoc
-            zls.packages.${system}.default
             zig.packages.${system}."0.13.0"
+            zls
+            #zls.packages.${system}.default
           ];
         };
       });

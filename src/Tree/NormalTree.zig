@@ -1,6 +1,7 @@
 const std = @import("std");
 const c = @import("ffi");
 const helpers = @import("helpers");
+const zgl = @import("zgl");
 
 const Seto = @import("../main.zig").Seto;
 const Output = @import("../Output.zig");
@@ -96,8 +97,6 @@ pub fn updateCoordinates(self: *Self) void {
 }
 
 pub fn move(self: *Self, value: [2]f32) void {
-    if (value[0] == 0 and value[1] == 0) return;
-
     self.config_ptr.grid.move(value);
     var intersections_num: usize = 0;
     for (self.children) |*child| {
@@ -122,7 +121,7 @@ pub fn move(self: *Self, value: [2]f32) void {
         var i = self.total_dimensions.x + self.config_ptr.grid.offset[0];
         while (i <= self.total_dimensions.x + value[0]) : (i += self.config_ptr.grid.size[0]) {
             var j = self.total_dimensions.y + self.config_ptr.grid.offset[1];
-            while (j <= self.total_dimensions.x + self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
+            while (j <= self.total_dimensions.y + self.total_dimensions.height) : (j += self.config_ptr.grid.size[1]) {
                 intersections.appendAssumeCapacity(.{ i, j });
             }
         }
@@ -245,9 +244,9 @@ pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
 }
 
 pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
-    c.glUseProgram(output.egl.text_shader_program);
-    c.glBindBuffer(c.GL_ARRAY_BUFFER, output.egl.gen_VBO[2]);
-    c.glVertexAttribPointer(0, 2, c.GL_FLOAT, c.GL_FALSE, 0, null);
+    output.egl.text_shader_program.use();
+    output.egl.gen_VBO[2].bind(.array_buffer);
+    zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
 
     const path = self.arena.allocator().alloc(u32, self.depth) catch @panic("OOM");
     for (self.children) |*child| {
@@ -346,26 +345,26 @@ const Node = struct {
         }
     }
 
-    fn move(self: *Node, value: [2]f32, total_dimensions: *TotalDimensions, intersections_num: *usize) void {
-        if (self.coordinates) |*coordinates| {
-            coordinates[0] += value[0];
-            coordinates[1] += value[1];
-            intersections_num.* += 1;
+    fn move(self: *Node, value: [2]f32, bounds: *TotalDimensions, intersections_num: *usize) void {
+        if (self.coordinates) |*coords| {
+            coords[0] += value[0];
+            coords[1] += value[1];
+            const in_bounds = coords[0] >= bounds.x and
+                coords[0] < bounds.x + bounds.width and
+                coords[1] >= bounds.y and
+                coords[1] < bounds.y + bounds.height;
 
-            if (coordinates[0] < total_dimensions.x or
-                coordinates[0] >= total_dimensions.x + total_dimensions.width or
-                coordinates[1] < total_dimensions.y or
-                coordinates[1] >= total_dimensions.y + total_dimensions.height)
-            {
+            if (!in_bounds) {
                 self.coordinates = null;
-                intersections_num.* -= 1;
+                return;
             }
+            intersections_num.* += 1;
             return;
         }
 
         if (self.children) |children| {
             for (children) |*child| {
-                child.move(value, total_dimensions, intersections_num);
+                child.move(value, bounds, intersections_num);
             }
         }
     }
