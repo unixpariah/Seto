@@ -133,7 +133,7 @@ pub fn keyboardListener(_: *wl.Keyboard, event: wl.Keyboard.Event, seto: *Seto) 
         },
         .repeat_info => |repeat_key| {
             seto.seat.repeat.delay = @floatFromInt(repeat_key.delay);
-            seto.seat.repeat.rate = 144;
+            seto.seat.repeat.rate = 60;
         },
     }
 }

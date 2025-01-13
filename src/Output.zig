@@ -281,7 +281,7 @@ pub fn xdgOutputListener(
             zgl.bindBufferBase(.uniform_buffer, 0, output.egl.UBO);
             zgl.uniformBlockBinding(
                 output.egl.main_shader_program,
-                c.glGetUniformBlockIndex(@intFromEnum(output.egl.main_shader_program), "UniformBlock"),
+                output.egl.main_shader_program.uniformBlockIndex("UniformBlock").?,
                 0,
             );
 

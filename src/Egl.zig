@@ -8,6 +8,12 @@ fn glMessageCallback(_: ?*const anyopaque, source: zgl.DebugSource, err_type: zg
     std.debug.print("{} {} {} {} {s}\n", .{ source, err_type, id, severity, message });
 }
 
+const LoadContext = struct { display: c.EGLDisplay };
+
+pub fn getProcAddress(_: LoadContext, proc: [:0]const u8) ?*const anyopaque {
+    return c.eglGetProcAddress(proc.ptr);
+}
+
 pub const EglSurface = struct {
     window: *wl.EglWindow,
     surface: c.EGLSurface,
@@ -122,13 +128,8 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
         context,
     ) != c.EGL_TRUE) return error.EGLError;
 
-    const LoadContext = struct { display: c.EGLDisplay };
-    zgl.loadExtensions(LoadContext{ .display = egl_display }, struct {
-        pub fn getProcAddress(ctx: LoadContext, proc: [:0]const u8) ?*const anyopaque {
-            _ = ctx;
-            return c.eglGetProcAddress(proc.ptr);
-        }
-    }.getProcAddress) catch @panic("extensions failed to load");
+    zgl.loadExtensions(LoadContext{ .display = egl_display }, getProcAddress) catch @panic("extensions failed to load");
+
     zgl.enable(.blend);
     zgl.blendFunc(.src_alpha, .one_minus_src_alpha);
 
@@ -173,8 +174,8 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
     try compileShader(alloc, text_fragment_source, text_fragment_shader, text_shader_program);
     text_shader_program.link();
 
-    if (main_shader_program.get(.link_status) == 0) {
-        const info_log = main_shader_program.getCompileLog(alloc) catch @panic("TODO");
+    if (text_shader_program.get(.link_status) == 0) {
+        const info_log = text_shader_program.getCompileLog(alloc) catch @panic("TODO");
         std.log.err("{s}\n", .{info_log});
         alloc.free(info_log);
     }
