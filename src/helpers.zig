@@ -48,11 +48,26 @@ pub const Color = struct {
     }
 
     pub fn set(self: *const Self, shader_program: zgl.Program) void {
-        shader_program.uniform4f(shader_program.uniformLocation("u_startcolor"), self.start_color[0] * self.start_color[3], self.start_color[1] * self.start_color[3], self.start_color[2] * self.start_color[3], self.start_color[3]);
+        shader_program.uniform4f(
+            shader_program.uniformLocation("u_startcolor"),
+            self.start_color[0] * self.start_color[3],
+            self.start_color[1] * self.start_color[3],
+            self.start_color[2] * self.start_color[3],
+            self.start_color[3],
+        );
 
-        shader_program.uniform4f(shader_program.uniformLocation("u_startcolor"), self.end_color[0] * self.end_color[3], self.end_color[1] * self.end_color[3], self.end_color[2] * self.end_color[3], self.end_color[3]);
+        shader_program.uniform4f(
+            shader_program.uniformLocation("u_endcolor"),
+            self.end_color[0] * self.end_color[3],
+            self.end_color[1] * self.end_color[3],
+            self.end_color[2] * self.end_color[3],
+            self.end_color[3],
+        );
 
-        shader_program.uniform1f(shader_program.uniformLocation("u_degrees"), self.deg);
+        shader_program.uniform1f(
+            shader_program.uniformLocation("u_degrees"),
+            self.deg,
+        );
     }
 };
 

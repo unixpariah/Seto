@@ -241,7 +241,8 @@ pub fn main() !void {
 
     for (seto.outputs.items) |output| {
         try output.egl.makeCurrent();
-        zgl.clear(.{});
+        zgl.clearColor(0, 0, 0, 0);
+        zgl.clear(.{ .color = true });
         try output.egl.swapBuffers();
     }
 

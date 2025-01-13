@@ -49,9 +49,11 @@ fn compileShader(alloc: std.mem.Allocator, shader_source: []const u8, shader: zg
     shader.source(1, &[1][]const u8{shader_source});
     shader.compile();
 
-    const info_log = shader.getCompileLog(alloc) catch @panic("TODO");
-    defer alloc.free(info_log);
-    std.log.err("{s}\n", .{info_log});
+    if (shader.get(.compile_status) == 0) {
+        const info_log = shader.getCompileLog(alloc) catch @panic("TODO");
+        std.log.err("{s}\n", .{info_log});
+        alloc.free(info_log);
+    }
 
     shader_program.attach(shader);
 }
@@ -150,6 +152,12 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
     try compileShader(alloc, main_fragment_source, main_fragment_shader, main_shader_program);
     main_shader_program.link();
 
+    if (main_shader_program.get(.link_status) == 0) {
+        const info_log = main_shader_program.getCompileLog(alloc) catch @panic("TODO");
+        std.log.err("{s}\n", .{info_log});
+        alloc.free(info_log);
+    }
+
     const text_vertex_source = @embedFile("shaders/text.vert");
     const text_fragment_source = @embedFile("shaders/text.frag");
 
@@ -164,6 +172,12 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
     try compileShader(alloc, text_vertex_source, text_vertex_shader, text_shader_program);
     try compileShader(alloc, text_fragment_source, text_fragment_shader, text_shader_program);
     text_shader_program.link();
+
+    if (main_shader_program.get(.link_status) == 0) {
+        const info_log = main_shader_program.getCompileLog(alloc) catch @panic("TODO");
+        std.log.err("{s}\n", .{info_log});
+        alloc.free(info_log);
+    }
 
     var VAO = zgl.genVertexArray();
     VAO.bind();

@@ -3,6 +3,7 @@ const zgl = @import("zgl");
 const wayland = @import("wayland");
 const helpers = @import("helpers");
 const math = @import("math");
+const c = @import("ffi");
 
 const mem = std.mem;
 const posix = std.posix;
@@ -85,8 +86,8 @@ pub fn cmp(_: Self, a: Self, b: Self) bool {
 
 pub fn draw(self: *const Self, config: *Config, border_mode: bool) void {
     self.egl.main_shader_program.use();
-    zgl.clear(.{});
     zgl.clearColor(0, 0, 0, 0);
+    zgl.clear(.{ .color = true });
 
     self.egl.UBO.bind(.uniform_buffer);
     zgl.bindBufferBase(.uniform_buffer, 0, self.egl.UBO);
@@ -273,17 +274,16 @@ pub fn xdgOutputListener(
                 },
             };
 
-            output.egl.UBO.bind(.uniform_buffer);
-            const uniform_slice = &[_]@TypeOf(uniform_object){uniform_object};
-            output.egl.UBO.data(@TypeOf(uniform_object), uniform_slice, .static_draw);
+            const uniform_data = @as([1]@TypeOf(uniform_object), .{uniform_object});
 
-            //TODO
-            //c.glUniformBlockBinding(
-            //    output.egl.main_shader_program,
-            //    c.glGetUniformBlockIndex(output.egl.main_shader_program, "UniformBlock"),
-            //    0,
-            //);
-            zgl.uniformBlockBinding(output.egl.main_shader_program, 0, 0);
+            output.egl.UBO.bind(.uniform_buffer);
+            output.egl.UBO.data(@TypeOf(uniform_object), &uniform_data, .static_draw);
+            zgl.bindBufferBase(.uniform_buffer, 0, output.egl.UBO);
+            zgl.uniformBlockBinding(
+                output.egl.main_shader_program,
+                c.glGetUniformBlockIndex(@intFromEnum(output.egl.main_shader_program), "UniformBlock"),
+                0,
+            );
 
             seto.updateDimensions();
 

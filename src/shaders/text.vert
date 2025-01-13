@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec2 in_pos;
 
-layout(std140, binding = 0) uniform UniformBlock {
+layout(std140) uniform UniformBlock {
   mat4 projection;
   vec4 startColor[2];
   vec4 endColor[2];
