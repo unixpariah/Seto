@@ -71,7 +71,7 @@ pub const Seto = struct {
     const Self = @This();
 
     fn init(alloc: mem.Allocator, seat: Seat, egl: Egl, config: Config) !Self {
-        var seto = Seto{
+        return Seto{
             .seat = seat,
             .outputs = std.ArrayList(Output).init(alloc),
             .alloc = alloc,
@@ -79,10 +79,6 @@ pub const Seto = struct {
             .config = config,
             .state = .{ .buffer = std.ArrayList(u32).init(alloc) },
         };
-
-        seto.config.text = try Text.init(alloc, &seto.config);
-
-        return seto;
     }
 
     pub fn updateDimensions(self: *Self) void {
@@ -207,10 +203,10 @@ pub fn main() !void {
     var lua = try getLuaFile(alloc);
     defer lua.deinit();
 
-    const font = Font.init(lua, alloc);
-    const grid = Grid.init(lua, alloc);
-    const keys = try Keys.init(lua, alloc);
-    const config = try Config.load(lua, keys, grid, font, alloc);
+    var font = Font.init(lua, alloc);
+    var grid = Grid.init(lua, alloc);
+    var keys = try Keys.init(lua, alloc);
+    const config = try Config.load(lua, &keys, &grid, &font, alloc);
 
     if (config.keys.search.len < 2) {
         std.log.err("Minimum two search keys have to be set\n", .{});
@@ -219,8 +215,9 @@ pub fn main() !void {
 
     const seat = try Seat.init(alloc);
     const egl = try Egl.init(alloc, display);
-
     var seto = try Seto.init(alloc, seat, egl, config);
+    var text = try Text.init(alloc, keys.search, font.family);
+    seto.config.text = &text;
     defer seto.deinit();
 
     registry.setListener(*Seto, registryListener, &seto);
@@ -241,7 +238,6 @@ pub fn main() !void {
 
     for (seto.outputs.items) |output| {
         try output.egl.makeCurrent();
-        zgl.clearColor(0, 0, 0, 0);
         zgl.clear(.{ .color = true });
         try output.egl.swapBuffers();
     }

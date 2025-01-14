@@ -21,10 +21,10 @@ pub const Mode = union(enum) {
 output_format: []const u8 = "%x,%y %wx%h\n",
 mode: Mode = .Single,
 background_color: Color,
-keys: Keys,
-font: Font,
-grid: Grid,
-text: Text = undefined,
+keys: *Keys,
+font: *Font,
+grid: *Grid,
+text: *Text = undefined,
 alloc: std.mem.Allocator,
 
 const Self = @This();
@@ -49,7 +49,7 @@ pub inline fn getLuaFile(alloc: std.mem.Allocator) !*Lua {
     return lua;
 }
 
-pub fn load(lua: *Lua, keys: Keys, grid: Grid, font: Font, alloc: std.mem.Allocator) !Self {
+pub fn load(lua: *Lua, keys: *Keys, grid: *Grid, font: *Font, alloc: std.mem.Allocator) !Self {
     _ = lua.pushString("background_color");
     _ = lua.getTable(1);
     const background_color = lua.toString(2) catch @panic("Expected hex value");

@@ -1,3 +1,0 @@
-[submodule "deps/deps/zig-cairo"]
-	path = deps/deps/zig-cairo
-	url = https://github.com/jackdbd/zig-cairo.git

@@ -1,8 +1,13 @@
 #version 450 core
 
-layout(location = 0) in vec2 in_pos;
+in vec2 in_pos;
 
-layout(std140) uniform UniformBlock { mat4 projection; };
+layout(std140) uniform UniformBlock {
+  mat4 projection;
+  vec4 startColor[2];
+  vec4 endColor[2];
+  float degrees[2];
+};
 
 out vec2 v_pos;
 

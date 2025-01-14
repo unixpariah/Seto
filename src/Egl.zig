@@ -8,9 +8,7 @@ fn glMessageCallback(_: ?*const anyopaque, source: zgl.DebugSource, err_type: zg
     std.debug.print("{} {} {} {} {s}\n", .{ source, err_type, id, severity, message });
 }
 
-const LoadContext = struct { display: c.EGLDisplay };
-
-pub fn getProcAddress(_: LoadContext, proc: [:0]const u8) ?*const anyopaque {
+pub fn getProcAddress(_: ?*const anyopaque, proc: [:0]const u8) ?*const anyopaque {
     return c.eglGetProcAddress(proc.ptr);
 }
 
@@ -128,7 +126,7 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
         context,
     ) != c.EGL_TRUE) return error.EGLError;
 
-    zgl.loadExtensions(LoadContext{ .display = egl_display }, getProcAddress) catch @panic("extensions failed to load");
+    zgl.loadExtensions(@as(?*const anyopaque, null), getProcAddress) catch @panic("extensions failed to load");
 
     zgl.enable(.blend);
     zgl.blendFunc(.src_alpha, .one_minus_src_alpha);
@@ -152,11 +150,11 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
     try compileShader(alloc, main_vertex_source, main_vertex_shader, main_shader_program);
     try compileShader(alloc, main_fragment_source, main_fragment_shader, main_shader_program);
     main_shader_program.link();
-
     if (main_shader_program.get(.link_status) == 0) {
         const info_log = main_shader_program.getCompileLog(alloc) catch @panic("TODO");
         std.log.err("{s}\n", .{info_log});
         alloc.free(info_log);
+        return error.ShaderLinkError;
     }
 
     const text_vertex_source = @embedFile("shaders/text.vert");
@@ -178,18 +176,20 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
         const info_log = text_shader_program.getCompileLog(alloc) catch @panic("TODO");
         std.log.err("{s}\n", .{info_log});
         alloc.free(info_log);
+        return error.ShaderLinkError;
     }
 
     var VAO = zgl.genVertexArray();
     VAO.bind();
-    zgl.enableVertexAttribArray(0);
+    zgl.enableVertexAttribArray(zgl.getAttribLocation(main_shader_program, "in_pos").?);
+    zgl.enableVertexAttribArray(zgl.getAttribLocation(text_shader_program, "in_pos").?);
 
     var VBO: [3]zgl.Buffer = undefined;
     zgl.genBuffers(&VBO);
 
     // Selection VBO
     VBO[1].bind(.array_buffer);
-    VBO[1].data(f32, &.{}, .dynamic_draw);
+    VBO[1].data(f32, &[1]f32{0} ** 8, .dynamic_draw);
 
     // Text VBO
     var vertices = [_]f32{

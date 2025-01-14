@@ -31,7 +31,8 @@ build() {
 	zig build \
 		--cache-dir "$(pwd)/.zig-cache" \
 		--global-cache-dir "$(pwd)/.cache" \
-		-Dcpu=baseline
+		-Dcpu=baseline \
+		-Doptimize=ReleaseSafe
 }
 
 package() {

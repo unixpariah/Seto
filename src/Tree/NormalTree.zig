@@ -282,6 +282,7 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coor
     };
 
     config.text.place(
+        config.font.size,
         path[0..matches],
         coords[0],
         coords[1],
@@ -290,8 +291,9 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coor
     );
 
     config.text.place(
+        config.font.size,
         path[matches..],
-        coords[0] + config.text.getSize(path[0..matches]),
+        coords[0] + config.text.getSize(config.font.size, path[0..matches]),
         coords[1],
         false,
         output.egl.text_shader_program,

@@ -134,7 +134,7 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coor
     if (buffer.len > matches) matches = 0;
 
     const coords = blk: {
-        const text_size = config.text.getSize(path);
+        const text_size = config.text.getSize(config.font.size, path);
         if (coordinates[0] == output.info.x and coordinates[1] == output.info.y) {
             break :blk .{ coordinates[0] + 5, coordinates[1] + 25 };
         } else if (coordinates[0] == output.info.x and coordinates[1] == output.info.y + output.info.height - 1) {
@@ -147,6 +147,7 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coor
     };
 
     config.text.place(
+        config.font.size,
         path[0..matches],
         coords[0],
         coords[1],
@@ -155,8 +156,9 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coor
     );
 
     config.text.place(
+        config.font.size,
         path[matches..],
-        coords[0] + config.text.getSize(path[0..matches]),
+        coords[0] + config.text.getSize(config.font.size, path[0..matches]),
         coords[1],
         false,
         output.egl.text_shader_program,

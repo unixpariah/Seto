@@ -86,7 +86,6 @@ pub fn cmp(_: Self, a: Self, b: Self) bool {
 
 pub fn draw(self: *const Self, config: *Config, border_mode: bool) void {
     self.egl.main_shader_program.use();
-    zgl.clearColor(0, 0, 0, 0);
     zgl.clear(.{ .color = true });
 
     self.egl.UBO.bind(.uniform_buffer);
@@ -101,7 +100,7 @@ pub fn drawBackground(self: *const Self, config: *Config) void {
     config.background_color.set(self.egl.main_shader_program);
 
     self.egl.VBO[0].bind(.array_buffer);
-    zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
+    zgl.vertexAttribPointer(zgl.getAttribLocation(self.egl.main_shader_program, "in_pos").?, 2, .float, false, 0, 0);
     zgl.drawElements(.triangles, 6, .unsigned_int, 0);
 }
 
@@ -119,7 +118,7 @@ pub fn drawSelection(self: *const Self, config: *Config) void {
 
         self.egl.gen_VBO[1].bind(.array_buffer);
         self.egl.gen_VBO[1].subData(0, f32, &vertices);
-        zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
+        zgl.vertexAttribPointer(zgl.getAttribLocation(self.egl.main_shader_program, "in_pos").?, 2, .float, false, 0, 0);
         zgl.drawArrays(.lines, 0, vertices.len >> 1);
     }
 }
@@ -130,7 +129,7 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
 
     if (border_mode) {
         self.egl.VBO[1].bind(.array_buffer);
-        zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
+        zgl.vertexAttribPointer(zgl.getAttribLocation(self.egl.main_shader_program, "in_pos").?, 2, .float, false, 0, 0);
         zgl.drawElements(.line_loop, 5, .unsigned_int, 0);
 
         return;
@@ -170,7 +169,7 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
 
     self.egl.gen_VBO[0].bind(.array_buffer);
     self.egl.gen_VBO[0].data(f32, vertices.items, .static_draw);
-    zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
+    zgl.vertexAttribPointer(zgl.getAttribLocation(self.egl.main_shader_program, "in_pos").?, 2, .float, false, 0, 0);
     zgl.drawArrays(.lines, 0, vertices.items.len >> 1);
 }
 
@@ -274,10 +273,8 @@ pub fn xdgOutputListener(
                 },
             };
 
-            const uniform_data = @as([1]@TypeOf(uniform_object), .{uniform_object});
-
             output.egl.UBO.bind(.uniform_buffer);
-            output.egl.UBO.data(@TypeOf(uniform_object), &uniform_data, .static_draw);
+            output.egl.UBO.data(@TypeOf(uniform_object), &[_]@TypeOf(uniform_object){uniform_object}, .static_draw);
             zgl.bindBufferBase(.uniform_buffer, 0, output.egl.UBO);
             zgl.uniformBlockBinding(
                 output.egl.main_shader_program,
