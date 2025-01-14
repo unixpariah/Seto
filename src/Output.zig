@@ -99,7 +99,7 @@ pub fn draw(self: *const Self, config: *Config, border_mode: bool) void {
 pub fn drawBackground(self: *const Self, config: *Config) void {
     config.background_color.set(self.egl.main_shader_program);
 
-    self.egl.VBO[0].bind(.array_buffer);
+    self.egl.background_buffer.bind(.array_buffer);
     zgl.vertexAttribPointer(zgl.getAttribLocation(self.egl.main_shader_program, "in_pos").?, 2, .float, false, 0, 0);
     zgl.drawElements(.triangles, 6, .unsigned_int, 0);
 }
@@ -128,7 +128,7 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
     config.grid.color.set(self.egl.main_shader_program);
 
     if (border_mode) {
-        self.egl.VBO[1].bind(.array_buffer);
+        self.egl.background_buffer.bind(.array_buffer);
         zgl.vertexAttribPointer(zgl.getAttribLocation(self.egl.main_shader_program, "in_pos").?, 2, .float, false, 0, 0);
         zgl.drawElements(.line_loop, 5, .unsigned_int, 0);
 
@@ -223,29 +223,13 @@ pub fn xdgOutputListener(
             output.info.height = @floatFromInt(size.height);
             output.info.width = @floatFromInt(size.width);
 
-            { // Background VBO
-                const vertices = [_]f32{
-                    output.info.x,                     output.info.y,
-                    output.info.x + output.info.width, output.info.y,
-                    output.info.x,                     output.info.y + output.info.height,
-                    output.info.x + output.info.width, output.info.y + output.info.height,
-                };
-
-                output.egl.VBO[0].bind(.array_buffer);
-                output.egl.VBO[0].data(f32, &vertices, .static_draw);
-            }
-
-            { // Border VBO
-                const vertices = [_]f32{
-                    output.info.x,                     output.info.y,
-                    output.info.x + output.info.width, output.info.y,
-                    output.info.x,                     output.info.y + output.info.height,
-                    output.info.x + output.info.width, output.info.y + output.info.height,
-                };
-
-                output.egl.VBO[1].bind(.array_buffer);
-                output.egl.VBO[1].data(f32, &vertices, .static_draw);
-            }
+            output.egl.background_buffer.bind(.array_buffer);
+            output.egl.background_buffer.data(f32, &.{
+                output.info.x,                     output.info.y,
+                output.info.x + output.info.width, output.info.y,
+                output.info.x,                     output.info.y + output.info.height,
+                output.info.x + output.info.width, output.info.y + output.info.height,
+            }, .static_draw);
 
             const uniform_object = struct {
                 projection: math.Mat4,

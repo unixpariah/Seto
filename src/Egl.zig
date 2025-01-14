@@ -21,7 +21,7 @@ pub const EglSurface = struct {
     context: *c.EGLContext,
     main_shader_program: zgl.Program,
     text_shader_program: zgl.Program,
-    VBO: [2]zgl.Buffer,
+    background_buffer: zgl.Buffer,
     gen_VBO: *[3]zgl.Buffer,
     UBO: zgl.Buffer,
 
@@ -43,7 +43,7 @@ pub const EglSurface = struct {
     }
 
     pub fn deinit(self: *EglSurface) void {
-        for (self.VBO) |VBO| VBO.delete();
+        self.background_buffer.delete();
         if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) @panic("Failed to destroy egl surface");
         self.window.destroy();
     }
@@ -202,13 +202,13 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
     VBO[2].data(f32, &vertices, .static_draw);
 
     var EBO = zgl.genBuffer();
-    var indices = [_]u3{
+    var indices = [_]u32{
         0, 1, 3,
         3, 2, 0,
     };
 
     EBO.bind(.element_array_buffer);
-    EBO.data(u3, &indices, .static_draw);
+    EBO.data(u32, &indices, .static_draw);
 
     return .{
         .display = egl_display,
@@ -232,9 +232,7 @@ pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]i32) !EglSurface 
         null,
     ) orelse return error.EGLError;
 
-    var VBO: [2]zgl.Buffer = undefined;
-    zgl.genBuffers(&VBO);
-
+    const background_buffer = zgl.genBuffer();
     const UBO = zgl.genBuffer();
 
     return .{
@@ -245,7 +243,7 @@ pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]i32) !EglSurface 
         .context = &self.context,
         .main_shader_program = self.main_shader_program,
         .text_shader_program = self.text_shader_program,
-        .VBO = VBO,
+        .background_buffer = background_buffer,
         .gen_VBO = &self.VBO,
         .UBO = UBO,
     };

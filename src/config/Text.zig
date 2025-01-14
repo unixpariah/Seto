@@ -116,7 +116,6 @@ pub fn place(self: *Self, font_size: f32, text: []const u32, x: f32, y: f32, hig
         self.index += 1;
         if (self.index == LENGTH) {
             self.renderCall(shader_program);
-            self.index = 0;
         }
     }
 }
@@ -126,6 +125,7 @@ pub fn renderCall(self: *Self, shader_program: zgl.Program) void {
     zgl.uniformMatrix4fv(shader_program.uniformLocation("transform"), false, &self.transform);
     zgl.uniform1iv(shader_program.uniformLocation("letterMap"), &self.letter_map);
     zgl.drawArraysInstanced(.triangle_strip, 0, 4, self.index);
+    self.index = 0;
 }
 
 pub fn getSize(self: *const Self, font_size: f32, text: []const u32) f32 {
