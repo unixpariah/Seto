@@ -14,6 +14,7 @@ const zxdg = wayland.client.zxdg;
 const TotalDimensions = @import("main.zig").TotalDimensions;
 const Mode = @import("Config.zig").Mode;
 const Seto = @import("main.zig").Seto;
+const State = @import("main.zig").State;
 const Config = @import("Config.zig");
 const EglSurface = @import("Egl.zig").EglSurface;
 const Tree = @import("Tree/NormalTree.zig");
@@ -41,7 +42,6 @@ alloc: mem.Allocator,
 info: OutputInfo,
 xdg_output: *zxdg.OutputV1,
 wl_output: *wl.Output,
-total_dimensions_ptr: *TotalDimensions,
 
 const Self = @This();
 
@@ -53,7 +53,6 @@ pub fn init(
     xdg_output: *zxdg.OutputV1,
     wl_output: *wl.Output,
     output_info: OutputInfo,
-    total_dimensions_ptr: *TotalDimensions,
 ) Self {
     return .{
         .egl = egl,
@@ -63,7 +62,6 @@ pub fn init(
         .info = output_info,
         .xdg_output = xdg_output,
         .wl_output = wl_output,
-        .total_dimensions_ptr = total_dimensions_ptr,
     };
 }
 
@@ -84,7 +82,7 @@ pub fn cmp(_: Self, a: Self, b: Self) bool {
     return a.info.y < b.info.y;
 }
 
-pub fn draw(self: *const Self, config: *Config, border_mode: bool) void {
+pub fn draw(self: *const Self, config: *Config, state: State) void {
     self.egl.main_shader_program.use();
     zgl.clear(.{ .color = true });
 
@@ -92,7 +90,7 @@ pub fn draw(self: *const Self, config: *Config, border_mode: bool) void {
     zgl.bindBufferBase(.uniform_buffer, 0, self.egl.UBO);
 
     self.drawBackground(config);
-    self.drawGrid(config, border_mode);
+    self.drawGrid(config, state);
     if (config.mode == .Region) self.drawSelection(config);
 }
 
@@ -123,11 +121,11 @@ pub fn drawSelection(self: *const Self, config: *Config) void {
     }
 }
 
-pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
+pub fn drawGrid(self: *const Self, config: *Config, state: State) void {
     zgl.lineWidth(config.grid.line_width);
     config.grid.color.set(self.egl.main_shader_program);
 
-    if (border_mode) {
+    if (state.border_mode) {
         self.egl.background_buffer.bind(.array_buffer);
         zgl.vertexAttribPointer(zgl.getAttribLocation(self.egl.main_shader_program, "in_pos").?, 2, .float, false, 0, 0);
         zgl.drawElements(.line_loop, 5, .unsigned_int, 0);
@@ -135,12 +133,12 @@ pub fn drawGrid(self: *const Self, config: *Config, border_mode: bool) void {
         return;
     }
 
-    const num_x_step = @ceil((self.info.x - self.total_dimensions_ptr.x - config.grid.offset[0]) / config.grid.size[0]);
-    const num_y_step = @ceil((self.info.y - self.total_dimensions_ptr.y - config.grid.offset[1]) / config.grid.size[1]);
+    const num_x_step = @ceil((self.info.x - state.total_dimensions.x - config.grid.offset[0]) / config.grid.size[0]);
+    const num_y_step = @ceil((self.info.y - state.total_dimensions.y - config.grid.offset[1]) / config.grid.size[1]);
 
     var start_pos: [2]f32 = .{
-        self.total_dimensions_ptr.x + num_x_step * config.grid.size[0] + config.grid.offset[0],
-        self.total_dimensions_ptr.y + num_y_step * config.grid.size[1] + config.grid.offset[1],
+        state.total_dimensions.x + num_x_step * config.grid.size[0] + config.grid.offset[0],
+        state.total_dimensions.y + num_y_step * config.grid.size[1] + config.grid.offset[1],
     };
 
     const vertices_count: usize = blk: {
@@ -268,12 +266,17 @@ pub fn xdgOutputListener(
 
             seto.updateDimensions();
 
+            var outputs_info = seto.alloc.alloc(OutputInfo, seto.outputs.items.len) catch @panic("");
+            defer seto.alloc.free(outputs_info);
+            for (seto.outputs.items, 0..) |o, i| {
+                outputs_info[i] = o.info;
+            }
             if (seto.trees) |*trees| {
                 trees.deinit();
-                seto.trees = Trees.init(output.alloc, &seto.config, &seto.outputs.items, &seto.state);
+                seto.trees = Trees.init(output.alloc, &seto.config, &seto.state, outputs_info);
                 return;
             }
-            seto.trees = Trees.init(output.alloc, &seto.config, &seto.outputs.items, &seto.state);
+            seto.trees = Trees.init(output.alloc, &seto.config, &seto.state, outputs_info);
         },
         else => {},
     }

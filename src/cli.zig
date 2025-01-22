@@ -5,6 +5,7 @@ const helpers = @import("helpers");
 const Config = @import("Config.zig");
 const Function = @import("config/Keys.zig").Function;
 const Color = helpers.Color;
+const allItemsMatch = helpers.allItemsMatch;
 
 const hexToRgba = helpers.hexToRgba;
 
@@ -165,7 +166,6 @@ pub fn parseArgs(config: *Config) void {
             },
 
             .@"--search-keys", .@"-s" => {
-                config.alloc.free(config.keys.search);
                 const keys_search = args.next() orelse {
                     std.log.err("Argument missing after: \"{s}\"\n", .{arg});
                     std.process.exit(1);
@@ -177,7 +177,12 @@ pub fn parseArgs(config: *Config) void {
                     buffer.append(codepoint) catch @panic("OOM");
                 }
 
-                config.keys.search = buffer.toOwnedSlice() catch @panic("OOM");
+                if (buffer.items.len < 2 or allItemsMatch(buffer.items)) {
+                    std.log.err("Minimum two different search keys have to be set\n", .{});
+                } else {
+                    config.alloc.free(config.keys.search);
+                    config.keys.search = buffer.toOwnedSlice() catch @panic("OOM");
+                }
             },
             .@"--function", .@"-F" => {
                 const key = args.next() orelse {

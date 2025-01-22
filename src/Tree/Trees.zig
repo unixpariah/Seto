@@ -4,19 +4,22 @@ const BorderTree = @import("BorderTree.zig");
 const NormalTree = @import("NormalTree.zig");
 const Config = @import("../Config.zig");
 const Output = @import("../Output.zig");
+const OutputInfo = @import("../Output.zig").OutputInfo;
 const State = @import("../main.zig").State;
 
 const Self = @This();
 
 state_ptr: *State,
+config_ptr: *Config,
 border_tree: BorderTree,
 normal_tree: NormalTree,
 
-pub fn init(alloc: std.mem.Allocator, config: *Config, outputs: *const []Output, state_ptr: *State) Self {
+pub fn init(alloc: std.mem.Allocator, config: *Config, state_ptr: *State, outputs: []OutputInfo) Self {
     return .{
         .state_ptr = state_ptr,
-        .border_tree = BorderTree.init(alloc, config, outputs),
-        .normal_tree = NormalTree.init(alloc, config, outputs),
+        .config_ptr = config,
+        .border_tree = BorderTree.init(alloc, config.keys.search, config, outputs),
+        .normal_tree = NormalTree.init(alloc, config.keys.search, config, state_ptr.total_dimensions),
     };
 }
 
@@ -25,8 +28,8 @@ pub fn move(self: *Self, value: [2]f32) void {
 
     // This is a bit hacky and wasteful but implementing it correctly would be very annoying
     // and not worth it considering most likely nobody will move sideways
-    self.normal_tree.move(.{ value[0], 0 });
-    self.normal_tree.move(.{ 0, value[1] });
+    self.normal_tree.move(.{ value[0], 0 }, self.state_ptr.total_dimensions);
+    self.normal_tree.move(.{ 0, value[1] }, self.state_ptr.total_dimensions);
 }
 
 pub fn resize(self: *Self, value: [2]f32) void {
@@ -34,8 +37,8 @@ pub fn resize(self: *Self, value: [2]f32) void {
 
     // This is a bit hacky and wasteful but implementing it correctly would be very annoying
     // and not worth it considering most likely nobody will resize sideways
-    self.normal_tree.resize(.{ value[0], 0 });
-    self.normal_tree.resize(.{ 0, value[1] });
+    self.normal_tree.resize(.{ value[0], 0 }, self.state_ptr.total_dimensions);
+    self.normal_tree.resize(.{ 0, value[1] }, self.state_ptr.total_dimensions);
 }
 
 pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
@@ -43,7 +46,7 @@ pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
 }
 
 pub fn updateCoordinates(self: *Self) void {
-    self.normal_tree.updateCoordinates();
+    self.normal_tree.updateCoordinates(self.state_ptr.total_dimensions);
     self.border_tree.updateCoordinates();
 }
 

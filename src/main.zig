@@ -166,7 +166,7 @@ pub const Seto = struct {
 
             _ = c.eglSwapInterval(output.egl.display.*, 0);
 
-            output.draw(&self.config, self.state.border_mode);
+            output.draw(&self.config, self.state);
             self.trees.?.drawText(output, self.state.buffer.items);
 
             try output.egl.swapBuffers();
@@ -207,11 +207,6 @@ pub fn main() !void {
     var grid = Grid.init(lua, alloc);
     var keys = try Keys.init(lua, alloc);
     const config = try Config.load(lua, &keys, &grid, &font, alloc);
-
-    if (config.keys.search.len < 2) {
-        std.log.err("Minimum two search keys have to be set\n", .{});
-        std.process.exit(1);
-    }
 
     const seat = try Seat.init(alloc);
     const egl = try Egl.init(alloc, display);
@@ -317,7 +312,6 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                         xdg_output,
                         wl_output,
                         OutputInfo{ .id = global.name },
-                        &seto.state.total_dimensions,
                     );
 
                     seto.outputs.append(output) catch @panic("OOM");

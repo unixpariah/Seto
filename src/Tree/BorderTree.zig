@@ -13,49 +13,45 @@ children: []Node,
 keys: []const u32,
 depth: usize,
 arena: std.heap.ArenaAllocator,
-total_dimensions: *TotalDimensions,
 config_ptr: *Config,
-outputs_ptr: *const []Output,
 
 const Self = @This();
 
-pub fn init(alloc: std.mem.Allocator, config: *Config, outputs: *const []Output) Self {
+pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *Config, outputs: []OutputInfo) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
-    const nodes = arena.allocator().alloc(Node, config.keys.search.len) catch @panic("OOM");
-    for (config.keys.search, 0..) |key, i| nodes[i] = Node{ .key = key };
+    const nodes = arena.allocator().alloc(Node, search_keys.len) catch @panic("OOM");
+    for (search_keys, 0..) |key, i| nodes[i] = Node{ .key = key };
 
     var tree = Self{
         .children = nodes,
-        .keys = config.keys.search,
+        .keys = search_keys,
         .depth = 1,
         .arena = arena,
-        .total_dimensions = outputs.*[0].total_dimensions_ptr,
         .config_ptr = config,
-        .outputs_ptr = outputs,
     };
 
-    tree.updateCoordinates();
+    tree.updateCoordinates(outputs);
 
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self) void {
-    const total_intersections: usize = self.outputs_ptr.len * 4;
+pub fn updateCoordinates(self: *Self, outputs: []OutputInfo) void {
+    const total_intersections: usize = outputs.len * 4;
 
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections) catch @panic("OOM");
     defer intersections.deinit();
 
-    for (self.outputs_ptr.*) |output| {
+    for (outputs) |output| {
         intersections.appendSliceAssumeCapacity(&[_][2]f32{
-            .{ output.info.x, output.info.y },
-            .{ output.info.x, output.info.y + output.info.height - 1 },
-            .{ output.info.x + output.info.width - 1, output.info.y },
-            .{ output.info.x + output.info.width - 1, output.info.y + output.info.height - 1 },
+            .{ output.x, output.y },
+            .{ output.x, output.y + output.height - 1 },
+            .{ output.x + output.width - 1, output.y },
+            .{ output.x + output.width - 1, output.y + output.height - 1 },
         });
     }
 
     const depth: usize = depth: {
-        const depth = std.math.log(f32, @floatFromInt(self.config_ptr.keys.search.len), @floatFromInt(intersections.items.len));
+        const depth = std.math.log(f32, @floatFromInt(self.keys.len), @floatFromInt(intersections.items.len));
         break :depth @intFromFloat(@ceil(depth));
     };
 
@@ -66,7 +62,7 @@ pub fn updateCoordinates(self: *Self) void {
     }
 
     var char_size: f32 = 0;
-    for (self.config_ptr.keys.search) |key| {
+    for (self.keys) |key| {
         const char = self.config_ptr.text.char_info[key];
 
         const scale = self.config_ptr.font.size / 256.0;

@@ -2,6 +2,16 @@ const std = @import("std");
 const zgl = @import("zgl");
 const Lua = @import("ziglua").Lua;
 
+pub fn allItemsMatch(list: []u32) bool {
+    if (list.len == 0) return true;
+
+    const first = list[0];
+    for (list[1..]) |item| {
+        if (item != first) return false;
+    }
+    return true;
+}
+
 pub const Color = struct {
     deg: f32,
     start_color: [4]f32,

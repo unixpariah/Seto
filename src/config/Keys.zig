@@ -3,6 +3,7 @@ const c = @import("ffi");
 
 const Lua = @import("ziglua").Lua;
 const Font = @import("Font.zig");
+const helpers = @import("helpers");
 
 bindings: std.AutoHashMap(u32, Function),
 search: []u32,
@@ -39,7 +40,6 @@ pub fn init(lua: *Lua, alloc: std.mem.Allocator) !Self {
     _ = lua.pushString("search");
     _ = lua.getTable(2);
     if (lua.isString(3)) {
-        alloc.free(keys_s.search);
         const keys = try lua.toString(3);
         const utf8_view = try std.unicode.Utf8View.init(keys);
 
@@ -49,7 +49,12 @@ pub fn init(lua: *Lua, alloc: std.mem.Allocator) !Self {
             try buffer.append(codepoint);
         }
 
-        keys_s.search = try buffer.toOwnedSlice();
+        if (buffer.items.len < 2 or helpers.allItemsMatch(buffer.items)) {
+            std.log.err("Minimum two different search keys have to be set\n", .{});
+        } else {
+            alloc.free(keys_s.search);
+            keys_s.search = try buffer.toOwnedSlice();
+        }
     }
     lua.pop(1);
 
