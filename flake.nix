@@ -49,12 +49,18 @@
             scdoc
             zig.packages.${system}."0.13.0"
             zls.packages.${system}.default
+            nixd
+            nixfmt-rfc-style
           ];
         };
       });
 
-      packages = forAllSystems (pkgs: {
-        default = pkgs.callPackage ./nix/package.nix { };
+      packages = forAllSystems (pkgs: rec {
+        default = safe;
+        safe = pkgs.callPackage ./nix/package.nix { build = "ReleaseSafe"; };
+        debug = pkgs.callPackage ./nix/package.nix { build = "Debug"; };
+        fast = pkgs.callPackage ./nix/package.nix { build = "ReleaseFast"; };
+        small = pkgs.callPackage ./nix/package.nix { build = "ReleaseSmall"; };
       });
 
       homeManagerModules = {

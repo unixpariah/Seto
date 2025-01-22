@@ -28,8 +28,8 @@ pub fn move(self: *Self, value: [2]f32) void {
 
     // This is a bit hacky and wasteful but implementing it correctly would be very annoying
     // and not worth it considering most likely nobody will move sideways
-    self.normal_tree.move(.{ value[0], 0 }, self.state_ptr.total_dimensions);
-    self.normal_tree.move(.{ 0, value[1] }, self.state_ptr.total_dimensions);
+    self.normal_tree.move(.{ value[0], 0 }, self.state_ptr.total_dimensions, self.config_ptr);
+    self.normal_tree.move(.{ 0, value[1] }, self.state_ptr.total_dimensions, self.config_ptr);
 }
 
 pub fn resize(self: *Self, value: [2]f32) void {
@@ -37,8 +37,8 @@ pub fn resize(self: *Self, value: [2]f32) void {
 
     // This is a bit hacky and wasteful but implementing it correctly would be very annoying
     // and not worth it considering most likely nobody will resize sideways
-    self.normal_tree.resize(.{ value[0], 0 }, self.state_ptr.total_dimensions);
-    self.normal_tree.resize(.{ 0, value[1] }, self.state_ptr.total_dimensions);
+    self.normal_tree.resize(.{ value[0], 0 }, self.state_ptr.total_dimensions, self.config_ptr);
+    self.normal_tree.resize(.{ 0, value[1] }, self.state_ptr.total_dimensions, self.config_ptr);
 }
 
 pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
@@ -51,7 +51,10 @@ pub fn updateCoordinates(self: *Self) void {
 }
 
 pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
-    if (self.state_ptr.border_mode) self.border_tree.drawText(output, buffer) else self.normal_tree.drawText(output, buffer);
+    if (self.state_ptr.border_mode)
+        self.border_tree.drawText(output, buffer, self.config_ptr)
+    else
+        self.normal_tree.drawText(output, buffer, self.config_ptr);
 }
 
 pub fn deinit(self: *const Self) void {

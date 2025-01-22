@@ -10,7 +10,7 @@ const OutputInfo = @import("../Output.zig").OutputInfo;
 const TotalDimensions = @import("../main.zig").TotalDimensions;
 
 children: []Node,
-keys: []const u32,
+search_keys: []const u32,
 depth: usize,
 arena: std.heap.ArenaAllocator,
 config_ptr: *Config,
@@ -24,18 +24,18 @@ pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *Config, outpu
 
     var tree = Self{
         .children = nodes,
-        .keys = search_keys,
+        .search_keys = search_keys,
         .depth = 1,
         .arena = arena,
         .config_ptr = config,
     };
 
-    tree.updateCoordinates(outputs);
+    tree.updateCoordinates(outputs, config);
 
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self, outputs: []OutputInfo) void {
+pub fn updateCoordinates(self: *Self, outputs: []OutputInfo, config: *Config) void {
     const total_intersections: usize = outputs.len * 4;
 
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections) catch @panic("OOM");
@@ -51,7 +51,7 @@ pub fn updateCoordinates(self: *Self, outputs: []OutputInfo) void {
     }
 
     const depth: usize = depth: {
-        const depth = std.math.log(f32, @floatFromInt(self.keys.len), @floatFromInt(intersections.items.len));
+        const depth = std.math.log(f32, @floatFromInt(self.search_keys.len), @floatFromInt(intersections.items.len));
         break :depth @intFromFloat(@ceil(depth));
     };
 
@@ -62,10 +62,10 @@ pub fn updateCoordinates(self: *Self, outputs: []OutputInfo) void {
     }
 
     var char_size: f32 = 0;
-    for (self.keys) |key| {
-        const char = self.config_ptr.text.char_info[key];
+    for (self.search_keys) |key| {
+        const char = config.text.char_info[key];
 
-        const scale = self.config_ptr.font.size / 256.0;
+        const scale = config.font.size / 256.0;
 
         const final_size = char.advance[0] * scale;
 
@@ -73,7 +73,7 @@ pub fn updateCoordinates(self: *Self, outputs: []OutputInfo) void {
     }
 
     const depth_f: f32 = @floatFromInt(depth);
-    self.config_ptr.grid.min_size = char_size * (depth_f + 1) + self.config_ptr.font.offset[0];
+    config.grid.min_size = char_size * (depth_f + 1) + config.font.offset[0];
 
     var index: usize = 0;
     for (self.children) |*child| {
@@ -96,7 +96,7 @@ pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
+pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *Config) void {
     output.egl.text_shader_program.use();
     output.egl.gen_VBO[2].bind(.array_buffer);
     zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
@@ -105,12 +105,12 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.drawText(self.config_ptr, path, 1, output, buffer);
+            child.drawText(config, path, 1, output, buffer);
         } else {
             if (child.coordinates) |coordinates| {
                 renderText(
                     output,
-                    self.config_ptr,
+                    config,
                     buffer,
                     path,
                     coordinates,
@@ -119,7 +119,7 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
         }
     }
 
-    self.config_ptr.text.renderCall(output.egl.text_shader_program);
+    config.text.renderCall(output.egl.text_shader_program);
 }
 
 fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
@@ -164,7 +164,7 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coor
 fn increaseDepth(self: *Self) void {
     self.depth += 1;
     for (self.children) |*child| {
-        child.increaseDepth(self.keys, self.arena.allocator());
+        child.increaseDepth(self.search_keys, self.arena.allocator());
     }
 }
 
