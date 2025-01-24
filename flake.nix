@@ -51,6 +51,7 @@
             zls.packages.${system}.default
             nixd
             nixfmt-rfc-style
+            #(callPackage ./nix/dawn.nix { })
           ];
         };
       });

@@ -6,7 +6,7 @@ layout(std140) uniform UniformBlock {
   mat4 projection;
   vec4 startColor[2];
   vec4 endColor[2];
-  float degrees[2];
+  vec4 degrees[2];
 };
 
 uniform mat4 transform[400];
@@ -31,5 +31,6 @@ void main() {
 
   vs_out.startColor = startColor;
   vs_out.endColor = endColor;
-  vs_out.degrees = degrees;
+  vs_out.degrees[0] = degrees[0].x;
+  vs_out.degrees[1] = degrees[1].x;
 }

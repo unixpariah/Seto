@@ -1,11 +1,11 @@
 {
   git,
-  nodejs_23,
+  nodejs,
   lib,
   stdenv,
   pkg-config,
   fetchFromGitHub,
-  python3,
+  python313,
   cmake,
   ninja,
   xorg,
@@ -26,8 +26,9 @@ let
     rev = "master";
     sha256 = "19al214l3badsm1kgb9gpjp5v7m07z6slkph4ma1bnnivrjpqfrl";
   };
+
 in
-stdenv.mkDerivation rec {
+stdenv.mkDerivation {
   pname = "libdawn";
   version = "0.1.0";
 
@@ -40,10 +41,13 @@ stdenv.mkDerivation rec {
   };
 
   nativeBuildInputs = [
-    python3
+    python313
     cmake
     ninja
     git
+    pkg-config
+    python313Packages.jinja2
+    nodejs
   ];
 
   buildInputs = [
@@ -54,40 +58,57 @@ stdenv.mkDerivation rec {
     glfw
     vulkan-headers
     vulkan-utility-libraries
-
-    python313Packages.jinja2
-    pkg-config
-    nodejs_23
+    xorg.libX11
     xorg.libXcursor
     xorg.libXrandr
     xorg.libXinerama
     xorg.libxcb
   ];
 
-  patchPhase = ''
-    mkdir -p /build/source/third_party/khronos/OpenGL-Registry/xml
-    cp ${openGLRegistry}/xml/gl.xml /build/source/third_party/khronos/OpenGL-Registry/xml
+  patches = [
+  ];
+
+  postPatch = ''
+    mkdir -p third_party/khronos/OpenGL-Registry/xml
+    cp ${openGLRegistry}/xml/gl.xml third_party/khronos/OpenGL-Registry/xml
   '';
+
+  cmakeFlags = [
+    "-DCMAKE_BUILD_TYPE=Release"
+    "-DDAWN_ENABLE_PIC=ON"
+    "-DDAWN_BUILD_EXAMPLES=OFF"
+    "-DDAWN_ENABLE_STATIC=OFF"
+    "-DDAWN_USE_X11=ON"
+    "-DDAWN_USE_SYSTEM_ABSEIL=ON"
+    "-DDAWN_USE_SYSTEM_SPIRV_HEADERS=ON"
+    "-DDAWN_USE_SYSTEM_SPIRV_TOOLS=ON"
+    "-DDAWN_USE_SYSTEM_GLSLANG=ON"
+    "-DDAWN_USE_SYSTEM_GLFW=ON"
+    "-DDAWN_USE_SYSTEM_VULKAN_HEADERS=ON"
+    "-DDAWN_USE_SYSTEM_VULKAN_UTILITY_LIBRARIES=ON"
+  ];
 
   buildPhase = ''
-    mkdir -p out/Debug
-    cd out/Debug
-    cmake -GNinja ../..
+    runHook preBuild
+    mkdir -p out/Release && cd out/Release
+    cmake -GNinja ../.. \
+      -DCMAKE_INSTALL_PREFIX=$out \
+      ''${cmakeFlags.join(" ")}
     ninja
+    runHook postBuild
   '';
 
-  #installPhase = ''
-  #  mkdir -p $out/lib
-  #  cp *.so* $out/lib/
-  #  mkdir -p $out/include
-  #  cp -r ../../src/include/* $out/include/
-  #'';
+  installPhase = ''
+    runHook preInstall
+    ninja install
+    runHook postInstall
+  '';
 
   meta = with lib; {
     description = "Native WebGPU implementation";
     homepage = "https://github.com/google/dawn";
     license = licenses.bsd3;
     maintainers = with maintainers; [ unixpariah ];
-    platforms = platforms.all;
+    platforms = platforms.linux;
   };
 }
