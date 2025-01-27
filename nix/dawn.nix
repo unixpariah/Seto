@@ -26,7 +26,6 @@ let
     rev = "master";
     sha256 = "19al214l3badsm1kgb9gpjp5v7m07z6slkph4ma1bnnivrjpqfrl";
   };
-
 in
 stdenv.mkDerivation {
   pname = "libdawn";
@@ -79,13 +78,6 @@ stdenv.mkDerivation {
     "-DDAWN_BUILD_EXAMPLES=OFF"
     "-DDAWN_ENABLE_STATIC=OFF"
     "-DDAWN_USE_X11=ON"
-    "-DDAWN_USE_SYSTEM_ABSEIL=ON"
-    "-DDAWN_USE_SYSTEM_SPIRV_HEADERS=ON"
-    "-DDAWN_USE_SYSTEM_SPIRV_TOOLS=ON"
-    "-DDAWN_USE_SYSTEM_GLSLANG=ON"
-    "-DDAWN_USE_SYSTEM_GLFW=ON"
-    "-DDAWN_USE_SYSTEM_VULKAN_HEADERS=ON"
-    "-DDAWN_USE_SYSTEM_VULKAN_UTILITY_LIBRARIES=ON"
   ];
 
   buildPhase = ''
@@ -109,6 +101,6 @@ stdenv.mkDerivation {
     homepage = "https://github.com/google/dawn";
     license = licenses.bsd3;
     maintainers = with maintainers; [ unixpariah ];
-    platforms = platforms.linux;
+    platforms = platforms.linux; # Adjust if cross-platform
   };
 }

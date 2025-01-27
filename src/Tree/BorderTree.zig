@@ -63,7 +63,7 @@ pub fn updateCoordinates(self: *Self, outputs: []OutputInfo, config: *Config) vo
 
     var char_size: f32 = 0;
     for (self.search_keys) |key| {
-        const char = config.text.char_info[key];
+        const char = config.text.atlas.char_info.get(key) orelse continue;
 
         const scale = config.font.size / 256.0;
 
@@ -122,24 +122,48 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *Config) vo
     config.text.renderCall(output.egl.text_shader_program);
 }
 
-fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
-    var matches: u8 = 0;
-    for (buffer, 0..) |char, i| {
-        if (path[i] == char) matches += 1 else break;
+const Position = enum {
+    top_left,
+    bottom_left,
+    top_right,
+    bottom_right,
+    other,
+
+    pub fn from(info: OutputInfo, coords: [2]f32) Position {
+        const epsilon: f32 = 0.1;
+        const is_left = @abs(coords[0] - info.x) < epsilon;
+        const is_right = @abs(coords[0] - (info.x + info.width - 1)) < epsilon;
+        const is_top = @abs(coords[1] - info.y) < epsilon;
+        const is_bottom = @abs(coords[1] - (info.y + info.height - 1)) < epsilon;
+
+        return if (is_left and is_top) .top_left else if (is_left and is_bottom) .bottom_left else if (is_right and is_top) .top_right else if (is_right and is_bottom) .bottom_right else .other;
     }
-    if (buffer.len > matches) matches = 0;
+};
+
+fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
+    const matches: usize = blk: {
+        const min_len = @min(buffer.len, path.len);
+        var count: usize = 0;
+        while (count < min_len and buffer[count] == path[count]) : (count += 1) {}
+        break :blk if (buffer.len > count) 0 else count;
+    };
+
+    const PADDING_X: f32 = 5;
+    const PADDING_Y_TOP: f32 = 25;
+    const PADDING_Y_BOTTOM: f32 = 15;
+    const TEXT_OFFSET: f32 = 15;
 
     const coords = blk: {
         const text_size = config.text.getSize(config.font.size, path);
-        if (coordinates[0] == output.info.x and coordinates[1] == output.info.y) {
-            break :blk .{ coordinates[0] + 5, coordinates[1] + 25 };
-        } else if (coordinates[0] == output.info.x and coordinates[1] == output.info.y + output.info.height - 1) {
-            break :blk .{ coordinates[0] + 5, coordinates[1] - 15 };
-        } else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y) {
-            break :blk .{ coordinates[0] - 15 - text_size, coordinates[1] + 25 };
-        } else if (coordinates[0] == output.info.x + output.info.width - 1 and coordinates[1] == output.info.y + output.info.height - 1) {
-            break :blk .{ coordinates[0] - 15 - text_size, coordinates[1] - 15 };
-        } else return;
+        const pos = Position.from(output.info, coordinates);
+
+        break :blk switch (pos) {
+            .top_left => .{ coordinates[0] + PADDING_X, coordinates[1] + PADDING_Y_TOP },
+            .bottom_left => .{ coordinates[0] + PADDING_X, coordinates[1] - PADDING_Y_BOTTOM },
+            .top_right => .{ coordinates[0] - TEXT_OFFSET - text_size, coordinates[1] + PADDING_Y_TOP },
+            .bottom_right => .{ coordinates[0] - TEXT_OFFSET - text_size, coordinates[1] - PADDING_Y_BOTTOM },
+            .other => return,
+        };
     };
 
     config.text.place(

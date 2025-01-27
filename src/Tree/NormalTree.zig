@@ -72,7 +72,7 @@ pub fn updateCoordinates(self: *Self, total_dimensions: TotalDimensions, config:
 
     var char_size: f32 = 0;
     for (self.keys) |key| {
-        const char = config.text.char_info[key];
+        const char = config.text.atlas.char_info.get(key) orelse continue;
 
         const scale = config.font.size / 256.0;
 
@@ -264,11 +264,12 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *Config) vo
 }
 
 fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
-    var matches: u8 = 0;
-    for (buffer, 0..) |char, i| {
-        if (path[i] == char) matches += 1 else break;
-    }
-    if (buffer.len > matches) matches = 0;
+    const matches: usize = blk: {
+        const min_len = @min(buffer.len, path.len);
+        var count: usize = 0;
+        while (count < min_len and buffer[count] == path[count]) : (count += 1) {}
+        break :blk if (buffer.len > count) 0 else count;
+    };
 
     const coords = .{
         coordinates[0] + config.font.offset[0],

@@ -130,6 +130,7 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
 
     zgl.enable(.blend);
     zgl.blendFunc(.src_alpha, .one_minus_src_alpha);
+    zgl.enable(.multisample);
 
     if (@import("builtin").mode == .Debug) {
         zgl.enable(.debug_output);

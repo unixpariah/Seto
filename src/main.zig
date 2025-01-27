@@ -70,7 +70,14 @@ pub const Seto = struct {
 
     const Self = @This();
 
-    fn init(alloc: mem.Allocator, seat: Seat, egl: Egl, config: Config) !Self {
+    fn init(alloc: mem.Allocator, registry: *wl.Registry, seat: Seat, egl: Egl, config: Config) !Self {
+        _ = registry;
+        //const compositor = registry.bind(
+        //    global.name,
+        //    wl.Compositor,
+        //    wl.Compositor.generated_version,
+        //) catch @panic("Failed to bind wl_compositor");
+
         return Seto{
             .seat = seat,
             .outputs = std.ArrayList(Output).init(alloc),
@@ -210,7 +217,7 @@ pub fn main() !void {
 
     const seat = try Seat.init(alloc);
     const egl = try Egl.init(alloc, display);
-    var seto = try Seto.init(alloc, seat, egl, config);
+    var seto = try Seto.init(alloc, registry, seat, egl, config);
     var text = try Text.init(alloc, keys.search, font.family);
     seto.config.text = &text;
     defer seto.deinit();

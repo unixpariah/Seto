@@ -16,8 +16,8 @@
             .hash = "12200989a0e5c5d8186dd16752e3d83d914d4f54ecca7b3e147443f13a9580ede671",
         },
         .zgl = .{
-            .url = "https://github.com/unixpariah/zgl/archive/620612a10569cda8153dafd454ef016dd0a6bcff.tar.gz",
-            .hash = "12203a12cd14d69f6c495e3968640be4770740f8f332993af7987b75b9a490db96f2",
+            .url = "https://github.com/ziglibs/zgl/archive/d8b25ff8e73de9e3540ee85481981e9ef7ce191b.tar.gz",
+            .hash = "12205cfce3b6a70f152447e39f6f74a4a5f3ccd6abca33ea6aaadb675797dc3329e9",
         },
     },
 }

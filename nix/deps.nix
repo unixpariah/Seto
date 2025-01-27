@@ -18,17 +18,17 @@ linkFarm "zig-packages" [
     };
   }
   {
-    name = "12203a12cd14d69f6c495e3968640be4770740f8f332993af7987b75b9a490db96f2";
-    path = fetchzip {
-      url = "https://github.com/unixpariah/zgl/archive/620612a10569cda8153dafd454ef016dd0a6bcff.tar.gz";
-      hash = "sha256-8zk8rN6N4EzekQZcsYPEojwInLKQq8fHD7khusd5D6w=";
-    };
-  }
-  {
     name = "12203fe1feebb81635f8df5a5a7242733e441fe3f3043989c8e6b4d6720e96988813";
     path = fetchzip {
       url = "https://github.com/natecraddock/lua/archive/refs/tags/5.1.5-1.tar.gz";
       hash = "sha256-/dh0sAmiHH/lP6aQq3MYXeHntwXONKPqeV9k4hhsVso=";
+    };
+  }
+  {
+    name = "12205cfce3b6a70f152447e39f6f74a4a5f3ccd6abca33ea6aaadb675797dc3329e9";
+    path = fetchzip {
+      url = "https://github.com/ziglibs/zgl/archive/d8b25ff8e73de9e3540ee85481981e9ef7ce191b.tar.gz";
+      hash = "sha256-/ffwl51wCaQwXcJslzsS+1ZFF3025Wf0Qr0PjXQmsOQ=";
     };
   }
   {

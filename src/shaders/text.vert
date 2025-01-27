@@ -13,7 +13,7 @@ uniform mat4 transform[400];
 
 out VS_OUT {
   vec2 pos;
-  vec2 texCoords;
+  highp vec2 texCoords;
   flat int index;
   vec4 startColor[2];
   vec4 endColor[2];

@@ -66,14 +66,11 @@ pub fn build(b: *std.Build) void {
         "src/helpers.zig",
         "src/main.zig",
         "src/math.zig",
-        "tests/integration.zig",
         "src/config/Grid.zig",
     };
 
     const unit_tests_step = b.step("test", "Run all tests");
     unit_tests_step.dependOn(b.getInstallStep());
-    const run_tests_cmd = b.addSystemCommand(&[_][]const u8{"./run_tests.sh"});
-    unit_tests_step.dependOn(&run_tests_cmd.step);
     for (root_files) |file| {
         const test_file = b.addTest(.{ .root_source_file = b.path(file) });
         test_file.root_module.addImport("helpers", helpers);

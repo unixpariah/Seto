@@ -8,27 +8,27 @@ const Config = @import("../Config.zig");
 const Color = @import("helpers").Color;
 const Font = @import("Font.zig");
 
-const LENGTH: comptime_int = 400;
+const LENGTH = 400;
 
-char_info: []Character,
+atlas: FontAtlas,
 letter_map: [LENGTH]i32,
 transform: [LENGTH]math.Mat4,
 color_index: [LENGTH]i32,
 alloc: std.mem.Allocator,
 index: u32,
-texture_array: zgl.Texture,
 
 const Self = @This();
 
 pub fn init(alloc: std.mem.Allocator, search_keys: []const u32, font_family: [:0]const u8) !Self {
-    var ft: c.FT_Library = null;
-    errdefer _ = c.FT_Done_FreeType(ft);
-    if (c.FT_Init_FreeType(&ft) == 1) {
-        return error.FreeTypeInitError;
+    var ft: c.FT_Library = undefined;
+    if (c.FT_Init_FreeType(&ft) != 0) return error.FreeTypeInitError;
+    errdefer {
+        if (ft != null) _ = c.FT_Done_FreeType(ft);
     }
 
-    if (c.FcInit() != c.FcTrue) return error.FontParseError;
-    defer c.FcFini();
+    const fc_initialized = c.FcInit() == c.FcTrue;
+    defer if (fc_initialized) c.FcFini();
+    if (!fc_initialized) return error.FontParseError;
 
     const config_fc = c.FcInitLoadConfigAndFonts() orelse return error.FontParseError;
     defer c.FcConfigDestroy(config_fc);
@@ -42,7 +42,7 @@ pub fn init(alloc: std.mem.Allocator, search_keys: []const u32, font_family: [:0
     c.FcDefaultSubstitute(pattern);
 
     var result: c.FcResult = undefined;
-    const match = c.FcFontMatch(config_fc, pattern, &result) orelse return error.FontParseError;
+    const match = c.FcFontMatch(config_fc, pattern, &result) orelse return error.FontMatchFailed;
     defer c.FcPatternDestroy(match);
     if (result != c.FcResultMatch) return error.FontParseError;
 
@@ -52,50 +52,27 @@ pub fn init(alloc: std.mem.Allocator, search_keys: []const u32, font_family: [:0
     }
 
     var face: c.FT_Face = null;
-    if (c.FT_New_Face(ft, font_path orelse return error.MemoryError, 0, &face) == 1) {
+    if (c.FT_New_Face(ft, font_path, 0, &face) != 0) {
         return error.FontLoadError;
     }
     defer _ = c.FT_Done_Face(face);
 
-    if (c.FT_Set_Pixel_Sizes(face, 256, 256) == 1) {
+    if (c.FT_Set_Pixel_Sizes(face, 256, 256) != 0) {
         return error.FontSizeError;
     }
 
-    zgl.pixelStore(.unpack_alignment, 1);
-
-    var texture_array = zgl.genTexture();
-    errdefer texture_array.delete();
-    zgl.activeTexture(.texture_0);
-    texture_array.bind(.@"2d_array");
-    zgl.textureImage3D(.@"2d_array", 0, .r8, 256, 256, search_keys.len, .red, .unsigned_byte, null);
-
-    var max_char = search_keys[0];
-    for (search_keys) |char| {
-        if (char > max_char) max_char = char;
-    }
-
-    var char_info = try alloc.alloc(Character, max_char + 1);
-    errdefer alloc.free(char_info);
-
-    @memset(char_info, std.mem.zeroes(Character));
-
-    for (search_keys, 0..) |key, i| {
-        char_info[key] = Character.init(face, key, @intCast(i));
-    }
-
-    const letter_map = [_]i32{0} ** LENGTH;
-    const transform = [_]math.Mat4{math.mat4()} ** LENGTH;
-    const color_index = [_]i32{0} ** LENGTH;
-
     return .{
-        .letter_map = letter_map,
-        .transform = transform,
-        .char_info = char_info,
-        .color_index = color_index,
+        .letter_map = [_]i32{0} ** LENGTH,
+        .transform = [_]math.Mat4{math.mat4()} ** LENGTH,
+        .color_index = [_]i32{0} ** LENGTH,
         .alloc = alloc,
         .index = 0,
-        .texture_array = texture_array,
+        .atlas = try FontAtlas.init(alloc, face, search_keys),
     };
+}
+
+pub fn deinit(self: *Self) void {
+    self.atlas.deinit();
 }
 
 pub fn place(self: *Self, font_size: f32, text: []const u32, x: f32, y: f32, highlight: bool, shader_program: zgl.Program) void {
@@ -103,7 +80,7 @@ pub fn place(self: *Self, font_size: f32, text: []const u32, x: f32, y: f32, hig
 
     var move: f32 = 0;
     for (text) |char| {
-        const ch = self.char_info[char];
+        const ch = self.atlas.char_info.get(char) orelse continue;
 
         const x_pos = x + ch.bearing[0] * font_size / 256.0 + move;
         const y_pos = y - ch.bearing[1] * font_size / 256.0;
@@ -114,9 +91,7 @@ pub fn place(self: *Self, font_size: f32, text: []const u32, x: f32, y: f32, hig
 
         move += ch.advance[0] * font_size / 256.0;
         self.index += 1;
-        if (self.index == LENGTH) {
-            self.renderCall(shader_program);
-        }
+        if (self.index >= LENGTH) self.renderCall(shader_program);
     }
 }
 
@@ -134,7 +109,7 @@ pub fn getSize(self: *const Self, font_size: f32, text: []const u32) f32 {
     const scale = font_size / 256.0;
     var move: f32 = 0;
     for (text) |char| {
-        const ch = self.char_info[char];
+        const ch = self.atlas.char_info.get(char) orelse continue;
 
         move += ch.advance[0] * scale;
     }
@@ -142,20 +117,93 @@ pub fn getSize(self: *const Self, font_size: f32, text: []const u32) f32 {
     return move;
 }
 
-pub fn deinit(self: *Self) void {
-    self.alloc.free(self.char_info);
-}
+const FontAtlas = struct {
+    char_info: std.AutoHashMap(u32, Character),
+    texture_array: zgl.Texture,
+
+    fn init(alloc: std.mem.Allocator, face: c.FT_Face, keys: []const u32) !FontAtlas {
+        zgl.pixelStore(.unpack_alignment, 1);
+
+        var texture_array = zgl.genTexture();
+        zgl.activeTexture(.texture_0);
+        texture_array.bind(.@"2d_array");
+
+        const padding = 4;
+
+        var max_width: usize = 0;
+        var max_height: usize = 0;
+        for (keys) |key| {
+            const size = try Character.size(face, key, padding);
+            max_width = @max(max_width, size[0]);
+            max_height = @max(max_height, size[1]);
+        }
+
+        zgl.texStorage3D(.@"2d_array", 5, .r8, @max(max_height, max_width), @max(max_height, max_width), keys.len);
+
+        var char_info = std.AutoHashMap(u32, Character).init(alloc);
+        for (keys, 0..) |key, i| {
+            if (key > 0x10FFFF) return error.InvalidUnicodeCodepoint;
+            if (key >= 0xD800 and key <= 0xDFFF) return error.SurrogateCodepoint;
+
+            try char_info.put(key, try Character.init(face, key, @intCast(i), padding));
+        }
+
+        zgl.generateMipmap(.@"2d_array");
+
+        return .{
+            .char_info = char_info,
+            .texture_array = texture_array,
+        };
+    }
+
+    pub fn deinit(self: *FontAtlas) void {
+        self.char_info.deinit();
+        self.texture_array.delete();
+    }
+};
 
 pub const Character = struct {
-    texture_id: u8,
+    texture_id: u16,
     size: [2]f32,
     bearing: [2]f32,
     advance: [2]f32,
 
-    fn init(face: c.FT_Face, key: u32, index: u8) Character {
-        if (c.FT_Load_Char(face, key, c.FT_LOAD_RENDER) == 1) {
+    fn size(face: c.FT_Face, key: u32, padding: comptime_int) ![2]usize {
+        const ft_load_flags = c.FT_LOAD_DEFAULT | c.FT_LOAD_NO_BITMAP;
+        const ft_render_mode = c.FT_RENDER_MODE_SDF;
+
+        if (c.FT_Load_Char(face, key, ft_load_flags) != 0) {
             std.log.err("Failed to load glyph for character {}\n", .{key});
-            std.process.exit(1);
+            return error.GlyphLoadError;
+        }
+
+        if (c.FT_Render_Glyph(face.*.glyph, ft_render_mode) != 0) {
+            return error.GlyphRenderError;
+        }
+
+        const bitmap = &face.*.glyph.*.bitmap;
+
+        const padded_width = bitmap.width + padding * 2;
+        const padded_rows = bitmap.rows + padding * 2;
+
+        return .{ padded_width, padded_rows };
+    }
+
+    fn init(face: c.FT_Face, key: u32, index: u8, padding: comptime_int) !Character {
+        const padded_size = try Character.size(face, key, padding);
+        const bitmap = &face.*.glyph.*.bitmap;
+
+        var padded_buffer = try std.heap.c_allocator.alloc(u8, padded_size[0] * padded_size[1]);
+        defer std.heap.c_allocator.free(padded_buffer);
+        @memset(padded_buffer, 0);
+
+        for (0..@intCast(bitmap.rows)) |y| {
+            const src_row = y * bitmap.width;
+            const dst_row = (y + padding) * padded_size[0] + padding;
+            @memcpy(
+                padded_buffer[dst_row .. dst_row + bitmap.width],
+                bitmap.buffer[src_row .. src_row + bitmap.width],
+            );
         }
 
         zgl.texSubImage3D(
@@ -164,32 +212,33 @@ pub const Character = struct {
             0,
             0,
             index,
-            face.*.glyph.*.bitmap.width,
-            face.*.glyph.*.bitmap.rows,
+            padded_size[0],
+            padded_size[1],
             1,
             .red,
             .unsigned_byte,
-            face.*.glyph.*.bitmap.buffer,
+            padded_buffer.ptr,
         );
 
-        zgl.texParameter(.@"2d_array", .wrap_s, .clamp_to_border);
-        zgl.texParameter(.@"2d_array", .wrap_t, .clamp_to_border);
-        zgl.texParameter(.@"2d_array", .min_filter, .linear);
+        zgl.texParameter(.@"2d_array", .wrap_s, .clamp_to_edge);
+        zgl.texParameter(.@"2d_array", .wrap_t, .clamp_to_edge);
+        zgl.texParameter(.@"2d_array", .min_filter, .linear_mipmap_linear);
         zgl.texParameter(.@"2d_array", .mag_filter, .linear);
+        zgl.texParameter(.@"2d_array", .max_level, 4);
 
         return .{
             .texture_id = index,
             .size = .{
-                @floatFromInt(face.*.glyph.*.bitmap.width),
-                @floatFromInt(face.*.glyph.*.bitmap.rows),
+                @floatFromInt(bitmap.width),
+                @floatFromInt(bitmap.rows),
             },
             .bearing = .{
                 @floatFromInt(face.*.glyph.*.bitmap_left),
                 @floatFromInt(face.*.glyph.*.bitmap_top),
             },
             .advance = .{
-                @floatFromInt(face.*.glyph.*.advance.x >> 6),
-                @floatFromInt(face.*.glyph.*.advance.y >> 6),
+                @as(f32, @floatFromInt(face.*.glyph.*.advance.x)) / 64.0,
+                @as(f32, @floatFromInt(face.*.glyph.*.advance.y)) / 64.0,
             },
         };
     }
