@@ -9,7 +9,7 @@ layout(std140) uniform UniformBlock {
   vec4 degrees[2];
 };
 
-uniform mat4 transform[400];
+uniform mat4 transform[100];
 
 out VS_OUT {
   vec2 pos;
@@ -29,8 +29,10 @@ void main() {
   vs_out.texCoords = in_pos;
   vs_out.index = gl_InstanceID;
 
-  vs_out.startColor = startColor;
-  vs_out.endColor = endColor;
+  vs_out.startColor[0] = startColor[0];
+  vs_out.startColor[1] = startColor[1];
+  vs_out.endColor[0] = endColor[0];
+  vs_out.endColor[1] = endColor[1];
   vs_out.degrees[0] = degrees[0].x;
   vs_out.degrees[1] = degrees[1].x;
 }

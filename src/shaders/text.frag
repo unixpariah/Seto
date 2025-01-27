@@ -6,8 +6,8 @@ uniform vec4 outlineColor = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float outlineWidth = 1.0;
 
 uniform sampler2DArray text;
-uniform int letterMap[400];
-uniform int colorIndex[400];
+uniform int letterMap[100];
+uniform int colorIndex[100];
 
 in VS_OUT {
   vec2 pos;

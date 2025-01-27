@@ -233,7 +233,7 @@ pub fn xdgOutputListener(
                 projection: math.Mat4,
                 start_color: [2][4]f32,
                 end_color: [2][4]f32,
-                degrees: [2]f32,
+                degrees: [2][4]f32,
             }{
                 .projection = math.orthographicProjection(
                     output.info.x,
@@ -250,8 +250,8 @@ pub fn xdgOutputListener(
                     seto.config.font.highlight_color.end_color,
                 },
                 .degrees = .{
-                    seto.config.font.color.deg,
-                    seto.config.font.highlight_color.deg,
+                    .{ seto.config.font.color.deg, 0, 0, 0 },
+                    .{ seto.config.font.highlight_color.deg, 0, 0, 0 },
                 },
             };
 

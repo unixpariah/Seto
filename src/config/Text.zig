@@ -8,7 +8,7 @@ const Config = @import("../Config.zig");
 const Color = @import("helpers").Color;
 const Font = @import("Font.zig");
 
-const LENGTH = 400;
+const LENGTH = 100;
 
 atlas: FontAtlas,
 letter_map: [LENGTH]i32,
