@@ -22,9 +22,9 @@ pub fn build(b: *std.Build) void {
     const xkbcommon = b.dependency("zig-xkbcommon", .{}).module("xkbcommon");
     const ziglua = b.dependency("ziglua", opts).module("ziglua");
     const zgl = b.dependency("zgl", opts).module("zgl");
-    const length = b.option(u32, "length", "Maximum array length for shaders") orelse 100;
+    const max_instances = b.option(u32, "max-instances", "Maximum array length for shaders") orelse 100;
     var opt = b.addOptions();
-    opt.addOption(u32, "length", length);
+    opt.addOption(u32, "max_instances", max_instances);
 
     const exe = b.addExecutable(.{
         .name = "seto",
@@ -48,7 +48,7 @@ pub fn build(b: *std.Build) void {
 
     helpers.addImport("zgl", zgl);
 
-    exe.root_module.addOptions("length", opt);
+    exe.root_module.addOptions("max_instances", opt);
 
     exe.root_module.addImport("zgl", zgl);
     exe.root_module.addImport("ffi", ffi);

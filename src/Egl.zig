@@ -3,6 +3,7 @@ const c = @import("ffi");
 const wl = @import("wayland").client.wl;
 const math = @import("math");
 const zgl = @import("zgl");
+const max_instances = @import("max_instances").max_instances;
 
 fn glMessageCallback(_: ?*const anyopaque, source: zgl.DebugSource, err_type: zgl.DebugMessageType, id: usize, severity: zgl.DebugSeverity, message: []const u8) void {
     std.debug.print("{} {} {} {} {s}\n", .{ source, err_type, id, severity, message });
@@ -156,8 +157,17 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
         return error.ShaderLinkError;
     }
 
-    const text_vertex_source = @embedFile("shaders/text.vert");
-    const text_fragment_source = @embedFile("shaders/text.frag");
+    const shader_header =
+        "#version 450 core\n" ++
+        "#define LENGTH " ++ std.fmt.comptimePrint("{d}", .{max_instances}) ++ "\n";
+
+    const text_vertex_source =
+        shader_header ++
+        @embedFile("shaders/text.vert");
+
+    const text_fragment_source =
+        shader_header ++
+        @embedFile("shaders/text.frag");
 
     const text_vertex_shader = zgl.createShader(.vertex);
     const text_fragment_shader = zgl.createShader(.fragment);

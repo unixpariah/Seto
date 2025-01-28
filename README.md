@@ -29,8 +29,14 @@ cd seto
 3. Build and run
 
 ```bash
-zig build -Doptimize=ReleaseSafe run
+zig build -Dmax-instances=100 -Doptimize=ReleaseSafe run
 ```
+
+### `--max-instances` (Default: 100)
+Controls how many characters can be rendered in a single draw call. 
+Higher values typically improve performance but may cause issues on:
+- Older GPUs
+- Drivers with strict shader array limits
 
 ## Configuration
 

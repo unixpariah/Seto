@@ -1,10 +1,10 @@
-#version 450 core
+// #version 450 core
 
 layout(location = 0) out vec4 FragColor;
 
 uniform sampler2DArray text;
-uniform int letterMap[400];
-uniform int colorIndex[400];
+uniform int letterMap[LENGTH];
+uniform int colorIndex[LENGTH];
 
 in VS_OUT {
   vec2 pos;

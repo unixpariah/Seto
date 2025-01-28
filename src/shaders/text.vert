@@ -1,4 +1,4 @@
-#version 450 core
+// #version 450 core
 
 in vec2 in_pos;
 
@@ -9,7 +9,7 @@ layout(std140) uniform UniformBlock {
   vec4 degrees[2];
 };
 
-uniform mat4 transform[100];
+uniform mat4 transform[LENGTH];
 
 out VS_OUT {
   vec2 pos;
