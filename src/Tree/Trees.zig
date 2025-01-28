@@ -45,11 +45,6 @@ pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
     if (self.state_ptr.border_mode) return self.border_tree.find(buffer) else return self.normal_tree.find(buffer);
 }
 
-pub fn updateCoordinates(self: *Self) void {
-    self.normal_tree.updateCoordinates(self.state_ptr.total_dimensions);
-    self.border_tree.updateCoordinates();
-}
-
 pub fn drawText(self: *Self, output: *Output, buffer: []u32) void {
     if (self.state_ptr.border_mode)
         self.border_tree.drawText(output, buffer, self.config_ptr)

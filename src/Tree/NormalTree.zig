@@ -34,7 +34,7 @@ pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *Config, total
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self, total_dimensions: TotalDimensions, config: *Config) void {
+fn updateCoordinates(self: *Self, total_dimensions: TotalDimensions, config: *Config) void {
     const total_intersections: usize = blk: {
         const width = total_dimensions.width - total_dimensions.x;
         const height = total_dimensions.height - total_dimensions.y;
@@ -474,3 +474,11 @@ const Node = struct {
         }
     }
 };
+
+test "m" {
+    const total_dimensions = TotalDimensions{ .x = 0, .y = 0, .width = 3479, .height = 2159 };
+    const alloc = std.heap.c_allocator;
+    const config = Config.default(alloc);
+    const tree = Self.init(alloc, .{ "a", "b", "c" }, &config, total_dimensions);
+    _ = tree;
+}

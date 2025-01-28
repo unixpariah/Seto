@@ -1,3 +1,4 @@
+const length = @import("length").length;
 const c = @import("ffi");
 const zgl = @import("zgl");
 const std = @import("std");
@@ -8,12 +9,10 @@ const Config = @import("../Config.zig");
 const Color = @import("helpers").Color;
 const Font = @import("Font.zig");
 
-const LENGTH = 100;
-
 atlas: FontAtlas,
-letter_map: [LENGTH]i32,
-transform: [LENGTH]math.Mat4,
-color_index: [LENGTH]i32,
+letter_map: [length]i32,
+transform: [length]math.Mat4,
+color_index: [length]i32,
 alloc: std.mem.Allocator,
 index: u32,
 
@@ -62,9 +61,9 @@ pub fn init(alloc: std.mem.Allocator, search_keys: []const u32, font_family: [:0
     }
 
     return .{
-        .letter_map = [_]i32{0} ** LENGTH,
-        .transform = [_]math.Mat4{math.mat4()} ** LENGTH,
-        .color_index = [_]i32{0} ** LENGTH,
+        .letter_map = [_]i32{0} ** length,
+        .transform = [_]math.Mat4{math.mat4()} ** length,
+        .color_index = [_]i32{0} ** length,
         .alloc = alloc,
         .index = 0,
         .atlas = try FontAtlas.init(alloc, face, search_keys),
@@ -91,7 +90,7 @@ pub fn place(self: *Self, font_size: f32, text: []const u32, x: f32, y: f32, hig
 
         move += ch.advance[0] * font_size / 256.0;
         self.index += 1;
-        if (self.index >= LENGTH) self.renderCall(shader_program);
+        if (self.index >= length) self.renderCall(shader_program);
     }
 }
 

@@ -81,9 +81,7 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
         null,
     ) orelse return error.EGLError;
 
-    var major: i32 = 0;
-    var minor: i32 = 0;
-    if (c.eglInitialize(egl_display, @ptrCast(&major), @ptrCast(&minor)) != c.EGL_TRUE) return error.EGLError;
+    if (c.eglInitialize(egl_display, null, null) != c.EGL_TRUE) return error.EGLError;
 
     const config = egl_conf: {
         var config: c.EGLConfig = null;
@@ -111,8 +109,8 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
         config,
         c.EGL_NO_CONTEXT,
         &[_]i32{
-            c.EGL_CONTEXT_MAJOR_VERSION,       major,
-            c.EGL_CONTEXT_MINOR_VERSION,       minor,
+            c.EGL_CONTEXT_MAJOR_VERSION,       4,
+            c.EGL_CONTEXT_MINOR_VERSION,       6,
             c.EGL_CONTEXT_OPENGL_DEBUG,        c.EGL_TRUE,
             c.EGL_CONTEXT_OPENGL_PROFILE_MASK, c.EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
             c.EGL_NONE,
@@ -182,8 +180,7 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
 
     var VAO = zgl.genVertexArray();
     VAO.bind();
-    zgl.enableVertexAttribArray(zgl.getAttribLocation(main_shader_program, "in_pos").?);
-    zgl.enableVertexAttribArray(zgl.getAttribLocation(text_shader_program, "in_pos").?);
+    zgl.enableVertexAttribArray(0);
 
     var VBO: [3]zgl.Buffer = undefined;
     zgl.genBuffers(&VBO);

@@ -30,8 +30,13 @@ pub const OutputInfo = struct {
     y: f32 = 0,
     refresh: f32 = 0,
 
-    fn deinit(self: *OutputInfo, alloc: mem.Allocator) void {
+    pub fn deinit(self: *OutputInfo, alloc: mem.Allocator) void {
         if (self.name) |name| alloc.free(name);
+    }
+
+    pub fn cmp(_: OutputInfo, a: OutputInfo, b: OutputInfo) bool {
+        if (a.x != b.x) return a.x < b.x;
+        return a.y < b.y;
     }
 };
 
@@ -75,11 +80,6 @@ fn posInX(self: *const Self, coordinates: [2]f32) bool {
 
 pub fn posInSurface(self: *const Self, coordinates: [2]f32) bool {
     return self.posInX(coordinates) and self.posInY(coordinates);
-}
-
-pub fn cmp(_: Self, a: Self, b: Self) bool {
-    if (a.info.x != b.info.x) return a.info.x < b.info.x;
-    return a.info.y < b.info.y;
 }
 
 pub fn draw(self: *const Self, config: *Config, state: State) void {
@@ -264,13 +264,14 @@ pub fn xdgOutputListener(
                 0,
             );
 
-            seto.updateDimensions();
-
             var outputs_info = seto.alloc.alloc(OutputInfo, seto.outputs.items.len) catch @panic("");
             defer seto.alloc.free(outputs_info);
             for (seto.outputs.items, 0..) |o, i| {
                 outputs_info[i] = o.info;
             }
+
+            seto.state.total_dimensions = TotalDimensions.updateDimensions(outputs_info);
+
             if (seto.trees) |*trees| {
                 trees.deinit();
                 seto.trees = Trees.init(output.alloc, &seto.config, &seto.state, outputs_info);

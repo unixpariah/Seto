@@ -43,6 +43,24 @@ pub const TotalDimensions = struct {
     y: f32 = 0,
     width: f32 = 0,
     height: f32 = 0,
+
+    pub fn updateDimensions(outputs: []OutputInfo) TotalDimensions {
+        // Sort outputs from left to right row by row
+        std.mem.sort(OutputInfo, outputs, outputs[0], OutputInfo.cmp);
+
+        const first = outputs[0];
+        var index: usize = outputs.len - 1;
+        const last = while (index > 0) : (index -= 1) {
+            if (outputs[index].height != 0 and outputs[index].width != 0) break outputs[index];
+        } else first;
+
+        return .{
+            .x = first.x,
+            .y = first.y,
+            .width = (last.x + last.width - 1) - first.x,
+            .height = (last.y + last.height - 1) - first.y,
+        };
+    }
 };
 
 pub const State = struct {
@@ -70,14 +88,7 @@ pub const Seto = struct {
 
     const Self = @This();
 
-    fn init(alloc: mem.Allocator, registry: *wl.Registry, seat: Seat, egl: Egl, config: Config) !Self {
-        _ = registry;
-        //const compositor = registry.bind(
-        //    global.name,
-        //    wl.Compositor,
-        //    wl.Compositor.generated_version,
-        //) catch @panic("Failed to bind wl_compositor");
-
+    fn init(alloc: mem.Allocator, seat: Seat, egl: Egl, config: Config) !Self {
         return Seto{
             .seat = seat,
             .outputs = std.ArrayList(Output).init(alloc),
@@ -85,26 +96,6 @@ pub const Seto = struct {
             .egl = egl,
             .config = config,
             .state = .{ .buffer = std.ArrayList(u32).init(alloc) },
-        };
-    }
-
-    pub fn updateDimensions(self: *Self) void {
-        // Sort outputs from left to right row by row
-        std.mem.sort(Output, self.outputs.items, self.outputs.items[0], Output.cmp);
-
-        const first = self.outputs.items[0].info;
-        var index: usize = self.outputs.items.len - 1;
-        const last = while (index > 0) : (index -= 1) {
-            if (self.outputs.items[index].isConfigured()) {
-                break self.outputs.items[index].info;
-            }
-        } else first;
-
-        self.state.total_dimensions = .{
-            .x = first.x,
-            .y = first.y,
-            .width = (last.x + last.width - 1) - first.x,
-            .height = (last.y + last.height - 1) - first.y,
         };
     }
 
@@ -217,10 +208,11 @@ pub fn main() !void {
 
     const seat = try Seat.init(alloc);
     const egl = try Egl.init(alloc, display);
-    var seto = try Seto.init(alloc, registry, seat, egl, config);
+    var seto = try Seto.init(alloc, seat, egl, config);
+    defer seto.deinit();
+
     var text = try Text.init(alloc, keys.search, font.family);
     seto.config.text = &text;
-    defer seto.deinit();
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
@@ -350,10 +342,114 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
                 if (output.info.id == global.name) {
                     output.deinit();
                     _ = seto.outputs.swapRemove(i);
-                    seto.updateDimensions();
+
+                    var outputs_info = seto.alloc.alloc(OutputInfo, seto.outputs.items.len) catch @panic("");
+                    defer seto.alloc.free(outputs_info);
+                    for (seto.outputs.items, 0..) |o, j| {
+                        outputs_info[j] = o.info;
+                    }
+
+                    seto.state.total_dimensions = TotalDimensions.updateDimensions(outputs_info);
                     return;
                 }
             }
         },
     }
+}
+
+test "single monitor" {
+    const allocator = std.testing.allocator;
+
+    var outputs = [_]OutputInfo{.{ .id = 1, .name = try allocator.dupe(u8, "Single"), .width = 1920, .height = 1080, .x = 0, .y = 0 }};
+
+    const dimensions = TotalDimensions.updateDimensions(&outputs);
+    defer outputs[0].deinit(allocator);
+
+    try std.testing.expectEqual(@as(f32, 0), dimensions.x);
+    try std.testing.expectEqual(@as(f32, 0), dimensions.y);
+    try std.testing.expectEqual(@as(f32, 1919), dimensions.width);
+    try std.testing.expectEqual(@as(f32, 1079), dimensions.height);
+}
+
+test "your specific monitor layout" {
+    const allocator = std.testing.allocator;
+
+    var outputs = [_]OutputInfo{
+        .{
+            .id = 1,
+            .name = try allocator.dupe(u8, "HDMI-A-7"),
+            .width = 1920,
+            .height = 1080,
+            .x = 960,
+            .y = 0,
+        },
+        .{
+            .id = 2,
+            .name = try allocator.dupe(u8, "DP-4"),
+            .width = 1920,
+            .height = 1080,
+            .x = 0,
+            .y = 1080,
+        },
+        .{
+            .id = 3,
+            .name = try allocator.dupe(u8, "DP-5"),
+            .width = 1920,
+            .height = 1080,
+            .x = 1920,
+            .y = 1080,
+        },
+    };
+    defer {
+        for (&outputs) |*out| out.deinit(allocator);
+    }
+
+    const dimensions = TotalDimensions.updateDimensions(&outputs);
+
+    try std.testing.expectEqual(@as(f32, 0), dimensions.x);
+    try std.testing.expectEqual(@as(f32, 1080), dimensions.y);
+    try std.testing.expectEqual(@as(f32, 1920 + 1920 - 1 - 0), dimensions.width);
+    try std.testing.expectEqual(@as(f32, 1080 + 1080 - 1 - 1080), dimensions.height);
+}
+
+test "vertical stack" {
+    const allocator = std.testing.allocator;
+
+    var outputs = [_]OutputInfo{ .{ .id = 1, .name = try allocator.dupe(u8, "Top"), .width = 1920, .height = 1080, .x = 0, .y = 0 }, .{ .id = 2, .name = try allocator.dupe(u8, "Bottom"), .width = 1920, .height = 1080, .x = 0, .y = 1080 } };
+    defer {
+        for (&outputs) |*out| out.deinit(allocator);
+    }
+
+    const dimensions = TotalDimensions.updateDimensions(&outputs);
+
+    try std.testing.expectEqual(@as(f32, 0), dimensions.x);
+    try std.testing.expectEqual(@as(f32, 0), dimensions.y);
+    try std.testing.expectEqual(@as(f32, 1919), dimensions.width);
+    try std.testing.expectEqual(@as(f32, 2159), dimensions.height);
+}
+
+test "ignore zero-sized monitors" {
+    const allocator = std.testing.allocator;
+
+    var outputs = [_]OutputInfo{
+        .{ .id = 1, .name = try allocator.dupe(u8, "Active"), .width = 2560, .height = 1440, .x = 0, .y = 0 },
+        .{
+            .id = 2,
+            .name = try allocator.dupe(u8, "Inactive"),
+            .width = 0,
+            .height = 0,
+            .x = 2560,
+            .y = 0,
+        },
+    };
+    defer {
+        for (&outputs) |*out| out.deinit(allocator);
+    }
+
+    const dimensions = TotalDimensions.updateDimensions(&outputs);
+
+    try std.testing.expectEqual(@as(f32, 0), dimensions.x);
+    try std.testing.expectEqual(@as(f32, 0), dimensions.y);
+    try std.testing.expectEqual(@as(f32, 2559), dimensions.width);
+    try std.testing.expectEqual(@as(f32, 1439), dimensions.height);
 }
