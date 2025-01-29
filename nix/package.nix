@@ -45,7 +45,7 @@ stdenv.mkDerivation (finalAttrs: {
   buildPhase = ''
     mkdir -p .cache
     ln -s ${callPackage ./deps.nix { }} .cache/p
-    zig build install --cache-dir $(pwd)/.zig-cache --global-cache-dir $(pwd)/.cache -Dlength=${arrayLength} -Dcpu=baseline -Doptimize=${build} --prefix $out
+    zig build install --cache-dir $(pwd)/.zig-cache --global-cache-dir $(pwd)/.cache -Dmax-instances=${toString arrayLength} -Dcpu=baseline -Doptimize=${build} --prefix $out
   '';
 
   postInstall = ''
