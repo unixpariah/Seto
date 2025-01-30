@@ -17,16 +17,16 @@ pub const EglSurface = struct {
     window: *wl.EglWindow,
     surface: c.EGLSurface,
 
-    display: *c.EGLDisplay,
-    config: *c.EGLConfig,
-    context: *c.EGLContext,
+    display: *const c.EGLDisplay,
+    config: *const c.EGLConfig,
+    context: *const c.EGLContext,
     main_shader_program: zgl.Program,
     text_shader_program: zgl.Program,
     background_buffer: zgl.Buffer,
-    gen_VBO: *[3]zgl.Buffer,
+    gen_VBO: *const [3]zgl.Buffer,
     UBO: zgl.Buffer,
 
-    pub fn resize(self: *EglSurface, new_dimensions: [2]u32) void {
+    pub fn resize(self: *const EglSurface, new_dimensions: [2]u32) void {
         self.window.resize(@intCast(new_dimensions[0]), @intCast(new_dimensions[1]), 0, 0);
     }
 
@@ -43,7 +43,7 @@ pub const EglSurface = struct {
         if (c.eglSwapBuffers(self.display.*, self.surface) != c.EGL_TRUE) return error.EGLError;
     }
 
-    pub fn deinit(self: *EglSurface) void {
+    pub fn deinit(self: *const EglSurface) void {
         self.background_buffer.delete();
         if (c.eglDestroySurface(self.display.*, self.surface) != c.EGL_TRUE) @panic("Failed to destroy egl surface");
         self.window.destroy();
@@ -230,7 +230,7 @@ pub fn init(alloc: std.mem.Allocator, display: *wl.Display) !Self {
     };
 }
 
-pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]i32) !EglSurface {
+pub fn surfaceInit(self: *const Self, surface: *wl.Surface, size: [2]i32) !EglSurface {
     const egl_window = try wl.EglWindow.create(surface, size[0], size[1]);
 
     const egl_surface = c.eglCreatePlatformWindowSurface(
@@ -257,7 +257,7 @@ pub fn surfaceInit(self: *Self, surface: *wl.Surface, size: [2]i32) !EglSurface 
     };
 }
 
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *const Self) void {
     self.EBO.delete();
     for (self.VBO) |VBO| VBO.delete();
     self.VAO.delete();

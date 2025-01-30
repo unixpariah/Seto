@@ -11,10 +11,10 @@ const zwlr = wayland.client.zwlr;
 const wl = wayland.client.wl;
 const zxdg = wayland.client.zxdg;
 
-const TotalDimensions = @import("main.zig").TotalDimensions;
+const TotalDimensions = @import("State.zig").TotalDimensions;
 const Mode = @import("Config.zig").Mode;
 const Seto = @import("main.zig").Seto;
-const State = @import("main.zig").State;
+const State = @import("State.zig");
 const Config = @import("Config.zig");
 const EglSurface = @import("Egl.zig").EglSurface;
 const Tree = @import("Tree/NormalTree.zig");
@@ -274,10 +274,10 @@ pub fn xdgOutputListener(
 
             if (seto.trees) |*trees| {
                 trees.deinit();
-                seto.trees = Trees.init(output.alloc, &seto.config, &seto.state, outputs_info);
+                seto.trees = Trees.init(output.alloc, seto.config, &seto.state, seto.text, outputs_info);
                 return;
             }
-            seto.trees = Trees.init(output.alloc, &seto.config, &seto.state, outputs_info);
+            seto.trees = Trees.init(output.alloc, seto.config, &seto.state, seto.text, outputs_info);
         },
         else => {},
     }

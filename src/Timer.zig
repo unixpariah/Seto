@@ -56,6 +56,6 @@ pub fn read(self: *Self) !u64 {
     return repeats;
 }
 
-pub fn getFd(self: *Self) i32 {
+pub fn getFd(self: *const Self) i32 {
     return self.fd;
 }

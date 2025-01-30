@@ -55,7 +55,7 @@ stdenv.mkDerivation (finalAttrs: {
       installManPage "$page"
     done
 
-    installShellCompletion --cmd sww \
+    installShellCompletion --cmd seto \
       --bash completions/seto.bash \
       --fish completions/seto.fish \
       --zsh completions/_seto

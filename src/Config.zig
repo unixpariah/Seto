@@ -10,7 +10,7 @@ const Font = @import("config/Font.zig");
 const Keys = @import("config//Keys.zig");
 const Grid = @import("config/Grid.zig");
 const Function = @import("config/Keys.zig").Function;
-const Text = @import("config/Text.zig");
+const Text = @import("Text.zig");
 const Color = helpers.Color;
 
 pub const Mode = union(enum) {
@@ -24,7 +24,6 @@ background_color: Color,
 keys: *Keys,
 font: *Font,
 grid: *Grid,
-text: *Text = undefined,
 alloc: std.mem.Allocator,
 
 const Self = @This();
@@ -67,10 +66,9 @@ pub fn load(lua: *Lua, keys: *Keys, grid: *Grid, font: *Font, alloc: std.mem.All
     return config;
 }
 
-pub fn deinit(self: *Self) void {
+pub fn deinit(self: *const Self) void {
     self.alloc.free(self.keys.search);
     self.alloc.free(self.font.family);
-    self.text.deinit();
     self.keys.bindings.deinit();
 }
 

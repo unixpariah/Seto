@@ -13,7 +13,7 @@ const Tree = @import("Tree/NormalTree.zig");
 const Output = @import("Output.zig");
 const Config = @import("Config.zig");
 const Egl = @import("Egl.zig");
-const Text = @import("config/Text.zig");
+const Text = @import("Text.zig");
 const EventLoop = @import("EventLoop.zig");
 const Trees = @import("Tree/Trees.zig");
 const OutputInfo = @import("Output.zig").OutputInfo;
@@ -21,6 +21,8 @@ const Seat = @import("seat.zig").Seat;
 const Font = @import("config/Font.zig");
 const Grid = @import("config/Grid.zig");
 const Keys = @import("config/Keys.zig");
+const State = @import("State.zig");
+const TotalDimensions = @import("State.zig").TotalDimensions;
 
 const getLuaFile = @import("Config.zig").getLuaFile;
 const handleKey = @import("seat.zig").handleKey;
@@ -38,58 +40,24 @@ const EventInterfaces = enum {
     zxdg_output_manager_v1,
 };
 
-pub const TotalDimensions = struct {
-    x: f32 = 0,
-    y: f32 = 0,
-    width: f32 = 0,
-    height: f32 = 0,
-
-    pub fn updateDimensions(outputs: []OutputInfo) TotalDimensions {
-        // Sort outputs from left to right row by row
-        std.mem.sort(OutputInfo, outputs, outputs[0], OutputInfo.cmp);
-
-        const first = outputs[0];
-        var index: usize = outputs.len - 1;
-        const last = while (index > 0) : (index -= 1) {
-            if (outputs[index].height != 0 and outputs[index].width != 0) break outputs[index];
-        } else first;
-
-        return .{
-            .x = first.x,
-            .y = first.y,
-            .width = (last.x + last.width - 1) - first.x,
-            .height = (last.y + last.height - 1) - first.y,
-        };
-    }
-};
-
-pub const State = struct {
-    exit: bool = false,
-    border_mode: bool = false,
-    buffer: std.ArrayList(u32),
-    total_dimensions: TotalDimensions = .{},
-
-    pub fn deinit(self: *State) void {
-        self.buffer.deinit();
-    }
-};
-
 pub const Seto = struct {
-    egl: Egl,
+    egl: *const Egl,
     compositor: ?*wl.Compositor = null,
     layer_shell: ?*zwlr.LayerShellV1 = null,
     output_manager: ?*zxdg.OutputManagerV1 = null,
-    seat: Seat,
+    seat: *Seat,
     outputs: std.ArrayList(Output),
-    config: Config,
+    config: *Config,
     alloc: mem.Allocator,
     state: State,
     trees: ?Trees = null,
+    text: *Text,
 
     const Self = @This();
 
-    fn init(alloc: mem.Allocator, seat: Seat, egl: Egl, config: Config) !Self {
+    fn init(alloc: mem.Allocator, seat: *Seat, egl: *const Egl, config: *Config, text: *Text) !Self {
         return Seto{
+            .text = text,
             .seat = seat,
             .outputs = std.ArrayList(Output).init(alloc),
             .alloc = alloc,
@@ -164,7 +132,7 @@ pub const Seto = struct {
 
             _ = c.eglSwapInterval(output.egl.display.*, 0);
 
-            output.draw(&self.config, self.state);
+            output.draw(self.config, self.state);
             self.trees.?.drawText(output, self.state.buffer.items);
 
             try output.egl.swapBuffers();
@@ -172,6 +140,7 @@ pub const Seto = struct {
     }
 
     fn deinit(self: *Self) void {
+        self.text.deinit();
         self.state.deinit();
         if (self.compositor) |compositor| compositor.destroy();
         if (self.layer_shell) |layer_shell| layer_shell.destroy();
@@ -204,15 +173,13 @@ pub fn main() !void {
     var font = Font.init(lua, alloc);
     var grid = Grid.init(lua, alloc);
     var keys = try Keys.init(lua, alloc);
-    const config = try Config.load(lua, &keys, &grid, &font, alloc);
+    var config = try Config.load(lua, &keys, &grid, &font, alloc);
 
-    const seat = try Seat.init(alloc);
+    var seat = try Seat.init(alloc);
     const egl = try Egl.init(alloc, display);
-    var seto = try Seto.init(alloc, seat, egl, config);
-    defer seto.deinit();
-
     var text = try Text.init(alloc, keys.search, font.family);
-    seto.config.text = &text;
+    var seto = try Seto.init(alloc, &seat, &egl, &config, &text);
+    defer seto.deinit();
 
     registry.setListener(*Seto, registryListener, &seto);
     if (display.dispatch() != .SUCCESS) return error.DispatchFailed;
@@ -355,101 +322,4 @@ fn registryListener(registry: *wl.Registry, event: wl.Registry.Event, seto: *Set
             }
         },
     }
-}
-
-test "single monitor" {
-    const allocator = std.testing.allocator;
-
-    var outputs = [_]OutputInfo{.{ .id = 1, .name = try allocator.dupe(u8, "Single"), .width = 1920, .height = 1080, .x = 0, .y = 0 }};
-
-    const dimensions = TotalDimensions.updateDimensions(&outputs);
-    defer outputs[0].deinit(allocator);
-
-    try std.testing.expectEqual(@as(f32, 0), dimensions.x);
-    try std.testing.expectEqual(@as(f32, 0), dimensions.y);
-    try std.testing.expectEqual(@as(f32, 1919), dimensions.width);
-    try std.testing.expectEqual(@as(f32, 1079), dimensions.height);
-}
-
-test "your specific monitor layout" {
-    const allocator = std.testing.allocator;
-
-    var outputs = [_]OutputInfo{
-        .{
-            .id = 1,
-            .name = try allocator.dupe(u8, "HDMI-A-7"),
-            .width = 1920,
-            .height = 1080,
-            .x = 960,
-            .y = 0,
-        },
-        .{
-            .id = 2,
-            .name = try allocator.dupe(u8, "DP-4"),
-            .width = 1920,
-            .height = 1080,
-            .x = 0,
-            .y = 1080,
-        },
-        .{
-            .id = 3,
-            .name = try allocator.dupe(u8, "DP-5"),
-            .width = 1920,
-            .height = 1080,
-            .x = 1920,
-            .y = 1080,
-        },
-    };
-    defer {
-        for (&outputs) |*out| out.deinit(allocator);
-    }
-
-    const dimensions = TotalDimensions.updateDimensions(&outputs);
-
-    try std.testing.expectEqual(@as(f32, 0), dimensions.x);
-    try std.testing.expectEqual(@as(f32, 1080), dimensions.y);
-    try std.testing.expectEqual(@as(f32, 1920 + 1920 - 1 - 0), dimensions.width);
-    try std.testing.expectEqual(@as(f32, 1080 + 1080 - 1 - 1080), dimensions.height);
-}
-
-test "vertical stack" {
-    const allocator = std.testing.allocator;
-
-    var outputs = [_]OutputInfo{ .{ .id = 1, .name = try allocator.dupe(u8, "Top"), .width = 1920, .height = 1080, .x = 0, .y = 0 }, .{ .id = 2, .name = try allocator.dupe(u8, "Bottom"), .width = 1920, .height = 1080, .x = 0, .y = 1080 } };
-    defer {
-        for (&outputs) |*out| out.deinit(allocator);
-    }
-
-    const dimensions = TotalDimensions.updateDimensions(&outputs);
-
-    try std.testing.expectEqual(@as(f32, 0), dimensions.x);
-    try std.testing.expectEqual(@as(f32, 0), dimensions.y);
-    try std.testing.expectEqual(@as(f32, 1919), dimensions.width);
-    try std.testing.expectEqual(@as(f32, 2159), dimensions.height);
-}
-
-test "ignore zero-sized monitors" {
-    const allocator = std.testing.allocator;
-
-    var outputs = [_]OutputInfo{
-        .{ .id = 1, .name = try allocator.dupe(u8, "Active"), .width = 2560, .height = 1440, .x = 0, .y = 0 },
-        .{
-            .id = 2,
-            .name = try allocator.dupe(u8, "Inactive"),
-            .width = 0,
-            .height = 0,
-            .x = 2560,
-            .y = 0,
-        },
-    };
-    defer {
-        for (&outputs) |*out| out.deinit(allocator);
-    }
-
-    const dimensions = TotalDimensions.updateDimensions(&outputs);
-
-    try std.testing.expectEqual(@as(f32, 0), dimensions.x);
-    try std.testing.expectEqual(@as(f32, 0), dimensions.y);
-    try std.testing.expectEqual(@as(f32, 2559), dimensions.width);
-    try std.testing.expectEqual(@as(f32, 1439), dimensions.height);
 }

@@ -35,7 +35,7 @@ pub const Seat = struct {
         };
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *const Self) void {
         if (self.wl_seat) |wl_seat| wl_seat.destroy();
         if (self.wl_keyboard) |wl_keyboard| wl_keyboard.destroy();
         if (self.xkb_state) |xkb_state| xkb_state.unref();

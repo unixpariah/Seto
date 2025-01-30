@@ -2,6 +2,7 @@ const std = @import("std");
 const zgl = @import("zgl");
 const helpers = @import("helpers");
 
+const Text = @import("../Text.zig");
 const Seto = @import("../main.zig").Seto;
 const Output = @import("../Output.zig");
 const Grid = @import("../config/Grid.zig");
@@ -13,11 +14,11 @@ children: []Node,
 search_keys: []const u32,
 depth: usize,
 arena: std.heap.ArenaAllocator,
-config_ptr: *Config,
+config_ptr: *const Config,
 
 const Self = @This();
 
-pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *Config, outputs: []OutputInfo) Self {
+pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *const Config, text: *Text, outputs: []OutputInfo) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, search_keys.len) catch @panic("OOM");
     for (search_keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -30,12 +31,12 @@ pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *Config, outpu
         .config_ptr = config,
     };
 
-    tree.updateCoordinates(outputs, config);
+    tree.updateCoordinates(outputs, config, text);
 
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self, outputs: []OutputInfo, config: *Config) void {
+pub fn updateCoordinates(self: *Self, outputs: []OutputInfo, config: *const Config, text: *Text) void {
     const total_intersections: usize = outputs.len * 4;
 
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections) catch @panic("OOM");
@@ -63,7 +64,7 @@ pub fn updateCoordinates(self: *Self, outputs: []OutputInfo, config: *Config) vo
 
     var char_size: f32 = 0;
     for (self.search_keys) |key| {
-        const char = config.text.atlas.char_info.get(key) orelse continue;
+        const char = text.atlas.char_info.get(key) orelse continue;
 
         const scale = config.font.size / 256.0;
 
@@ -96,7 +97,7 @@ pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *Config) void {
+pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *const Config, text: *Text) void {
     output.egl.text_shader_program.use();
     output.egl.gen_VBO[2].bind(.array_buffer);
     zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
@@ -105,12 +106,13 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *Config) vo
     for (self.children) |*child| {
         path[0] = child.key;
         if (child.children) |_| {
-            child.drawText(config, path, 1, output, buffer);
+            child.drawText(text, config, path, 1, output, buffer);
         } else {
             if (child.coordinates) |coordinates| {
                 renderText(
                     output,
                     config,
+                    text,
                     buffer,
                     path,
                     coordinates,
@@ -119,7 +121,7 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *Config) vo
         }
     }
 
-    config.text.renderCall(output.egl.text_shader_program);
+    text.renderCall(output.egl.text_shader_program);
 }
 
 const Position = enum {
@@ -136,11 +138,20 @@ const Position = enum {
         const is_top = @abs(coords[1] - info.y) < epsilon;
         const is_bottom = @abs(coords[1] - (info.y + info.height - 1)) < epsilon;
 
-        return if (is_left and is_top) .top_left else if (is_left and is_bottom) .bottom_left else if (is_right and is_top) .top_right else if (is_right and is_bottom) .bottom_right else .other;
+        return if (is_left and is_top)
+            .top_left
+        else if (is_left and is_bottom)
+            .bottom_left
+        else if (is_right and is_top)
+            .top_right
+        else if (is_right and is_bottom)
+            .bottom_right
+        else
+            .other;
     }
 };
 
-fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
+fn renderText(output: *Output, config: *const Config, text: *Text, buffer: []u32, path: []u32, coordinates: [2]f32) void {
     const matches: usize = blk: {
         const min_len = @min(buffer.len, path.len);
         var count: usize = 0;
@@ -148,25 +159,32 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coor
         break :blk if (buffer.len > count) 0 else count;
     };
 
-    const PADDING_X: f32 = 5;
-    const PADDING_Y_TOP: f32 = 25;
-    const PADDING_Y_BOTTOM: f32 = 15;
-    const TEXT_OFFSET: f32 = 15;
-
     const coords = blk: {
-        const text_size = config.text.getSize(config.font.size, path);
+        const text_size = text.getSize(config.font.size, path);
         const pos = Position.from(output.info, coordinates);
 
         break :blk switch (pos) {
-            .top_left => .{ coordinates[0] + PADDING_X, coordinates[1] + PADDING_Y_TOP },
-            .bottom_left => .{ coordinates[0] + PADDING_X, coordinates[1] - PADDING_Y_BOTTOM },
-            .top_right => .{ coordinates[0] - TEXT_OFFSET - text_size, coordinates[1] + PADDING_Y_TOP },
-            .bottom_right => .{ coordinates[0] - TEXT_OFFSET - text_size, coordinates[1] - PADDING_Y_BOTTOM },
+            .top_left => .{
+                coordinates[0] + config.font.offset[0],
+                coordinates[1] + text_size.height + config.font.offset[1],
+            },
+            .bottom_left => .{
+                coordinates[0] + config.font.offset[0],
+                coordinates[1] - config.font.offset[1],
+            },
+            .top_right => .{
+                coordinates[0] - text_size.width - config.font.offset[0],
+                coordinates[1] + text_size.height + config.font.offset[1],
+            },
+            .bottom_right => .{
+                coordinates[0] - text_size.width - config.font.offset[0],
+                coordinates[1] - config.font.offset[1],
+            },
             .other => return,
         };
     };
 
-    config.text.place(
+    text.place(
         config.font.size,
         path[0..matches],
         coords[0],
@@ -175,10 +193,12 @@ fn renderText(output: *Output, config: *Config, buffer: []u32, path: []u32, coor
         output.egl.text_shader_program,
     );
 
-    config.text.place(
+    const text_size = text.getSize(config.font.size, path[0..matches]);
+
+    text.place(
         config.font.size,
         path[matches..],
-        coords[0] + config.text.getSize(config.font.size, path[0..matches]),
+        coords[0] + text_size.width,
         coords[1],
         false,
         output.egl.text_shader_program,
@@ -247,7 +267,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn drawText(self: *Node, config: *Config, path: []u32, index: u8, output: *Output, buffer: []u32) void {
+    fn drawText(self: *Node, text: *Text, config: *const Config, path: []u32, index: u8, output: *Output, buffer: []u32) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;
@@ -261,6 +281,7 @@ const Node = struct {
                         renderText(
                             output,
                             config,
+                            text,
                             buffer,
                             path,
                             coordinates,
@@ -268,7 +289,7 @@ const Node = struct {
                     }
                     continue;
                 }
-                child.drawText(config, path, index + 1, output, buffer);
+                child.drawText(text, config, path, index + 1, output, buffer);
             }
         }
     }

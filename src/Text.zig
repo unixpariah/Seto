@@ -5,9 +5,9 @@ const std = @import("std");
 const helpers = @import("helpers");
 const math = @import("math");
 
-const Config = @import("../Config.zig");
+const Config = @import("Config.zig");
 const Color = @import("helpers").Color;
-const Font = @import("Font.zig");
+const Font = @import("config/Font.zig");
 
 atlas: FontAtlas,
 letter_map: [max_instances]i32,
@@ -21,9 +21,6 @@ const Self = @This();
 pub fn init(alloc: std.mem.Allocator, search_keys: []const u32, font_family: [:0]const u8) !Self {
     var ft: c.FT_Library = undefined;
     if (c.FT_Init_FreeType(&ft) != 0) return error.FreeTypeInitError;
-    errdefer {
-        if (ft != null) _ = c.FT_Done_FreeType(ft);
-    }
 
     const fc_initialized = c.FcInit() == c.FcTrue;
     defer if (fc_initialized) c.FcFini();
@@ -78,17 +75,18 @@ pub fn place(self: *Self, font_size: f32, text: []const u32, x: f32, y: f32, hig
     if (text.len == 0) return;
 
     var move: f32 = 0;
+    const scale = font_size / 256.0;
     for (text) |char| {
         const ch = self.atlas.char_info.get(char) orelse continue;
 
-        const x_pos = x + ch.bearing[0] * font_size / 256.0 + move;
-        const y_pos = y - ch.bearing[1] * font_size / 256.0;
+        const x_pos = x + ch.bearing[0] * scale + move;
+        const y_pos = y - ch.bearing[1] * scale;
 
         self.transform[self.index] = math.transform(font_size, x_pos, y_pos);
         self.letter_map[self.index] = ch.texture_id;
         self.color_index[self.index] = @intFromBool(highlight);
 
-        move += ch.advance[0] * font_size / 256.0;
+        move += ch.advance[0] * scale;
         self.index += 1;
         if (self.index >= max_instances) self.renderCall(shader_program);
     }
@@ -102,18 +100,27 @@ pub fn renderCall(self: *Self, shader_program: zgl.Program) void {
     self.index = 0;
 }
 
-pub fn getSize(self: *const Self, font_size: f32, text: []const u32) f32 {
-    if (text.len == 0) return 0;
+pub fn getSize(self: *const Self, font_size: f32, text: []const u32) struct { width: f32, height: f32 } {
+    if (text.len == 0) return .{ .width = 0, .height = 0 };
 
     const scale = font_size / 256.0;
-    var move: f32 = 0;
+    var width: f32 = 0;
+    var max_ascent: f32 = 0;
+    var max_descent: f32 = 0;
+
     for (text) |char| {
         const ch = self.atlas.char_info.get(char) orelse continue;
 
-        move += ch.advance[0] * scale;
+        width += ch.advance[0] * scale;
+
+        const ascent = ch.bearing[1] * scale;
+        const descent = (ch.size[1] - ch.bearing[1]) * scale;
+
+        max_ascent = @max(max_ascent, ascent);
+        max_descent = @max(max_descent, descent);
     }
 
-    return move;
+    return .{ .width = width, .height = max_ascent + max_descent };
 }
 
 const FontAtlas = struct {
