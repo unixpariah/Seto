@@ -12,15 +12,7 @@ in
 {
   options.programs.seto = {
     enable = mkEnableOption "seto, hardware accelerated screen selection tool";
-    package = mkOption {
-      type = types.package;
-      default =
-        self.packages.${pkgs.system}.seto or (throw ''
-          The seto package is not available for your system. Please make sure it's available in your flake's packages output for ${pkgs.system}.
-        '');
-      defaultText = literalExpression "self.packages.\${pkgs.system}.seto";
-      description = "The seto package to use. Must be available in your flake's packages output.";
-    };
+    package = lib.mkPackageOption pkgs "seto" { };
     settings = {
       background_color = mkOption {
         type = types.str;

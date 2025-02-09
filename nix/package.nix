@@ -8,7 +8,7 @@
   wayland-scanner,
   wayland-protocols,
   libxkbcommon,
-  zig,
+  zig_0_13,
   pkg-config,
   scdoc,
   installShellFiles,
@@ -26,7 +26,7 @@ stdenv.mkDerivation (finalAttrs: {
   doCheck = false;
 
   nativeBuildInputs = [
-    zig
+    zig_0_13
     wayland
     wayland-protocols
     libGL
