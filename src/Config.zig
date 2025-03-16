@@ -39,7 +39,7 @@ pub fn default(alloc: std.mem.Allocator) Self {
 }
 
 pub inline fn getLuaFile(alloc: std.mem.Allocator) !*Lua {
-    var lua = try Lua.init(&alloc);
+    var lua = try Lua.init(alloc);
 
     const config_path = try getPath(alloc);
     defer alloc.free(config_path);

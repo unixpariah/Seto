@@ -1,5 +1,5 @@
 const std = @import("std");
-const Scanner = @import("zig-wayland").Scanner;
+const Scanner = @import("wayland").Scanner;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) void {
 
     const scanner = Scanner.create(b, .{});
     const wayland = b.createModule(.{ .root_source_file = scanner.result });
-    scanner.addCustomProtocol(b.path("protocols/wlr-layer-shell-unstable-v1.xml").getPath(b));
+    scanner.addCustomProtocol(b.path("protocols/wlr-layer-shell-unstable-v1.xml"));
     scanner.addSystemProtocol("stable/xdg-shell/xdg-shell.xml");
     scanner.addSystemProtocol("unstable/xdg-output/xdg-output-unstable-v1.xml");
     scanner.generate("wl_compositor", 6);
@@ -19,8 +19,8 @@ pub fn build(b: *std.Build) void {
     scanner.generate("zwlr_layer_shell_v1", 4);
     scanner.generate("zxdg_output_manager_v1", 3);
 
-    const xkbcommon = b.dependency("zig-xkbcommon", .{}).module("xkbcommon");
-    const ziglua = b.dependency("ziglua", opts).module("ziglua");
+    const xkbcommon = b.dependency("xkbcommon", .{}).module("xkbcommon");
+    const ziglua = b.dependency("lua_wrapper", opts).module("lua_wrapper");
     const zgl = b.dependency("zgl", opts).module("zgl");
     const max_instances = b.option(u32, "max-instances", "Maximum array length for shaders") orelse 100;
     var opt = b.addOptions();
@@ -61,9 +61,6 @@ pub fn build(b: *std.Build) void {
     exe.linkSystemLibrary("wayland-protocols");
     exe.linkSystemLibrary("xkbcommon");
     exe.linkSystemLibrary("wayland-egl");
-
-    // TODO: remove when https://github.com/ziglang/zig/issues/131 is implemented
-    scanner.addCSource(exe);
 
     b.installArtifact(exe);
 

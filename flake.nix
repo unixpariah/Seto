@@ -47,21 +47,16 @@
             fontconfig
             clang-tools
             scdoc
-            zig.packages.${system}."0.13.0"
+            zig.packages.${system}."0.14.0"
             zls.packages.${system}.default
             nixd
             nixfmt-rfc-style
-            #(callPackage ./nix/dawn.nix { })
           ];
         };
       });
 
-      packages = forAllSystems (pkgs: rec {
-        default = safe;
-        safe = pkgs.callPackage ./nix/package.nix { build = "ReleaseSafe"; };
-        debug = pkgs.callPackage ./nix/package.nix { build = "Debug"; };
-        fast = pkgs.callPackage ./nix/package.nix { build = "ReleaseFast"; };
-        small = pkgs.callPackage ./nix/package.nix { build = "ReleaseSmall"; };
+      packages = forAllSystems (pkgs: {
+        default = pkgs.callPackage ./nix/package.nix { };
       });
 
       homeManagerModules = {

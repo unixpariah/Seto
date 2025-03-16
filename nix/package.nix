@@ -8,12 +8,12 @@
   wayland-scanner,
   wayland-protocols,
   libxkbcommon,
-  zig_0_13,
+  zig,
   pkg-config,
   scdoc,
   installShellFiles,
   callPackage,
-  build ? "ReleaseSafe",
+  lua,
   arrayLength ? 100,
 }:
 stdenv.mkDerivation (finalAttrs: {
@@ -26,26 +26,27 @@ stdenv.mkDerivation (finalAttrs: {
   doCheck = false;
 
   nativeBuildInputs = [
-    zig_0_13
-    wayland
+    zig.hook
+    wayland-scanner
+    pkg-config
+    scdoc
+    installShellFiles
     wayland-protocols
+  ];
+
+  buildInputs = [
+    wayland
     libGL
     libxkbcommon
     freetype
     fontconfig
+    lua
   ];
 
-  buildInputs = [
-    pkg-config
-    scdoc
-    installShellFiles
-    wayland-scanner
-  ];
+  zigBuildFlags = [ "--release=safe" ];
 
-  buildPhase = ''
-    mkdir -p .cache
-    ln -s ${callPackage ./deps.nix { }} .cache/p
-    zig build install --cache-dir $(pwd)/.zig-cache --global-cache-dir $(pwd)/.cache -Dmax-instances=${toString arrayLength} -Dcpu=baseline -Doptimize=${build} --prefix $out
+  postPatch = ''
+    ln -s ${callPackage ./deps.nix { }} $ZIG_GLOBAL_CACHE_DIR/p
   '';
 
   postInstall = ''
@@ -67,6 +68,6 @@ stdenv.mkDerivation (finalAttrs: {
     homepage = "https://github.com/unixpariah/seto";
     license = licenses.gpl3;
     maintainers = with maintainers; [ unixpariah ];
-    platforms = platforms.unix;
+    platforms = platforms.linux;
   };
 })

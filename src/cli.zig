@@ -10,7 +10,7 @@ const allItemsMatch = helpers.allItemsMatch;
 const hexToRgba = helpers.hexToRgba;
 
 fn parseFloatArray(arg: ?[]const u8, separator: []const u8) ![2]f32 {
-    var iter = std.mem.split(
+    var iter = std.mem.splitSequence(
         u8,
         arg orelse return error.ArgumentMissing,
         separator,

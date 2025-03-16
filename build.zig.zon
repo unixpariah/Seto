@@ -1,23 +1,24 @@
 .{
-    .name = "Seto",
+    .name = .Seto,
+    .fingerprint = 0x20beb6a02f6c400a,
     .version = "0.1.0",
     .paths = .{""},
     .dependencies = .{
-        .ziglua = .{
-            .url = "https://github.com/natecraddock/ziglua/archive/a7cf85fb871a95a46d4222fe3abdd3946e3e0dab.tar.gz",
-            .hash = "122069f4b75c946c705c0ed3218f52e0917ca361f55cebf3fb1c66a431a88ccc87b3",
-        },
-        .@"zig-wayland" = .{
-            .url = "https://codeberg.org/ifreund/zig-wayland/archive/092e3424345d9c0a9467771b2f629fa01560a69f.tar.gz",
-            .hash = "1220ab835f090bde18b74191e88c4ab3bd49364d310bd9912eccebd3c47bad7957a3",
-        },
-        .@"zig-xkbcommon" = .{
-            .url = "https://codeberg.org/ifreund/zig-xkbcommon/archive/d8412eed455c8cfea5b4cda2ea260095ccb47045.tar.gz",
-            .hash = "12200989a0e5c5d8186dd16752e3d83d914d4f54ecca7b3e147443f13a9580ede671",
-        },
         .zgl = .{
-            .url = "https://github.com/ziglibs/zgl/archive/d8b25ff8e73de9e3540ee85481981e9ef7ce191b.tar.gz",
-            .hash = "12205cfce3b6a70f152447e39f6f74a4a5f3ccd6abca33ea6aaadb675797dc3329e9",
+            .url = "https://github.com/ziglibs/zgl/archive/master.tar.gz",
+            .hash = "zgl-1.1.0-p_NpAH2rCQCau2UOYRdNu2eC-_T4CMWcgpqpv8REofLl",
+        },
+        .xkbcommon = .{
+            .url = "https://codeberg.org/ifreund/zig-xkbcommon/archive/87e0910e12af79cbb74a37143c881abea32c96b7.tar.gz",
+            .hash = "xkbcommon-0.4.0-dev-VDqIe3a9AQDQa1H4Vh7__mVphznD-7tyNWdnjFgf-9fC",
+        },
+        .wayland = .{
+            .url = "https://codeberg.org/ifreund/zig-wayland/archive/f3c5d503e540ada8cbcb056420de240af0c094f7.tar.gz",
+            .hash = "wayland-0.4.0-dev-lQa1kjfIAQCmhhQu3xF0KH-94-TzeMXOqfnP0-Dg6Wyy",
+        },
+        .lua_wrapper = .{
+            .url = "https://github.com/natecraddock/ziglua/archive/7bfb3c2b87220cdc89ef01cc99a200dad7a28e50.tar.gz",
+            .hash = "lua_wrapper-0.1.0-OyMC27fOBAAU3E2ueB-EWGSgsuCFQZL83pT0nQJ1ufOI",
         },
     },
 }

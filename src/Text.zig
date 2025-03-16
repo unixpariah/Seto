@@ -42,7 +42,7 @@ pub fn init(alloc: std.mem.Allocator, search_keys: []const u32, font_family: [:0
     defer c.FcPatternDestroy(match);
     if (result != c.FcResultMatch) return error.FontParseError;
 
-    var font_path: ?[*:0]u8 = null;
+    var font_path: [*c]u8 = null;
     if (c.FcPatternGetString(match, c.FC_FILE, 0, &font_path) != c.FcResultMatch) {
         return error.FontNotFoundError;
     }
@@ -139,7 +139,7 @@ const FontAtlas = struct {
         var max_width: usize = 0;
         var max_height: usize = 0;
         for (keys) |key| {
-            const size = try Character.size(face, key, padding);
+            const size = try Character.key_size(face, key, padding);
             max_width = @max(max_width, size[0]);
             max_height = @max(max_height, size[1]);
         }
@@ -174,7 +174,7 @@ pub const Character = struct {
     bearing: [2]f32,
     advance: [2]f32,
 
-    fn size(face: c.FT_Face, key: u32, padding: comptime_int) ![2]usize {
+    fn key_size(face: c.FT_Face, key: u32, padding: comptime_int) ![2]usize {
         const ft_load_flags = c.FT_LOAD_DEFAULT | c.FT_LOAD_NO_BITMAP;
         const ft_render_mode = c.FT_RENDER_MODE_SDF;
 
@@ -196,7 +196,7 @@ pub const Character = struct {
     }
 
     fn init(face: c.FT_Face, key: u32, index: u8, padding: comptime_int) !Character {
-        const padded_size = try Character.size(face, key, padding);
+        const padded_size = try Character.key_size(face, key, padding);
         const bitmap = &face.*.glyph.*.bitmap;
 
         var padded_buffer = try std.heap.c_allocator.alloc(u8, padded_size[0] * padded_size[1]);

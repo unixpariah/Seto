@@ -91,6 +91,9 @@ pub fn init(lua: *Lua, alloc: std.mem.Allocator) !Self {
                             lua.pop(1);
                         }
                         break :x .{ function, move_value };
+                    } else {
+                        std.log.err("expected non-empty table for move function\n", .{});
+                        std.process.exit(1);
                     }
                 }
             };

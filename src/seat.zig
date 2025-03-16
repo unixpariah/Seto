@@ -169,7 +169,7 @@ pub fn handleKey(self: *Seto) void {
     const keysym_interrupt = 3;
 
     if (key == keysym_backspace) {
-        _ = self.state.buffer.popOrNull();
+        _ = self.state.buffer.pop();
     } else if (key == keysym_interrupt or key == keysym_escape) {
         self.state.exit = true;
     } else if (self.config.keys.bindings.get(@intCast(key))) |function| {
@@ -201,6 +201,6 @@ pub fn handleKey(self: *Seto) void {
         }
     } else {
         self.state.buffer.append(key) catch @panic("OOM");
-        _ = self.printToStdout() catch self.state.buffer.popOrNull();
+        _ = self.printToStdout() catch self.state.buffer.pop();
     }
 }
