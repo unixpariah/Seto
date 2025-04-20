@@ -5,6 +5,27 @@ Hardware accelerated keyboard driven screen selection tool.
 
 https://github.com/user-attachments/assets/1d97709c-f17b-4742-a36a-6eee580d06d4
 
+## Installing (NixOS)
+Add this to the inputs of your `flake.nix`
+```nix
+seto = {
+  url = "github:unixpariah/seto";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+```
+Then in either `environment.systemPackages` or `home.packages` add the following:
+```nix
+inputs.seto.packages.${pkgs.system}.default
+```
+
+## Installing (Arch Linux)
+Clone this repo and run `makepkg -si`
+
+```bash
+$ git clone https://github.com/unixpariah/seto.git
+$ cd seto
+$ makepkg -si
+```
 
 ## Building
 
