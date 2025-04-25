@@ -1,5 +1,3 @@
-zig-out
-.direnv
-.cache
+/target
 result
-.zig-cache
+.direnv

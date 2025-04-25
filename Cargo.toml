@@ -1,0 +1,21 @@
+[package]
+name = "status-bar"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.98"
+bytemuck = {version = "1.19.0", features = ["derive"]}
+calloop = "0.14.1"
+calloop-wayland-source = "0.4.0"
+env_logger = "0.11.5"
+polling = "3.7.3"
+pollster = "0.4.0"
+raw-window-handle = "0.6.2"
+wayland-backend = { version = "0.3.7", features = ["client_system"] }
+wayland-client = "0.31.7"
+wayland-protocols = {version = "0.32.5", features = ["unstable", "client"]}
+wayland-protocols-wlr = {version = "0.3.5", features = ["client"]}
+wgpu = "23.0.0"
