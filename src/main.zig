@@ -167,17 +167,23 @@ pub fn main() !void {
     };
     const alloc = if (@TypeOf(dbg_gpa) != void) dbg_gpa.allocator() else std.heap.c_allocator;
 
-    var lua = try getLuaFile(alloc);
-    defer lua.deinit();
+    var config = blk: {
+        if (getLuaFile(alloc)) |l| {
+            var lua = l;
+            defer lua.deinit();
 
-    var font = Font.init(lua, alloc);
-    var grid = Grid.init(lua, alloc);
-    var keys = try Keys.init(lua, alloc);
-    var config = try Config.load(lua, &keys, &grid, &font, alloc);
+            const font = Font.init(lua, alloc);
+            const grid = Grid.init(lua, alloc);
+            const keys = try Keys.init(lua, alloc);
+            break :blk try Config.load(lua, keys, grid, font, alloc);
+        } else |_| {
+            break :blk Config.default(alloc);
+        }
+    };
 
     var seat = try Seat.init(alloc);
     const egl = try Egl.init(alloc, display);
-    var text = try Text.init(alloc, keys.search, font.family);
+    var text = try Text.init(alloc, config.keys.search, config.font.family);
     var seto = try Seto.init(alloc, &seat, &egl, &config, &text);
     defer seto.deinit();
 

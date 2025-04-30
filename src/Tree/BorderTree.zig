@@ -14,11 +14,11 @@ children: []Node,
 search_keys: []const u32,
 depth: usize,
 arena: std.heap.ArenaAllocator,
-config_ptr: *const Config,
+config_ptr: *Config,
 
 const Self = @This();
 
-pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *const Config, text: *Text, outputs: []OutputInfo) Self {
+pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *Config, text: *Text, outputs: []OutputInfo) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, search_keys.len) catch @panic("OOM");
     for (search_keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -36,7 +36,7 @@ pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *const Config,
     return tree;
 }
 
-pub fn updateCoordinates(self: *Self, outputs: []OutputInfo, config: *const Config, text: *Text) void {
+pub fn updateCoordinates(self: *Self, outputs: []OutputInfo, config: *Config, text: *Text) void {
     const total_intersections: usize = outputs.len * 4;
 
     var intersections = std.ArrayList([2]f32).initCapacity(self.arena.allocator(), total_intersections) catch @panic("OOM");
@@ -97,7 +97,7 @@ pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *const Config, text: *Text) void {
+pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *Config, text: *Text) void {
     output.egl.text_shader_program.use();
     output.egl.gen_VBO[2].bind(.array_buffer);
     zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
@@ -151,7 +151,7 @@ const Position = enum {
     }
 };
 
-fn renderText(output: *Output, config: *const Config, text: *Text, buffer: []u32, path: []u32, coordinates: [2]f32) void {
+fn renderText(output: *Output, config: *Config, text: *Text, buffer: []u32, path: []u32, coordinates: [2]f32) void {
     const matches: usize = blk: {
         const min_len = @min(buffer.len, path.len);
         var count: usize = 0;
@@ -267,7 +267,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn drawText(self: *Node, text: *Text, config: *const Config, path: []u32, index: u8, output: *Output, buffer: []u32) void {
+    fn drawText(self: *Node, text: *Text, config: *Config, path: []u32, index: u8, output: *Output, buffer: []u32) void {
         if (self.children) |children| {
             for (children) |*child| {
                 path[index] = child.key;

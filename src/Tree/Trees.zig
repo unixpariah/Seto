@@ -11,12 +11,12 @@ const State = @import("../State.zig");
 const Self = @This();
 
 state_ptr: *const State,
-config_ptr: *const Config,
+config_ptr: *Config,
 text_ptr: *Text,
 border_tree: BorderTree,
 normal_tree: NormalTree,
 
-pub fn init(alloc: std.mem.Allocator, config: *const Config, state_ptr: *const State, text: *Text, outputs: []OutputInfo) Self {
+pub fn init(alloc: std.mem.Allocator, config: *Config, state_ptr: *const State, text: *Text, outputs: []OutputInfo) Self {
     return .{
         .state_ptr = state_ptr,
         .config_ptr = config,

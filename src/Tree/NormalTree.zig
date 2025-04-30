@@ -18,7 +18,7 @@ arena: std.heap.ArenaAllocator,
 
 const Self = @This();
 
-pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *const Config, text: *Text, total_dimensions: TotalDimensions) Self {
+pub fn init(alloc: std.mem.Allocator, search_keys: []u32, config: *Config, text: *Text, total_dimensions: TotalDimensions) Self {
     var arena = std.heap.ArenaAllocator.init(alloc);
     const nodes = arena.allocator().alloc(Node, search_keys.len) catch @panic("OOM");
     for (search_keys, 0..) |key, i| nodes[i] = Node{ .key = key };
@@ -47,7 +47,7 @@ fn get_depth(keys_len: f32, intersections_len: f32) usize {
     }
 }
 
-fn updateCoordinates(self: *Self, total_dimensions: TotalDimensions, config: *const Config, text: *Text) void {
+fn updateCoordinates(self: *Self, total_dimensions: TotalDimensions, config: *Config, text: *Text) void {
     const total_intersections = blk: {
         const width = (total_dimensions.width - total_dimensions.x) - config.grid.offset[0];
         const height = (total_dimensions.height - total_dimensions.y) - config.grid.offset[1];
@@ -102,7 +102,7 @@ fn updateCoordinates(self: *Self, total_dimensions: TotalDimensions, config: *co
     }
 }
 
-pub fn move(self: *Self, value: [2]f32, total_dimensions: TotalDimensions, config: *const Config) void {
+pub fn move(self: *Self, value: [2]f32, total_dimensions: TotalDimensions, config: *Config) void {
     config.grid.move(value);
     var intersections_num: usize = 0;
     for (self.children) |*child| {
@@ -169,7 +169,7 @@ pub fn move(self: *Self, value: [2]f32, total_dimensions: TotalDimensions, confi
     }
 }
 
-pub fn resize(self: *Self, value: [2]f32, total_dimensions: TotalDimensions, config: *const Config, text: *Text) void {
+pub fn resize(self: *Self, value: [2]f32, total_dimensions: TotalDimensions, config: *Config, text: *Text) void {
     var intersections_num: usize = 0;
     for (self.children) |*child| {
         child.resize(value, total_dimensions, config, &intersections_num);
@@ -246,7 +246,7 @@ pub fn find(self: *const Self, buffer: *[]u32) !?[2]f32 {
     return error.KeyNotFound;
 }
 
-pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *const Config, text: *Text) void {
+pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *Config, text: *Text) void {
     output.egl.text_shader_program.use();
     output.egl.gen_VBO[2].bind(.array_buffer);
     zgl.vertexAttribPointer(0, 2, .float, false, 0, 0);
@@ -274,7 +274,7 @@ pub fn drawText(self: *Self, output: *Output, buffer: []u32, config: *const Conf
     text.renderCall(output.egl.text_shader_program);
 }
 
-fn renderText(text: *Text, output: *Output, config: *const Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
+fn renderText(text: *Text, output: *Output, config: *Config, buffer: []u32, path: []u32, coordinates: [2]f32) void {
     const matches: usize = blk: {
         const min_len = @min(buffer.len, path.len);
         var count: usize = 0;
@@ -327,7 +327,7 @@ const Node = struct {
     children: ?[]Node = null,
     coordinates: ?[2]f32 = null,
 
-    fn resize(self: *Node, value: [2]f32, total_dimensions: TotalDimensions, config: *const Config, intersections_num: *usize) void {
+    fn resize(self: *Node, value: [2]f32, total_dimensions: TotalDimensions, config: *Config, intersections_num: *usize) void {
         if (self.coordinates) |*coordinates| {
             intersections_num.* += 1;
             const num_x_steps = @ceil((coordinates[0] - (total_dimensions.x + config.grid.offset[0])) / config.grid.size[0]);
@@ -429,7 +429,7 @@ const Node = struct {
         return error.KeyNotFound;
     }
 
-    fn drawText(self: *Node, text: *Text, config: *const Config, path: []u32, index: u8, output: *Output, buffer: []u32) void {
+    fn drawText(self: *Node, text: *Text, config: *Config, path: []u32, index: u8, output: *Output, buffer: []u32) void {
         if (self.children) |children| {
             if (index >= path.len) {
                 @panic("Path buffer overflow");
